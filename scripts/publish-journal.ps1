@@ -25,7 +25,7 @@
     .\scripts\publish-journal.ps1
 #>
 param(
-    [string]$Container = "lineops-postgres",
+    [string]$Container = "xlines-postgres",
     [string]$OutFile,
     [string]$ConnectionString
 )

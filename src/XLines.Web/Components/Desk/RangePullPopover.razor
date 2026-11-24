@@ -1,0 +1,223 @@
+@using System.Globalization
+@using XLines.Ingestion.Services
+@inject IJSRuntime JS
+
+@*
+    The Board's Date range key opens this: which league, which days, and whether days already
+    held complete are pulled again — then Pull, which hands the answers back and is gone.
+
+    A popover, not a sheet (plan 2026-11-14): one self-contained task with a few answers, which
+    scales from the key it belongs to and completes in place. It used to be a sheet opened from
+    the foot of the Pull data menu, a second surface before anything could be chosen.
+
+    One grouped form inside the popover's own edge — the popover is the group, so the group
+    draws no second frame. The league is a segmented control while the enabled leagues are few
+    enough to see at once (2–5), a pop-up past that; the days are a segmented control of quick
+    ranges, Custom revealing From and To side by side on one row, sharing its width; re-pulling
+    complete days is a toggle with its reason beneath. Pull is the one Filled key and waits, with
+    its reason on the key row, while the answers are not a range a pull takes (RangePull.Check).
+*@
+
+@* Escape anywhere in the form is Cancel: a menu's rows handle their own Escape, a form's
+   fields do not, and a popover that will not close from the keyboard is not a popover. *@
+<div @ref="_root" class="range-pop" role="dialog" aria-label="Pull a date range" @onkeydown="OnKey">
+    @* What will be asked sits under the group while the answers are a range; while they are not,
+       the key row says why Pull waits, once, beside the key it is about. *@
+    <FormGroup Title="Pull a date range" LabelWidth="64px" GroupClass="range-pop__group"
+               Footer="@(Waits is null ? AskedLine : null)">
+        <ChildContent>
+            <FormRow Label="League">
+                @if (Leagues.Count is >= 2 and <= 5)
+                {
+                    <DeskSwitch TValue="string" Label="League" Options="_leagueOptions"
+                                Value="@_league" ValueChanged="@((string v) => _league = v)" />
+                }
+                else
+                {
+                    <DeskSelect TValue="string" aria-label="League" Class="wfield--short"
+                                Value="@_league" ValueChanged="@((string v) => _league = v)">
+                        @if (Leagues.Count == 0)
+                        {
+                            <option value="">No league enabled</option>
+                        }
+                        @foreach (var league in Leagues)
+                        {
+                            <option value="@league.Key">@league.Name</option>
+                        }
+                    </DeskSelect>
+                }
+            </FormRow>
+            <FormRow Label="Days">
+                <DeskSwitch TValue="RangeSpan" Label="Days" Options="Spans"
+                            Value="@_span" ValueChanged="SetSpan" />
+            </FormRow>
+            @if (_span == RangeSpan.Custom)
+            {
+                @* Enter in either date presses Pull, as Return does in a macOS form. The dates are
+                   bound Immediate (on input, not on blur): a date field commits a whole date at a
+                   time, and Enter arrives before blur would, so Pull must read what was just typed
+                   rather than the value the field held before. *@
+                <div class="wgroup__row range-pop__dates" @onkeydown="OnDateKey">
+                    <DeskField TValue="string" type="date" Label="From" Class="wfield--fill" Immediate="true"
+                               Value="@_from" ValueChanged="@((string v) => _from = v)" />
+                    <DeskField TValue="string" type="date" Label="To" Class="wfield--fill" Immediate="true"
+                               Value="@_to" ValueChanged="@((string v) => _to = v)" />
+                </div>
+            }
+            <div class="wgroup__row range-pop__repull">
+                <DeskToggle Label="Re-pull complete days" @bind-Checked="_refresh" />
+                <span class="range-pop__why">
+                    A day whose finals all hold their stats and a closing line is skipped unless this is on.
+                </span>
+            </div>
+        </ChildContent>
+    </FormGroup>
+
+    <KeyRow Reason="@Waits">
+        <Secondary>
+            <DeskButton Emphasis="DeskEmphasis.Plain" OnClick="CancelAsync">Cancel</DeskButton>
+        </Secondary>
+        <Primary Context="why">
+            <DeskButton Emphasis="DeskEmphasis.Filled"
+                        Disabled="@(Waits is not null)"
+                        aria-describedby="@why"
+                        OnClick="PullAsync">
+                Pull
+            </DeskButton>
+        </Primary>
+    </KeyRow>
+</div>
+
+@code {
+    /// <summary>The leagues a range can be pulled for (RangePull.LeaguesAsync), by key, with the name to show.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<RangeLeague> Leagues { get; set; } = [];
+
+    /// <summary>The league to start on — the Board's sport filter when it is one. Else the first.</summary>
+    [Parameter] public string? InitialLeague { get; set; }
+
+    /// <summary>Today, as the league counts it; a parameter so a test can stand on a known day.</summary>
+    [Parameter] public DateOnly? Today { get; set; }
+
+    /// <summary>Raised with the answers when Pull is pressed on a range a pull takes.</summary>
+    [Parameter] public EventCallback<RangePullRequest> OnPull { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    /// <summary>The quick ranges: the week or month just gone, or the days typed.</summary>
+    public enum RangeSpan { Week, Month, Custom }
+
+    private static readonly IReadOnlyList<DeskSwitchOption<RangeSpan>> Spans =
+    [
+        new(RangeSpan.Week, "7 days", "Last 7 days: the seven days before today"),
+        new(RangeSpan.Month, "30 days", "Last 30 days: the thirty days before today"),
+        new(RangeSpan.Custom, "Custom", "Choose the first and last day")
+    ];
+
+    private ElementReference _root;
+    private IReadOnlyList<DeskSwitchOption<string>> _leagueOptions = [];
+    private DateOnly _today;
+    private string? _league;
+    private RangeSpan _span = RangeSpan.Week;
+    private string? _from;
+    private string? _to;
+    private bool _refresh;
+
+    protected override void OnInitialized()
+    {
+        _today = Today ?? XLines.Core.Analytics.LeagueClock.Today();
+
+        _league = Leagues.FirstOrDefault(l => string.Equals(l.Key, InitialLeague, StringComparison.OrdinalIgnoreCase))?.Key
+                  ?? Leagues.FirstOrDefault()?.Key;
+
+        SetSpan(RangeSpan.Week);
+    }
+
+    protected override void OnParametersSet()
+        => _leagueOptions = Leagues.Select(l => new DeskSwitchOption<string>(l.Key, l.Name)).ToList();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The first control takes the keyboard on open, as a menu's first item does.
+        if (!firstRender)
+            return;
+
+        try
+        {
+            var module = await JS.InvokeAsync<IJSObjectReference>("import", XLines.Desk.DeskAssets.Module("toolbar.js"));
+
+            if (module is not null)
+            {
+                await module.InvokeVoidAsync("focusFirst", _root);
+                await module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit went first; there is no keyboard to place.
+        }
+    }
+
+    /// <summary>A quick range sets the dates; Custom keeps them and shows them.</summary>
+    private void SetSpan(RangeSpan span)
+    {
+        _span = span;
+
+        var back = span switch { RangeSpan.Week => 7, RangeSpan.Month => 30, _ => 0 };
+
+        if (back > 0)
+        {
+            _from = Iso(_today.AddDays(-back));
+            _to = Iso(_today.AddDays(-1));
+        }
+    }
+
+    /// <summary>Why Pull waits, or null when the answers are a range a pull takes.</summary>
+    private string? Waits => RangePull.Check(_league, Parse(_from), Parse(_to));
+
+    /// <summary>What will be asked, under the group, while the answers are a range.</summary>
+    private string Asked
+    {
+        get
+        {
+            var from = Parse(_from)!.Value;
+            var to = Parse(_to)!.Value;
+            var days = to.DayNumber - from.DayNumber + 1;
+
+            return $"{days} {(days == 1 ? "day" : "days")}, {Short(from)} to {Short(to)}. "
+                   + $"Only the days with games are asked for, at most {RangePull.MaxDays}.";
+        }
+    }
+
+    private RenderFragment AskedLine => builder => builder.AddContent(0, Asked);
+
+    private async Task OnDateKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await PullAsync();
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            await CancelAsync();
+    }
+
+    private async Task PullAsync()
+    {
+        if (Waits is not null || Parse(_from) is not { } from || Parse(_to) is not { } to)
+            return;
+
+        await OnPull.InvokeAsync(new RangePullRequest(_league!, from, to, _refresh));
+    }
+
+    private Task CancelAsync() => OnCancel.InvokeAsync();
+
+    private static string Iso(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static string Short(DateOnly day) => day.ToString("MMM d", CultureInfo.InvariantCulture);
+
+    private static DateOnly? Parse(string? raw)
+        => DateOnly.TryParseExact(raw, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)
+            ? day
+            : null;
+}

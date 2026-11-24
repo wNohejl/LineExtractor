@@ -14,7 +14,7 @@ ports:
 ```
 
 Docker's short port syntax binds `0.0.0.0`. That published PostgreSQL — holding every
-ingested row, with a weak password committed to the repo (`lineops_dev`) — to every host on
+ingested row, with a weak password committed to the repo (`xlines_dev`) — to every host on
 the local network. Docker also writes its own iptables rules, so a host firewall does not
 reliably mitigate this. The app was served over plaintext HTTP on 8080, a heavily contested
 port.
@@ -39,7 +39,7 @@ disclosing a private key inside a layer. `dotnet dev-certs` on .NET 10 issues SA
 
 **Secrets.** No credential appears in any committed file. `.env` is gitignored with
 `.env.example` as the template, and `*.pfx`/`*.p12`/`*.key`/`*.pem` are ignored globally.
-`AddLineOpsData` now throws when no connection string is configured, rather than silently
+`AddXLinesData` now throws when no connection string is configured, rather than silently
 falling back to a hardcoded development password — a fallback credential is a credential
 that eventually reaches production.
 

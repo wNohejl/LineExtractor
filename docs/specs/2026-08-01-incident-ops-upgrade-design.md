@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-01
 **Status:** approved, in progress
-**Context:** LineOps is a portfolio project whose stated career purpose (DESIGN.md §, "Purpose (career)")
+**Context:** XLines is a portfolio project whose stated career purpose (DESIGN.md §, "Purpose (career)")
 is to evidence on-call / KPI / RCA operational reliability for the Starbucks Application Developer and
 Senior Application Developer roles. This change closes credibility gaps in that story and adds
 industry-standard telemetry alongside the bespoke reliability layer.
@@ -18,12 +18,12 @@ industry-standard telemetry alongside the bespoke reliability layer.
 ## The two findings that motivated this
 
 1. **`budget_pressure` is documented but cannot fire.** `AlertRules.BudgetPressure`
-   (`src/LineOps.Reliability/AlertEngine.cs`) and `ReliabilityOptions.BudgetWarnThreshold` both exist,
+   (`src/XLines.Reliability/AlertEngine.cs`) and `ReliabilityOptions.BudgetWarnThreshold` both exist,
    and `docs/runbook.md` carries a full triage section for the rule — but `AlertEngine.EvaluateAsync`
    only ever emits `freshness`, `success_rate`, and `volume_anomaly`.
 
    The cause is architectural, not an oversight: the budget data lives in `CreditBudgetGuard`, which is in
-   `LineOps.Ingestion`, and the reference direction is `Ingestion → Reliability`. `AlertEngine`
+   `XLines.Ingestion`, and the reference direction is `Ingestion → Reliability`. `AlertEngine`
    structurally cannot see it.
 
 2. **`IncidentService` has zero test coverage.** The RCA-enforcement discipline that DESIGN.md §5 calls
@@ -35,11 +35,11 @@ industry-standard telemetry alongside the bespoke reliability layer.
 
 ### A1. Split budget *measurement* from budget *enforcement*
 
-Move budget reading into `LineOps.Reliability` as a new `BudgetCalculator`, and move the `BudgetUsage`
+Move budget reading into `XLines.Reliability` as a new `BudgetCalculator`, and move the `BudgetUsage`
 record with it. It is already a pure read over `ingestion_run` + `source` and touches only the Data
 layer, so nothing blocks the move.
 
-`CreditBudgetGuard` stays in `LineOps.Ingestion` and becomes a thin decision on top of the calculator.
+`CreditBudgetGuard` stays in `XLines.Ingestion` and becomes a thin decision on top of the calculator.
 
 **The boundary argument, which is the point:** measuring consumption is a reliability concern; refusing a
 run is an ingestion concern. This is cleaner than letting the alert engine reach into the ingestion
@@ -72,7 +72,7 @@ This is the strongest interview beat in the change: *"I shipped a runbook entry 
 fire. Rather than just fix it, I made the doc-to-code drift a test failure."*
 
 Implementation note: the runbook must be resolvable from the test's working directory. Copy it to the test
-output via `<Content Include=... CopyToOutputDirectory>` in `LineOps.Tests.csproj`, or walk up from
+output via `<Content Include=... CopyToOutputDirectory>` in `XLines.Tests.csproj`, or walk up from
 `AppContext.BaseDirectory` to the repo root. Prefer the csproj copy — it fails loudly if the file moves.
 
 ### A4. Runbook triage rendered inside the incident panel
@@ -93,10 +93,10 @@ already exists from A3.
 
 ## Part B — OpenTelemetry + Aspire dashboard
 
-### B1. New `LineOps.Observability` library
+### B1. New `XLines.Observability` library
 
-Exposes `AddLineOpsTelemetry(...)`, referenced by `LineOps.Web` and `LineOps.Worker` — deliberately the
-same shape as the existing `AddLineOpsReliability` pattern so it reads as consistent rather than bolted on.
+Exposes `AddXLinesTelemetry(...)`, referenced by `XLines.Web` and `XLines.Worker` — deliberately the
+same shape as the existing `AddXLinesReliability` pattern so it reads as consistent rather than bolted on.
 
 ### B2. Instrumentation
 
@@ -106,10 +106,10 @@ ones:
 
 | Instrument | Kind |
 |---|---|
-| `lineops.ingestion.runs` / `.rows` / `.requests` | counters, tagged by source + status |
-| `lineops.source.freshness_minutes` | observable gauge |
-| `lineops.budget.utilisation` | observable gauge |
-| `lineops.alerts.open` / `lineops.incidents.open` | observable gauges |
+| `xlines.ingestion.runs` / `.rows` / `.requests` | counters, tagged by source + status |
+| `xlines.source.freshness_minutes` | observable gauge |
+| `xlines.budget.utilisation` | observable gauge |
+| `xlines.alerts.open` / `xlines.incidents.open` | observable gauges |
 
 **The observable gauges are the whole argument.** They make the bespoke KPI layer legible to standard
 tooling, converting "he built a custom monitoring thing" into "he built a KPI layer and exposed it over
@@ -155,7 +155,7 @@ Update this as work lands so a fresh session can resume without re-deriving anyt
 - [x] A3 — runbook ↔ `AlertRules` bijection test (`RunbookCoverageTests`, 4 tests)
 - [x] A4 — runbook triage rendered in `IncidentsPanel` via `RunbookSteps` + embedded `Runbook`
 - [x] A5 — `IncidentService` test coverage (`IncidentServiceTests`, 10 tests)
-- [x] B1 — `LineOps.Observability` + `AddLineOpsObservability`; telemetry *names* in `LineOps.Core.Diagnostics`
+- [x] B1 — `XLines.Observability` + `AddXLinesObservability`; telemetry *names* in `XLines.Core.Diagnostics`
 - [x] B2 — ActivitySource on ingestion runs, counters, KPI observable gauges via snapshot cache
 - [x] B3 — Aspire dashboard 13.4.2 in `compose/telemetry.yml` overlay
 - [x] B4 — `/health` + `/ready` (no compose healthcheck — see below)

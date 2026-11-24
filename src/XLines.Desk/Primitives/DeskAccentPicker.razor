@@ -1,0 +1,118 @@
+@namespace XLines.Desk.Primitives
+@using XLines.Desk.Theming
+
+@*
+    The accent picker: one filled circle per hue, the way macOS lays its accent colours out.
+
+    It is a radiogroup like the gate switch and DeskRadioGroup — one Tab stop on the chosen
+    swatch, arrows move the choice and the focus with it, Home and End reach the ends — with one
+    difference: the arrows wrap. A row of circles is a ring of choices, not a list with a top and
+    a bottom, and macOS's own accent row wraps the same way. The positions are colours rather
+    than words, so there is no cap to slide: the chosen swatch wears a ring in its own hue and the
+    rest sit plain. A circle has no words on it, so each one carries its name as an aria-label and
+    a title.
+
+    The hues are the family's own list (DeskThemeFamilies.Accents), its own accent first. Each
+    swatch is painted the way the Window manager's theme tiles are: it carries the data-theme of
+    the family in the appearance showing and the data-accent it offers, so its var(--accent)
+    resolves against the very block that choosing it would apply. No colour is written on an
+    element, and a swatch cannot drift from what choosing it does. The family's own accent has no
+    block, so its swatch falls through to the family block's own accent — which is that one.
+*@
+
+<div class="accents @Class"
+     role="radiogroup"
+     aria-label="@Label"
+     data-roving
+     @onkeydown="OnKeyDownAsync"
+     @attributes="Extra">
+    @for (var i = 0; i < Accents.Count; i++)
+    {
+        var index = i;
+        var accent = Accents[index];
+        var selected = index == SelectedIndex;
+
+        <button type="button"
+                class="accent-swatch @(selected ? "accent-swatch--on" : null)"
+                role="radio"
+                aria-checked="@(selected ? "true" : "false")"
+                aria-label="@accent.Name"
+                title="@accent.Name"
+                tabindex="@(selected ? "0" : "-1")"
+                data-theme="@DeskThemeFamilies.Attribute(Family, IsDark)"
+                data-accent="@accent.Key"
+                @ref="_refs[index]"
+                @onclick="() => SelectAsync(index)"></button>
+    }
+</div>
+
+@code {
+    /// <summary>Whose accents are offered. Standard, the desk the product is, unless a caller says otherwise.</summary>
+    [Parameter] public DeskThemeFamily Family { get; set; } = DeskThemeFamily.Standard;
+
+    /// <summary>The key chosen. The family's own accent when null or a key the family does not offer.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>Which desk the swatches are drawn on — a hue's dark and light values differ.</summary>
+    [Parameter] public bool IsDark { get; set; } = true;
+
+    /// <summary>The accessible name of the whole group.</summary>
+    [Parameter] public string Label { get; set; } = "Accent";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private IReadOnlyList<DeskFamilyAccent> Accents => DeskThemeFamilies.Accents(Family);
+
+    private ElementReference[] _refs = [];
+
+    protected override void OnParametersSet()
+    {
+        if (_refs.Length != Accents.Count)
+            _refs = new ElementReference[Accents.Count];
+    }
+
+    /// <summary>Where the choice sits in the row; the family's own place when the value is not one the row offers.</summary>
+    private int SelectedIndex
+    {
+        get
+        {
+            var chosen = DeskThemeFamilies.Info(Family).FindAccent(Value);
+            return chosen is null ? 0 : Math.Max(0, Accents.ToList().IndexOf(chosen));
+        }
+    }
+
+    private async Task SelectAsync(int index)
+    {
+        // A radio is not unchosen by a second press, and choosing what is chosen is not news.
+        if (index == SelectedIndex)
+            return;
+
+        await ValueChanged.InvokeAsync(Accents[index].Key);
+    }
+
+    /// <summary>
+    /// The radiogroup keyboard contract, wrapping: arrows move the choice and come round at the
+    /// ends, Home and End jump. The focus moves with the choice so the ring and the keyboard never
+    /// disagree about where the operator is.
+    /// </summary>
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        var count = Accents.Count;
+        if (count < 2)
+            return;
+
+        var current = SelectedIndex;
+
+        if (Roving.Next(current, count, e, wrap: true) is not { } next || next == current)
+            return;
+
+        await SelectAsync(next);
+        await _refs[next].FocusAsync();
+    }
+}

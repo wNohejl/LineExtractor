@@ -1,13 +1,13 @@
 # Finishing the Desk — design
 
 26 October 2026. The design for the last pass of the Apple-HIG-on-MudBlazor front-end rewrite:
-the pass after which the desk reads as a finished product in the browser and `src/LineOps.Desk`
-has the shape of a package that could be lifted out of this repository without dragging LineOps
+the pass after which the desk reads as a finished product in the browser and `src/XLines.Desk`
+has the shape of a package that could be lifted out of this repository without dragging XLines
 with it.
 
 ## Intent
 
-LineOps is the design home for a reusable Blazor UI system. The system is built on MudBlazor
+XLines is the design home for a reusable Blazor UI system. The system is built on MudBlazor
 today because MudBlazor is what this project set out to learn; other frameworks may follow, and
 nothing here plans for them. The desk's windows are the system's first consumer and its proof.
 "Finished" therefore has two faces that are done together:
@@ -27,10 +27,10 @@ from those surveys at commit `55d43e6`.
 
 - Every window passes the HIG review checklist (apple-hig-web SKILL.md) at 1280×800 and
   1920×1080, light and dark, with a screenshot of each kept as the proof.
-- `src/LineOps.Desk/wwwroot/css` contains only system CSS; app CSS lives in `src/LineOps.Web`.
-- `dotnet pack src/LineOps.Desk` produces a package, and a fresh Blazor Server project can show
+- `src/XLines.Desk/wwwroot/css` contains only system CSS; app CSS lives in `src/XLines.Web`.
+- `dotnet pack src/XLines.Desk` produces a package, and a fresh Blazor Server project can show
   the Parts bin with the wiring the README gives — no further hand-copying of links.
-- A `tests/LineOps.Desk.Tests` project covers every primitive without a reference to LineOps.Web.
+- A `tests/XLines.Desk.Tests` project covers every primitive without a reference to XLines.Web.
 - The desk's chrome re-renders once per status change, not the whole desk twice per window load;
   a browser resize costs one layout per animation frame; the head carries no unused CSS.
 - The primitive set gains the six HIG controls it lacks: toggle, badge, spinner, tooltip, radio
@@ -40,7 +40,7 @@ from those surveys at commit `55d43e6`.
 
 - **Phone and tablet layouts.** The floor is a laptop at 1280×800. Nothing under 1024px wide is
   designed for; the existing 720px fallback stays as it is.
-- **Renaming the assembly or namespace.** `LineOps.Desk` keeps its name and its `_content` path
+- **Renaming the assembly or namespace.** `XLines.Desk` keeps its name and its `_content` path
   until the day it is exported; the plan only gathers the path into one constant.
 - **Replacing MudBlazor** or wrapping its data-grid column API. `PropertyColumn`/`TemplateColumn`
   inside `DeskGrid` and `ChartSeries<double>` into `DeskChart` stay the documented seam (ADR 0008).
@@ -67,11 +67,11 @@ from those surveys at commit `55d43e6`.
   type-color-layout) and the apple-hig-web skill's checklist. Where they disagree with an older
   spec, the skill wins (the 25 October audit set that precedent).
 - **The house rule on edges:** one 1px hairline on a group or card is correct; a bordered thing
-  inside a bordered thing is not. `.wgroup`'s border at lineops.css:5223 is the rule, and the
+  inside a bordered thing is not. `.wgroup`'s border at xlines.css:5223 is the rule, and the
   comment at 4587–4592 that calls a group "never a frame" is the stale text to fix.
 - Another Claude session may share the checkout. Build to a scratch output folder, preview on
   port 5271 with the scheduler off, never stop another session's process, commit with an
-  explicit pathspec (`git commit -- <paths>`), and treat `lineops.css` as single-owner while a
+  explicit pathspec (`git commit -- <paths>`), and treat `xlines.css` as single-owner while a
   task holds it.
 - MudBlazor stays at 9.7.0 (`Directory.Packages.props`).
 
@@ -91,7 +91,7 @@ a field in a section's key slot with a hidden label), Ops' Scanning and Drill
 (`OpsPanel.razor:120, 366`, rows without a section), History's Run group (`HistoryPanel.razor:109`),
 Place wager's groups (`BoardWager.razor:230–402`, rows without `.wsection` — the cards stay),
 and the Journal parlay form's first group (`JournalPanel.razor:168`, a `div.wsections` where a
-`section.wsection` belongs). The non-grouped `.pform` border (lineops.css:3234–3243) goes: a form
+`section.wsection` belongs). The non-grouped `.pform` border (xlines.css:3234–3243) goes: a form
 is either grouped or it is a bare key row, never a third box.
 
 **Boxes.** `.loglist` (3838) and `.metric` tiles (1901) carry one hairline each, which is the
@@ -116,11 +116,11 @@ show the skeleton while loading and `LoadFailure` on failure, as the other windo
 **Both appearances, from the first frame.** The theme attribute is stamped on `<html>` before
 first paint by a tiny inline script in `App.razor` that reads the stored theme and, for
 "system", `prefers-color-scheme` — the same resolution `theme.js` does later. `ReconnectModal.
-razor.css` and the palette scrim (lineops.css:1757) move to tokens; after this there is no
+razor.css` and the palette scrim (xlines.css:1757) move to tokens; after this there is no
 literal colour outside a token block.
 
 **Small drift.** The toolbar container query that `controls.css:474` overrides
-(`lineops.css:3192`) is resolved to one rule in one file. Stale doc comments in
+(`xlines.css:3192`) is resolved to one rule in one file. Stale doc comments in
 `PanelHeader.razor:4` and `PanelTitle.razor:7` that still describe uppercase rules are
 rewritten. The league-key `.ToUpperInvariant()` calls stay: MLB, NFL and UFC are initialisms.
 
@@ -135,10 +135,10 @@ for this phase and is repeated at the end of Phase D.
 
 ### Phase B — the package shape
 
-**Two stylesheets.** `lineops.css` is split along the survey's section map. The system file,
+**Two stylesheets.** `xlines.css` is split along the survey's section map. The system file,
 renamed `desk.css`, keeps the tokens, scale, shell, window strip, marble, glide, windows,
 dialogs, buttons, fields, panel anatomy, loading vocabulary, a11y, sheet, alert, swatches and
-material fallbacks. A new `src/LineOps.Web/wwwroot/css/lineops.css` takes the price cell and
+material fallbacks. A new `src/XLines.Web/wwwroot/css/xlines.css` takes the price cell and
 spread rail, runbook, splits strip, line movement, board rhythm, Performance, Parts, the wager/
 slip/journal block, operations, game lines, and the app fragments inside mixed sections
 (`.teammark`, `.scoreboard`, `.game-search`, the odds and form snippets, `.logrow__opp/score`,
@@ -147,15 +147,15 @@ manager's `.wm-*` block moves with its panel (next item). Order stays load-beari
 asserted by a test that reads both files for the selectors each side may own.
 
 **The Window manager belongs to the Desk.** It is the desk's own settings window (appearance,
-scale, workspaces, capacity). If it references no LineOps.Web type beyond the catalogue
+scale, workspaces, capacity). If it references no XLines.Web type beyond the catalogue
 interface the Desk already defines, `WindowManagerPanel` and its CSS move into
-`src/LineOps.Desk/Windowing`; if it does, the app-specific part is split off first. The
+`src/XLines.Desk/Windowing`; if it does, the app-specific part is split off first. The
 builder confirms the dependency list before moving it. (Checked: its only app dependency is
-`LineOps.Web.Access.AccessOptions`, which the Desk already abstracts as `IDeskAccess`; the
+`XLines.Web.Access.AccessOptions`, which the Desk already abstracts as `IDeskAccess`; the
 panel reads that instead and moves.)
 
-**Namespaces.** `PriceCell.razor` and `PullMenu.razor` leave `LineOps.Desk.Primitives` for
-`LineOps.Web.Components.Desk`. `SnippetFailure` and `CheckList` with its `Check` record (state,
+**Namespaces.** `PriceCell.razor` and `PullMenu.razor` leave `XLines.Desk.Primitives` for
+`XLines.Web.Components.Desk`. `SnippetFailure` and `CheckList` with its `Check` record (state,
 sentence, remedy) move into the Desk, since nothing in them is this app's. `ResultKind`,
 `ResultTag`, `StakeRow`, `BookPicker`, `SelectionChips`, `Scoreboard`, `TeamMark`, `TeamColors`,
 `RunbookSteps`, `Checks` stay in the app.
@@ -164,8 +164,8 @@ sentence, remedy) move into the Desk, since nothing in them is this app's. `Resu
 `IDeskSearch` (a `Placeholder` property the app's search supplies). `Tag.Live` is documented as
 "something is happening now". Storage keys `lineops.theme` / `lineops.theme.family` become
 `desk.theme` / `desk.theme.family`, read once from the old key so no one loses their theme.
-The DOM event `lineops:rescaled` and the `__lineops*` expandos become `desk:*`. The
-`_content/LineOps.Desk` path is gathered into one `DeskAssets.Root` constant. A test greps the
+The DOM event `xlines:rescaled` and the `__xlines*` expandos become `desk:*`. The
+`_content/XLines.Desk` path is gathered into one `DeskAssets.Root` constant. A test greps the
 Desk's `.cs`, `.razor` and `.js` for the domain words (game, book, odds, wager, journal, team,
 player, fight, bout, stake, parlay, slip, league) outside comments and fails on any; the ~120
 doc-comment uses are rewritten by hand in the same task so the shipped XML docs read as the
@@ -180,27 +180,27 @@ reduce to those two components, `AddDesk`, the layout and the `ReconnectModal`.
 
 **Sheets without MudBlazor in the caller.** `PartsPanel.razor:1047–1062` opens a `DeskSheet`
 through `IDialogService` directly. An `IDeskSheets.ShowAsync<TSheet>(parameters, width)` on the
-Desk, beside `IDeskAlerts`, takes over, and no file in `LineOps.Web` injects `IDialogService`.
+Desk, beside `IDeskAlerts`, takes over, and no file in `XLines.Web` injects `IDialogService`.
 
-**A test project of its own.** `tests/LineOps.Desk.Tests` references only `src/LineOps.Desk`,
+**A test project of its own.** `tests/XLines.Desk.Tests` references only `src/XLines.Desk`,
 with a `DeskTestContext` that registers a `FakeWindowCatalog`. The twenty-odd primitive and
 theming test files that use only Desk types move there unchanged; the ones that render app
 components (DeskDisclosureTests via RunbookSteps, DeskAccessTests via PriceCell, the windowing
 tests on `AppWindowCatalog`, LiveAndResultTests, DisplayTimeTests, UnsavedInputTests,
-WindowManagerControlsTests) stay in `LineOps.Web.Tests`. The format gate and CI run both
+WindowManagerControlsTests) stay in `XLines.Web.Tests`. The format gate and CI run both
 projects.
 
-**Packing.** `LineOps.Desk.csproj` gains `IsPackable`, `PackageId=LineOps.Desk`, `Version=0.1.0`,
+**Packing.** `XLines.Desk.csproj` gains `IsPackable`, `PackageId=XLines.Desk`, `Version=0.1.0`,
 `Description` and `GenerateDocumentationFile`. No licence is declared until the package is
 exported; Inter's OFL stays beside the font as the font's notice, not the package's licence. `dotnet pack` is part of the verification. A `README.md` in
-`src/LineOps.Desk` covers: what it is, wiring (the four lines), the token families and how a
+`src/XLines.Desk` covers: what it is, wiring (the four lines), the token families and how a
 theme family is added, the primitive table with one line each, the MudBlazor seam and its
 rules, and the Parts bin as the living gallery.
 
-**The gallery is the Desk's.** `PartsPanel` moves into `src/LineOps.Desk/Windowing` with its
+**The gallery is the Desk's.** `PartsPanel` moves into `src/XLines.Desk/Windowing` with its
 CSS, keyed in the catalogue by the consumer as now. Its three app demos go: the price cells
 (`PartsPanel.razor:394–396`, built on `BestOffer`) and the "New wager" sheet become plain Desk
-demos (a `DeskSheet` with a grouped form of generic fields), and the `LineOps.Data` using
+demos (a `DeskSheet` with a grouped form of generic fields), and the `XLines.Data` using
 disappears. After this a fresh project that wires the Desk can open the gallery.
 
 ### Phase C — the missing controls
@@ -253,10 +253,10 @@ Each item has a measurement before and after, kept in the plan's evidence folder
 
 ### Phase E — the shared desk
 
-Added after Phases A–D landed: everything generic `LineOps.Web` still held — the step, tab and
+Added after Phases A–D landed: everything generic `XLines.Web` still held — the step, tab and
 grid-child styles, `DeskPanelBase`, `PanelLoadFailure`, `DeskTime`, the job menu and the error
 and not-found pages — moves into the Desk, the access gate and edge headers into a new
-`LineOps.Desk.Hosting` package, and `KeyRow` and `InlineConfirm` close the HIG review's first
+`XLines.Desk.Hosting` package, and `KeyRow` and `InlineConfirm` close the HIG review's first
 and third findings at every site it cited. The design is
 `docs/specs/2026-10-30-desk-shared-phase-e-design.md` and the task plan
 `docs/plans/2026-10-30-desk-final-e-shared.md`.
@@ -272,10 +272,10 @@ and third findings at every site it cited. The design is
 
 ## Verification, whole project
 
-`dotnet build` on `src/LineOps.Web`, `src/LineOps.Worker` and all four test projects
-(`LineOps.Tests`, `LineOps.Web.Tests`, `LineOps.Desk.Tests`, `LineOps.Desk.Hosting.Tests`);
+`dotnet build` on `src/XLines.Web`, `src/XLines.Worker` and all four test projects
+(`XLines.Tests`, `XLines.Web.Tests`, `XLines.Desk.Tests`, `XLines.Desk.Hosting.Tests`);
 `dotnet test` green; the Worker starts; `dotnet format --verify-no-changes` clean in the Linux
-container; `dotnet pack src/LineOps.Desk` and `dotnet pack src/LineOps.Desk.Hosting` succeed;
+container; `dotnet pack src/XLines.Desk` and `dotnet pack src/XLines.Desk.Hosting` succeed;
 the browser walk of Phase A repeated with
 the screenshots refreshed; the Phase D numbers recorded. Each task commits on
 `LineX_Development` and pushes.

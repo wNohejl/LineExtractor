@@ -1,4 +1,4 @@
-# LineOps — working rules
+# XLines — working rules
 
 These rules exist because the repository spent a month with twenty-three agent worktrees,
 thirty-three branches, Claude's name in sixty commit messages, and a Worker host that could
@@ -62,10 +62,10 @@ database's own count, so the month is not spent twice. Refresh it whenever the d
 machine should see — after a backfill, after a season closes. `restore-data.ps1` refuses to
 overwrite a database that already holds games unless told to with `-Force`.
 
-A league's games over any range of days, with box scores and closing lines (≤200 days; complete days skipped unless `--refresh true`), with ESPN on (Scope): `dotnet run --project src/LineOps.Worker -- --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30` — or the Board's Date range key on the desk. With ESPN off the Worker refuses an `espn:` job in one line and exits 5.
+A league's games over any range of days, with box scores and closing lines (≤200 days; complete days skipped unless `--refresh true`), with ESPN on (Scope): `dotnet run --project src/XLines.Worker -- --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30` — or the Board's Date range key on the desk. With ESPN off the Worker refuses an `espn:` job in one line and exits 5.
 
 **Setting up on anyone else's machine** (a first run, "get it running", an API key): use the
-`lineops-setup` skill (`.claude/skills/lineops-setup/SKILL.md`), the README's Quick start for an
+`xlines-setup` skill (`.claude/skills/xlines-setup/SKILL.md`), the README's Quick start for an
 agent. Fixtures, prices and final scores come from **The Odds API** (`the-odds-api.com`, free
 Starter plan of 500 credits a month, sign-up at <https://the-odds-api.com/#get-access>), not
 odds-api.io: clone, setup, start, enter the key in Ops, and fixtures and prices appear. The
@@ -77,18 +77,18 @@ The owner's laptop bootstrap, from nothing (the private clone before the restore
 the snapshot from it):
 
 ```powershell
-git clone https://github.com/wNohejl/LineExtractor.git LineOps; cd LineOps
+git clone https://github.com/wNohejl/XLines.git XLines; cd XLines
 git checkout LineX_Development
 .\scripts\setup.ps1 -EnableEspn          # generates .env with the database password, ESPN_ENABLED=true
 git clone https://github.com/wNohejl/lineops-journal.git data/personal   # private: journal and snapshot
 .\scripts\restore-data.ps1               # brings Postgres up and loads data/personal/snapshots/lineops.dump
 .\scripts\restore-journal.ps1
-dotnet run --project src/LineOps.Web --launch-profile http   # or the Docker desk, below, if Smart App Control is on
+dotnet run --project src/XLines.Web --launch-profile http   # or the Docker desk, below, if Smart App Control is on
 ```
 
 `.env` reaches only the containers. For `dotnet run`, ESPN is turned on with
-`"Ingestion": { "Espn": { "Enabled": true } }` in `src/LineOps.Web/appsettings.Local.json` (and
-in `src/LineOps.Worker/appsettings.Local.json` for the Worker), or
+`"Ingestion": { "Espn": { "Enabled": true } }` in `src/XLines.Web/appsettings.Local.json` (and
+in `src/XLines.Worker/appsettings.Local.json` for the Worker), or
 `Ingestion__Espn__Enabled=true` in the environment.
 
 ### The journal: the private repo `lineops-journal`
@@ -135,7 +135,7 @@ bypassed for that process only; do not change the machine's execution policy:
 Windows 11's Smart App Control is on only on a fresh install, and it blocks freshly built,
 unsigned DLLs by reputation: `dotnet run`, `dotnet test` and Visual Studio's F5 fail with
 `FileLoadException … An Application Control policy has blocked this file (0x800711C7)` on
-`LineOps.Core.dll` or another of ours. Nothing is wrong with the code; the desktop has it off
+`XLines.Core.dll` or another of ours. Nothing is wrong with the code; the desktop has it off
 and runs on the host. Check it with
 `(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy').VerifiedAndReputablePolicyState`
 (1 on, 0 off). Turning it off is the developer's decision, never an agent's: it cannot be turned
@@ -148,7 +148,7 @@ back on without reinstalling Windows. Until then, on that machine:
 docker compose -f docker-compose.yml -f compose/dev.yml up -d --build web
 docker compose logs -f web
 
-# One Worker job, in the worker image instead of `dotnet run --project src/LineOps.Worker`.
+# One Worker job, in the worker image instead of `dotnet run --project src/XLines.Worker`.
 # An espn: job needs ESPN_ENABLED=true in .env, as the desk's ESPN pulls do.
 docker compose run --rm worker --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30
 
@@ -156,13 +156,13 @@ docker compose run --rm worker --job espn:range --sport nfl --from 2024-09-01 --
 # never land in it and Visual Studio's locked .vs is skipped); the docker socket for Testcontainers.
 docker run --rm -v "${PWD}:/repo:ro" -v /var/run/docker.sock:/var/run/docker.sock `
   -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal mcr.microsoft.com/dotnet/sdk:10.0 sh -c `
-  'mkdir /src && cd /repo && tar --exclude=./.vs --exclude=./lineops-journal --exclude=./data/personal --exclude=bin --exclude=obj -cf - . | tar -xf - -C /src && cd /src && dotnet test LineOps.slnx'
+  'mkdir /src && cd /repo && tar --exclude=./.vs --exclude=./lineops-journal --exclude=./data/personal --exclude=bin --exclude=obj -cf - . | tar -xf - -C /src && cd /src && dotnet test XLines.slnx'
 ```
 
 The web container schedules ingestion itself; do not also run a host desk or a worker container
 scheduling against the same database. Visual Studio's "An element with the same key but a
 different value already exists … SelfHostWebServer" is unrelated stale IDE state: close it,
-delete `.vs/` and `LineOps.slnLaunch.user`, reopen, and set LineOps.Web as the startup project.
+delete `.vs/` and `XLines.slnLaunch.user`, reopen, and set XLines.Web as the startup project.
 
 ## Scope
 
@@ -197,9 +197,9 @@ delete `.vs/` and `LineOps.slnLaunch.user`, reopen, and set LineOps.Web as the s
 
 ## Verification before "done"
 
-- `dotnet build LineOps.slnx` clean (eleven projects and four test projects); `dotnet test
-  LineOps.slnx` green, with Docker running for the Testcontainers suites.
-- The Worker host starts (`dotnet run --project src/LineOps.Worker`); its `appsettings.json`
+- `dotnet build XLines.slnx` clean (eleven projects and four test projects); `dotnet test
+  XLines.slnx` green, with Docker running for the Testcontainers suites.
+- The Worker host starts (`dotnet run --project src/XLines.Worker`); its `appsettings.json`
   comment keys must be unique (`"//1"`, `"//2"` …) or the configuration provider refuses it.
 - For data changes: the coverage queries in
   `docs/specs/2026-09-04-mlb-nfl-seasons-research.md` §2 — finals without stats

@@ -1,0 +1,200 @@
+@namespace XLines.Web.Components.Desk
+@using XLines.Ingestion.Services
+@using XLines.Web.Services
+@inject IJSRuntime JS
+
+@*
+    The typed price's fields: the price, the line where the market has one, and the book.
+
+    One set of fields wherever a price is typed — the Place wager window's Custom price… and the
+    Board take's — read by one model (TypedPrice), so the two cannot drift. They are form rows and
+    nothing more: the host decides what edge they sit inside (the window's bet group, or the
+    take's own card, where they are rows of the card and not a box inside it). A row per field,
+    label leading, the fields one short width (HIG: fields in a group share widths and stack);
+    a narrow host stacks each label over its field, as every form row does.
+
+    What is wrong with a field is said under that field, once it has been typed in, in the
+    Journal's words for the same field. The way back, "Use the fetched price", sits in the price
+    row beside the number it replaces, where the host has a fetched price to go back to.
+
+    Inline is the Board take's: the three fields on one line, each as wide as what it holds (a
+    price, a line, a book's name), its label above it, at the control height every field on the
+    desk shares, and the way back a small plain key at the line's end. A narrow take wraps them.
+    The take is a row's answer, not a form; a form's label column and full-width fields made two
+    inputs the size of the card in it.
+*@
+
+@if (Inline)
+{
+    <div class="typed-inline" role="group" aria-label="Your own price">
+        @* To the cent (+104.35), or decimal odds (2.0435), which the line beneath says back. *@
+        <DeskField TValue="decimal?" Mono="true" type="number" step="any" Immediate="true"
+                   Label="Price" aria-label="Price" placeholder="-110" Class="typed-inline__price"
+                   onblur="@Blur(Model.TouchPrice)"
+                   data-typed="@_focusKey"
+                   Error="@Model.PriceError"
+                   Value="Model.Price" ValueChanged="SetPriceAsync" />
+        @if (HasLine)
+        {
+            <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
+                       Label="Line" aria-label="Line" placeholder="@(Market == Markets.Total ? "47.5" : "-3")"
+                       Class="typed-inline__line"
+                       onblur="@Blur(Model.TouchLine)"
+                       Error="@Model.LineError(Market)"
+                       Value="Model.Line" ValueChanged="SetLineAsync" />
+        }
+        <DeskField TValue="string" Immediate="true" Label="Book" aria-label="Book" placeholder="draftkings"
+                   list="@_booksListId" Class="typed-inline__book"
+                   onblur="@Blur(Model.TouchBook)"
+                   Error="@Model.BookFieldError"
+                   Value="Model.Book" ValueChanged="SetBookAsync" />
+        <datalist id="@_booksListId">
+            @foreach (var book in KnownBooks)
+            {
+                <option value="@book"></option>
+            }
+        </datalist>
+        @if (CanUseFetched)
+        {
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain" Class="typed-inline__back wager-manual-key"
+                        Icon="@Icons.Material.Filled.Undo"
+                        aria-pressed="true"
+                        Title="Go back to the price the desk fetched"
+                        OnClick="OnUseFetched">
+                @UseFetchedLabel
+            </DeskButton>
+        }
+    </div>
+    @if (Echo is { } echo)
+    {
+        <p class="typed-inline__echo">@echo</p>
+    }
+}
+else
+{
+<FormRow Class="wbet__price wager-typed">
+    <LabelContent>Price<span class="wbet__echo">@Echo</span></LabelContent>
+    <ChildContent>
+        <div class="wager-typed__cell">
+            @* To the cent (+104.35), or decimal odds (2.0435), which the echo above says back as
+               the American price it reads. *@
+            <DeskField TValue="decimal?" Mono="true" type="number" step="any" Immediate="true"
+                       Label="Price" aria-label="Price" placeholder="-110" Class="wfield--short"
+                       onblur="@Blur(Model.TouchPrice)"
+                       data-typed="@_focusKey"
+                       Error="@Model.PriceError"
+                       Value="Model.Price" ValueChanged="SetPriceAsync" />
+            @if (CanUseFetched)
+            {
+                <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
+                            Icon="@Icons.Material.Filled.Undo"
+                            aria-pressed="true"
+                            Title="Go back to the price the desk fetched"
+                            OnClick="OnUseFetched">
+                    @UseFetchedLabel
+                </DeskButton>
+            }
+        </div>
+    </ChildContent>
+</FormRow>
+@if (HasLine)
+{
+    <FormRow Label="Line" Class="wager-typed">
+        <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
+                   Label="Line" aria-label="Line" placeholder="@(Market == Markets.Total ? "47.5" : "-3")"
+                   onblur="@Blur(Model.TouchLine)"
+                   Class="wfield--short"
+                   Error="@Model.LineError(Market)"
+                   Value="Model.Line" ValueChanged="SetLineAsync" />
+    </FormRow>
+}
+<FormRow Label="Book" Class="wager-typed">
+    <div class="wager-typed__cell">
+        <DeskField TValue="string" Immediate="true" Label="Book" aria-label="Book" placeholder="draftkings"
+                   onblur="@Blur(Model.TouchBook)"
+                   list="@_booksListId" Class="wfield--short"
+                   Error="@Model.BookFieldError"
+                   Value="Model.Book" ValueChanged="SetBookAsync" />
+        <datalist id="@_booksListId">
+            @foreach (var book in KnownBooks)
+            {
+                <option value="@book"></option>
+            }
+        </datalist>
+    </div>
+</FormRow>
+}
+
+@code {
+    /// <summary>The fields on one line, each its content's width: the Board take's layout.</summary>
+    [Parameter] public bool Inline { get; set; }
+
+    /// <summary>The way back to the fetched price, in both places a price is typed.</summary>
+    public const string UseFetchedLabel = "Use the fetched price";
+
+    [Parameter, EditorRequired] public TypedPrice Model { get; set; } = default!;
+
+    /// <summary>The market (<c>Markets.*</c>), for the line's placeholder and its rule.</summary>
+    [Parameter] public string? Market { get; set; }
+
+    /// <summary>Whether the market takes a line: a spread or a total on a game.</summary>
+    [Parameter] public bool HasLine { get; set; }
+
+    /// <summary>The side at the line typed — "Spread · Bills +3.5" — said under the Price label.</summary>
+    [Parameter] public string? SideEcho { get; set; }
+
+    /// <summary>The books the journal already knows, offered as the book field's suggestions.</summary>
+    [Parameter] public IReadOnlyList<string> KnownBooks { get; set; } = [];
+
+    /// <summary>Whether there is a fetched price to go back to; then the price row offers it.</summary>
+    [Parameter] public bool CanUseFetched { get; set; }
+
+    [Parameter] public EventCallback OnUseFetched { get; set; }
+
+    /// <summary>After any field changes, so the host re-reads its offer.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private readonly string _booksListId = "books-" + Guid.NewGuid().ToString("N")[..8];
+
+    private readonly string _focusKey = "tp-" + Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>The price field, as the focus helper finds it.</summary>
+    public string PriceSelector => $"input[data-typed=\"{_focusKey}\"]";
+
+    /// <summary>The line under the Price label: the side typed, and a decimal price's reading.</summary>
+    private string? Echo
+    {
+        get
+        {
+            var parts = new[] { SideEcho, Model.DecimalEcho }.Where(p => p is not null).ToList();
+            return parts.Count == 0 ? null : string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>
+    /// A field left: from now on it says what is wrong with it. Created on this component, so the
+    /// error drawn here is redrawn when the field is left (a bare delegate would redraw the field only).
+    /// </summary>
+    private EventCallback<FocusEventArgs> Blur(Action touch) => EventCallback.Factory.Create<FocusEventArgs>(this, touch);
+
+    /// <summary>Moves focus to the price field once it is drawn, its number selected to type over.</summary>
+    public Task FocusPriceAsync() => DeskFocus.WhenDrawnAsync(JS, PriceSelector);
+
+    private Task SetPriceAsync(decimal? price)
+    {
+        Model.SetPrice(price);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetLineAsync(decimal? line)
+    {
+        Model.SetLine(line);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetBookAsync(string? book)
+    {
+        Model.SetBook(book);
+        return OnChanged.InvokeAsync();
+    }
+}

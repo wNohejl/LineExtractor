@@ -3,7 +3,7 @@
     Point this machine's desk at the other machine's Postgres over the tailnet, or back at its own.
 
 .DESCRIPTION
-    Run on the laptop (ADR 0023). Writes into src/LineOps.Web/appsettings.Local.json, the
+    Run on the laptop (ADR 0023). Writes into src/XLines.Web/appsettings.Local.json, the
     gitignored file the web host reads last, so it wins over appsettings.json and user-secrets:
 
       ConnectionStrings:LineOps   the remote database, SSL Mode=Disable (compose/tailnet-db.yml
@@ -44,7 +44,7 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot '_pg.ps1')
 $root = Split-Path $PSScriptRoot -Parent
-if (-not $Path) { $Path = Join-Path (Join-Path (Join-Path $root 'src') 'LineOps.Web') 'appsettings.Local.json' }
+if (-not $Path) { $Path = Join-Path (Join-Path (Join-Path $root 'src') 'XLines.Web') 'appsettings.Local.json' }
 
 # Windows PowerShell 5.1 ships type data that makes ConvertTo-Json write an array that passed
 # through ConvertFrom-Json as {"value": [...], "Count": n}. Removing it for this session restores
@@ -125,7 +125,7 @@ $json = $settings | ConvertTo-Json -Depth 32
 # UTF-8 without a byte-order mark, the same bytes from either PowerShell.
 [IO.File]::WriteAllText($Path, $json + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding $false))
 
-$shown = $connections.LineOps -replace 'Password=[^;]*', 'Password=***'
+$shown = $connections.XLines -replace 'Password=[^;]*', 'Password=***'
 Write-Host "$(if ($existed) { 'Updated' } else { 'Created' }) $Path"
 Write-Host "  ConnectionStrings:LineOps = $shown"
 if ($Local) {
@@ -145,4 +145,4 @@ else {
     catch { Write-Host "  $target could not be reached: $($_.Exception.Message)" -ForegroundColor Yellow }
     finally { $client.Close() }
 }
-Write-Host "Restart the desk for it to take effect: dotnet run --project src/LineOps.Web --launch-profile http"
+Write-Host "Restart the desk for it to take effect: dotnet run --project src/XLines.Web --launch-profile http"

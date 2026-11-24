@@ -1,4 +1,4 @@
-# LineOps runbook
+# XLines runbook
 
 What each alert means, how urgent it is, and what to do about it.
 
@@ -71,7 +71,7 @@ looks green except this.
 
 **Triage**
 1. Call the provider endpoint by hand and compare the JSON against the adapter's expectations.
-2. Compare against the recorded fixtures in `tests/LineOps.Tests/Fixtures/`. If the shape has
+2. Compare against the recorded fixtures in `tests/XLines.Tests/Fixtures/`. If the shape has
    changed, **record the new payload as a fixture first**, then fix the parser — that way the
    regression is pinned before the fix.
 3. Check whether it is genuinely a light slate. Mid-week in the off-season is a real cause, and

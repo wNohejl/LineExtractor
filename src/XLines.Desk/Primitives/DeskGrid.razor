@@ -1,0 +1,344 @@
+@namespace XLines.Desk.Primitives
+@typeparam T
+@using MudBlazor
+
+@*
+    The desk's table.
+
+    Every panel had its own hand-written <table class="grid">, which was fine while a table was
+    a thing you read and nothing more. It stopped being fine once the desk started holding a
+    season: a column you cannot sort is a column you have to scan, and a row you cannot act on
+    is a dead end in an application whose whole idea is moving between connected views.
+
+    So the markup moves to MudDataGrid — for the sorting, and for the room to grow into
+    filtering, grouping and virtualisation — and the appearance stays exactly where it was.
+    Nothing here restates the desk's table styling; css/mud-bridge.css already teaches
+    MudBlazor's table classes the same hairline, dense, tabular rhythm .grid uses, so a
+    converted panel looks unchanged and a future Mud component arrives already matching.
+
+    Columns are declared by the caller as ordinary MudDataGrid columns:
+
+        <DeskGrid Items="_rows" Context="row">
+            <PropertyColumn Property="x => x.Name" Title="Name" />
+            <TemplateColumn Title="Group">...</TemplateColumn>
+        </DeskGrid>
+
+    A column of figures says Align="Align.Right", and the grid sets its heading and its cells on
+    the trailing edge together. See AlignColumns below for why the grid does that and not
+    MudBlazor.
+*@
+
+<div class="deskgrid @(Dense ? "deskgrid--dense" : null) @Class">
+@*  While the first page is on its way there is nothing to sort and nothing to click, so the
+    grid stands aside and skeleton rows hold its shape. They are laid out on the same row
+    rhythm the real body uses, which is the whole point: the header stays put, the panel does
+    not collapse to nothing and then jump back, and the operator can see how much is coming.
+
+    Only for the empty first load. A grid that already has rows keeps them and reports the
+    refresh through the window's pulse — replacing read numbers with grey bars loses
+    information the operator was using.  *@
+    @if (Loading && !HasRows)
+    {
+        <div class="deskgrid__skeleton" aria-busy="true" aria-live="polite" aria-label="@LoadingLabel">
+            @for (var i = 0; i < SkeletonRows; i++)
+            {
+                <div class="deskgrid__skeleton-row">
+                    <DeskSkeleton Width="34%" />
+                    <DeskSkeleton Width="22%" />
+                    <DeskSkeleton Width="18%" />
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+@*      Nothing to list: the sentence alone, starting where a row's text would. MudDataGrid draws
+        its heading row whatever it holds and puts its no-records content in a centred <th>, so an
+        empty grid read as a row of column names over a bold line in the middle of the table —
+        headings for nothing, and the sentence set as one more heading.
+
+        The grid stays in the tree, hidden, rather than being torn down: a filter that matches
+        nothing and is then cleared brings the rows back in the order the operator sorted them,
+        not the initial one. *@
+        @if (!HasRows)
+        {
+            <p class="deskgrid__empty">@EmptyText</p>
+        }
+    <MudDataGrid @ref="_grid"
+                 T="T"
+                 Items="@Items"
+                 hidden="@(!HasRows)"
+                 ColumnResizeMode="@(Resizes ? ResizeMode.Column : ResizeMode.None)"
+                 Dense="true"
+                 Hover="true"
+                 Bordered="false"
+                 Striped="false"
+                 Elevation="0"
+                 SortMode="@SortModeFor"
+                 Filterable="false"
+                 ShowColumnOptions="false"
+                 FixedHeader="@FixedHeader"
+                 Height="@Height"
+                 RowClick="@OnRowClick"
+                 RowClass="@RowClass"
+                 RowClassFunc="@RowClassFunc"
+                 Loading="@Loading"
+                 Virtualize="@Virtualize"
+                 ChildRowRenderer="@(ChildRow is null ? null : ChildRowFor)">
+        <Columns>
+            @ChildContent
+        </Columns>
+    </MudDataGrid>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<T> Items { get; set; } = [];
+
+    /// <summary>The column definitions — MudDataGrid's own, not a wrapper of them.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// A heading sorts its column, and pressing it again reverses the order (HIG lists and
+    /// tables, macOS). One column at a time unless <see cref="MultiSort"/> says otherwise.
+    /// </summary>
+    [Parameter] public bool Sortable { get; set; } = true;
+
+    /// <summary>
+    /// Command- or Ctrl-pressing a second heading adds it as a tie-breaker ("worst success rate,
+    /// then oldest") instead of replacing the first.
+    ///
+    /// Off by default. MudBlazor's multiple mode numbers every heading for it: the sorted one
+    /// carries a "1" beside its arrow and every other one a hidden "0", which a screen reader was
+    /// spared but a heading's text was not ("Starts0", "Matchup0"), and which put a stray figure
+    /// beside the one arrow a table shows. A grid whose readers do compare on two keys turns it
+    /// on, and gets the numbering where it means something.
+    /// </summary>
+    [Parameter] public bool MultiSort { get; set; }
+
+    [Parameter] public bool Dense { get; set; } = true;
+
+    /// <summary>
+    /// Columns can be dragged wider at their heading's trailing edge (HIG lists and tables,
+    /// macOS). Column mode, not container: a column grows at its neighbour's expense, so the
+    /// grid never spills past the window and every column stays on screen.
+    ///
+    /// Unset, a grid resizes when it has more than five columns — a list, a log, a report,
+    /// whose wide tables clip what the operator came to read — and a narrow one
+    /// does not, since its columns already fit and a handle on each heading is only something
+    /// to catch by accident. Set it to say either way.
+    /// </summary>
+    [Parameter] public bool? Resizable { get; set; }
+
+    /// <summary>
+    /// Pins the header while the body scrolls. Off by default: a window body already scrolls,
+    /// and a grid that manages its own height inside one has two scrollbars competing.
+    /// </summary>
+    [Parameter] public bool FixedHeader { get; set; }
+
+    [Parameter] public string? Height { get; set; }
+
+    /// <summary>
+    /// The first page has not arrived. With no rows yet, the grid is replaced by
+    /// <see cref="SkeletonRows"/> placeholder rows on its own row rhythm; with rows already
+    /// on screen it stays out of the way and MudDataGrid's own loading state applies, so a
+    /// refresh never blanks numbers the operator is reading.
+    /// </summary>
+    [Parameter] public bool Loading { get; set; }
+
+    /// <summary>
+    /// How many placeholder rows to hold the space with. Set it to the page size you expect,
+    /// so the panel is the height it will be rather than growing under the reader.
+    /// </summary>
+    [Parameter] public int SkeletonRows { get; set; } = 6;
+
+    /// <summary>
+    /// What is being fetched, as a specific action phrase — the accessible announcement while
+    /// the placeholders are up. Never "Loading…"; name the work, as <c>DeskProgress</c> does.
+    /// </summary>
+    [Parameter] public string LoadingLabel { get; set; } = "Fetching rows";
+
+    /// <summary>
+    /// Only worth it past a few hundred rows — it costs the browser's find-in-page, which on a
+    /// grid of names is a real loss.
+    /// </summary>
+    [Parameter] public bool Virtualize { get; set; }
+
+    /// <summary>
+    /// The one line an empty grid draws in place of the table: no heading row over it, body
+    /// text in secondary ink, starting where a row's first cell text would.
+    /// </summary>
+    [Parameter] public string EmptyText { get; set; } = "Nothing to show.";
+
+    [Parameter] public EventCallback<DataGridRowClickEventArgs<T>> OnRowClick { get; set; }
+
+    /// <summary>One class for every row. See <see cref="RowClassFunc"/> for per-row state.</summary>
+    [Parameter] public string? RowClass { get; set; }
+
+    /// <summary>
+    /// A class per row, so a row can show its own state.
+    ///
+    /// The desk.s rule is that a row you opened should look opened — otherwise the only sign
+    /// is the action strip further down the cell, which is invisible once the row scrolls under
+    /// the header. <c>RowClass</c> alone cannot express this: it applies to every row equally.
+    /// </summary>
+    [Parameter] public Func<T, int, string>? RowClassFunc { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// What opens under a row, across it: null for a row with nothing under it, which then
+    /// draws no row at all.
+    ///
+    /// A list window opened a row's snippet inside one narrow cell, so a list in it was as wide as
+    /// that one column and wrapped every name. A row of its own spans the table instead.
+    /// It is MudDataGrid's <c>ChildRowRenderer</c>, which draws the whole <c>&lt;tr&gt;</c>, rather
+    /// than <c>ChildRowContent</c>, which draws one cell spanning every column for every row
+    /// (or, with a <c>HierarchyColumn</c>, only those its expander opened): the list's open row
+    /// is its own state, not an expander's, and the content has to start under a column of the
+    /// caller's choosing.
+    /// </summary>
+    [Parameter] public Func<T, RenderFragment?>? ChildRow { get; set; }
+
+    /// <summary>
+    /// How many leading columns the child row leaves empty, so its content starts at the next
+    /// column's leading edge whatever width those take. A list passes 1: its snippet lines up
+    /// with the matchup, not with the start time.
+    /// </summary>
+    [Parameter] public int ChildRowIndent { get; set; }
+
+    /// <summary>The class a right-aligned column's heading and cells take; see mud-bridge.css.</summary>
+    internal const string EndClass = "deskgrid__end";
+
+    /// <summary>The class a centred column's heading and cells take.</summary>
+    internal const string CenterClass = "deskgrid__center";
+
+    /// <summary>More columns than this and an unset <see cref="Resizable"/> resizes.</summary>
+    private const int NarrowColumns = 5;
+
+    private MudDataGrid<T>? _grid;
+
+    // How many columns the grid drew. Columns are the caller's child content and register with
+    // the grid while it renders, so the count is only known after a render: a wide grid is drawn
+    // once without handles and then again with them. The handles are hairlines in the heading,
+    // so the second render moves nothing.
+    private bool _wide;
+
+    // The columns already given their alignment, so a later render does not give it again.
+    private readonly HashSet<Column<T>> _aligned = [];
+
+    private bool HasRows => Items?.Any() == true;
+
+    private bool Resizes => Resizable ?? _wide;
+
+    private SortMode SortModeFor => !Sortable ? SortMode.None : MultiSort ? SortMode.Multiple : SortMode.Single;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (_grid is null)
+            return;
+
+        var columns = _grid.RenderedColumns;
+        var changed = AlignColumns(columns);
+
+        if (Resizable is null)
+        {
+            var wide = columns.Count > NarrowColumns;
+
+            if (wide != _wide)
+            {
+                _wide = wide;
+                changed = true;
+            }
+        }
+
+        if (changed)
+            StateHasChanged();
+    }
+
+    // A column of figures reads down its trailing edge, and its heading has to sit on the same
+    // edge, or the label names the gap beside the numbers rather than the numbers.
+    //
+    // MudBlazor 9's columns take no Align. The attribute a panel writes lands in the column's
+    // UserAttributes and is drawn nowhere (MudBlazor's own analyzer reports it, MUD0002), so the
+    // sixty-odd columns that asked for the trailing edge sat on the leading one, and where a
+    // panel lined its numbers up by other means the heading stayed behind on the left. The grid
+    // reads the request and answers it through the two hooks MudBlazor does draw, the heading's
+    // and the cell's class functions, so heading and cells can never disagree.
+    //
+    // They are set from outside the column, which Blazor warns about (BL0005) because a parameter
+    // set that way is overwritten when its owner next renders. No caller on the desk supplies
+    // either, so nothing overwrites them; a column that brings its own keeps it, unaligned.
+    private bool AlignColumns(IReadOnlyCollection<Column<T>> columns)
+    {
+        _aligned.IntersectWith(columns);
+
+        var changed = false;
+
+        foreach (var column in columns)
+        {
+            if (_aligned.Contains(column) || AlignClass(column) is not { } css)
+                continue;
+
+#pragma warning disable BL0005
+            column.HeaderClassFunc ??= _ => css;
+            column.CellClassFunc ??= _ => css;
+#pragma warning restore BL0005
+
+            _aligned.Add(column);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    // Razor hands an unmatched attribute over as it was written, so Align="Align.Right" arrives
+    // as the string "Align.Right"; a render builder that passes the enum itself reads the same.
+    internal static string? AlignClass(Column<T> column)
+    {
+        if (column.UserAttributes is not { } attributes || !attributes.TryGetValue("Align", out var value))
+            return null;
+
+        var name = value switch
+        {
+            Align align => align.ToString(),
+            string text => text[(text.LastIndexOf('.') + 1)..],
+            _ => null
+        };
+
+        return name switch
+        {
+            nameof(Align.Right) or nameof(Align.End) => EndClass,
+            nameof(Align.Center) => CenterClass,
+            _ => null
+        };
+    }
+
+    private static readonly EventCallback<Microsoft.AspNetCore.Components.Web.MouseEventArgs> ChildRowPress =
+        new(null, (Action<Microsoft.AspNetCore.Components.Web.MouseEventArgs>)(static _ => { }));
+
+    // Not a MudBlazor row: it takes no row click and no row hover, and holds whatever the
+    // caller opened; its cells take the grid's cell class for the same padding and hairline.
+    // colspan 1000 is HTML's ceiling and MudDataGrid's own idiom for "the rest".
+    //
+    // A press in it stops here. What it holds is its opener's — a row's keys, the answer one of
+    // them opened — and the whole row is that thing's hit area, padding and lead cell included:
+    // a near miss between two keys is a press on nothing, never one on whatever listens above the
+    // grid. The row's own click is a sibling and cannot hear it; a host that listens round the
+    // grid (to close what is open on an outside press, say) would, so it is stopped once here for
+    // every list rather than by each thing drawn inside. The handler does nothing and has no
+    // receiver, so a press here redraws nothing; it is there so the press has somewhere to land.
+    private RenderFragment<CellContext<T>> ChildRowFor => context => __builder =>
+    {
+        if (ChildRow?.Invoke(context.Item) is not { } content)
+            return;
+
+        <tr class="deskgrid__child" @onclick="ChildRowPress" @onclick:stopPropagation="true">
+            @if (ChildRowIndent > 0)
+            {
+                <td class="mud-table-cell deskgrid__child-lead" colspan="@ChildRowIndent"></td>
+            }
+            <td class="mud-table-cell deskgrid__child-cell" colspan="1000">@content</td>
+        </tr>
+    };
+}

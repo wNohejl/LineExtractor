@@ -21,9 +21,9 @@
 # Everything secret comes from ./.env beside this file (see .env.example). Deploy with
 # ./deploy.sh; roll back with IMAGE_TAG=sha-<commit> ./deploy.sh.
 
-# Not "lineops": that is the project name the laptop's docker-compose.yml gets from its directory,
+# Not "lineops": that is the project name the laptop's docker-compose.yml pins for its volumes,
 # and sharing it would make one stack's containers orphans of the other (deploy.sh removes orphans).
-name: lineops-hosted
+name: xlines-hosted
 
 x-logging: &logging
   # A noisy week must not fill the disk: three 10 MB files per container, then rotation.
@@ -54,7 +54,7 @@ services:
       - "443:443"
       - "443:443/udp"   # HTTP/3
     environment:
-      LINEOPS_HOST: ${LINEOPS_HOST:?set LINEOPS_HOST in .env}
+      XLINES_HOST: ${XLINES_HOST:?set XLINES_HOST in .env}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -70,7 +70,7 @@ services:
     logging: *logging
 
   web:
-    image: ghcr.io/${GHCR_OWNER:-wnohejl}/lineops-web:${IMAGE_TAG:-main}
+    image: ghcr.io/${GHCR_OWNER:-wnohejl}/xlines-web:${IMAGE_TAG:-main}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -81,7 +81,7 @@ services:
       # Plain HTTP on the compose network only; no port is published. Caddy holds the certificate.
       ASPNETCORE_URLS: "http://+:8080"
       Hosting__BehindProxy: "true"
-      AllowedHosts: ${LINEOPS_HOST:?set LINEOPS_HOST in .env}
+      AllowedHosts: ${XLINES_HOST:?set XLINES_HOST in .env}
       DataProtection__KeyPath: /keys
 
       # The worker schedules and evaluates; this process only serves the desk.
@@ -114,7 +114,7 @@ services:
     logging: *logging
 
   worker:
-    image: ghcr.io/${GHCR_OWNER:-wnohejl}/lineops-worker:${IMAGE_TAG:-main}
+    image: ghcr.io/${GHCR_OWNER:-wnohejl}/xlines-worker:${IMAGE_TAG:-main}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -174,8 +174,8 @@ services:
         condition: service_healthy
     environment:
       PGHOST: postgres
-      PGUSER: lineops
-      PGDATABASE: lineops
+      PGUSER: xlines
+      PGDATABASE: xlines
       PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
     volumes:

@@ -1,0 +1,369 @@
+@namespace XLines.Web.Components.Desk
+@using XLines.Core.Analytics
+@using XLines.Data.CrossReference
+@inject XLines.Desk.IDeskAccess Access
+
+@*
+    One market's best offer, and where the rest of the market stands.
+
+    The rail is the point. Each tick is a book, placed by its implied probability between the
+    best and worst on offer, so the width of the group *is* the value of shopping. Books that
+    agree collapse to one mark. Nothing has to be read to see whether a game repays the work.
+
+    A price that is no longer live keeps its place here rather than being dropped. ADR 0010
+    promotes one number per book at first pitch and deletes the scan behind it, so for a game in
+    play the close is all there is — and it is the number worth having: it is what the market
+    concluded, and it is what closing-line value is measured against. Dropping it left sixteen of
+    nineteen rows blank and told the reader nothing. So it is muted rather than hidden, and it
+    explains itself on hover instead of in a legend.
+*@
+
+@if (Offer is null)
+{
+    @* As wide as a price, so a column of dashes holds the width a priced row would and the
+       market's heading above it stays over its pair (.price__empty). *@
+    <span class="price__empty dim">—</span>
+}
+else if (Takeable)
+{
+    @* A button takes focus, so its title reaches the keyboard and a screen reader as it is. *@
+    @Body(false)
+}
+else
+{
+    @* Any price that is not a door is a reading on a trigger that takes focus (tabindex in
+       Body), with its explanation in a DeskTooltip: a title on a div no key can reach gave the
+       book breakdown to a pointer only (HIG 12). It is the structured shape — what the number
+       is, when it was taken and what it is measured against, then the books one per row, best
+       first, by name, with the price and its value lined up — because ten books written as one
+       string ran as a single line across the window, over the tiles above it. Its Text is the
+       same thing in plain lines, which is what a screen reader is told and what a test reads. *@
+    <DeskTooltip Title="@TipTitle" Caption="@TipCaption" Rows="@TipRows" Footnote="@TipFootnote"
+                 Text="@Tooltip">@Body(Offer.IsClosing)</DeskTooltip>
+}
+
+@code {
+    [Parameter] public BestOffer? Offer { get; set; }
+
+    /// <summary>
+    /// Which side this price is for — a team monogram, or O/U on a total.
+    ///
+    /// <para>
+    /// Two prices sit next to each other in every market and the board orders them home-first,
+    /// but a convention the reader cannot see is not a convention. A moneyline pair of +331 and
+    /// -380 is a heavy favourite beside a long underdog, and taking the wrong one of those is
+    /// not a cosmetic mistake.
+    /// </para>
+    ///
+    /// <para>
+    /// Supplied by the caller rather than derived here, because the short form of a team lives
+    /// on the team — ESPN supplies the official abbreviation (ADR 0011) — and this control only
+    /// ever sees an outcome string.
+    /// </para>
+    /// </summary>
+    [Parameter] public string? Selection { get; set; }
+
+    /// <summary>
+    /// When the game starts, so a closing price can say how long before first pitch it was
+    /// taken. Optional: without it the tooltip still says what the number is, not how early.
+    /// </summary>
+    [Parameter] public DateTimeOffset? StartsAt { get; set; }
+
+    /// <summary>
+    /// Opens the wager window on this price (spec §5.3). Only a live price is a door: a close is
+    /// a number that can no longer be taken, so it stays a reading.
+    /// </summary>
+    [Parameter] public EventCallback OnTake { get; set; }
+
+    /// <summary>
+    /// Banks this price on the slip as a parlay leg, without a window: Shift-click, or Shift+Enter.
+    /// A parlay is several prices, and opening a wager window for each to press Add as leg was a
+    /// window per leg. The same door rule as <see cref="OnTake"/>: only a live price.
+    /// </summary>
+    [Parameter] public EventCallback OnBank { get; set; }
+
+    /// <summary>This price's take is open under the row: the cell stays lit and reports itself expanded.</summary>
+    [Parameter] public bool Taking { get; set; }
+
+    /// <summary>The slip holds this price (this side, this book, this number): the cell says "on slip".</summary>
+    [Parameter] public bool Banked { get; set; }
+
+    // A visitor's price is a reading too: there is no wager window on their desk to open (ADR 0018).
+    private bool Takeable => Access.CanOperate && OnTake.HasDelegate && Offer is { IsClosing: false };
+
+    private bool Bankable => Takeable && OnBank.HasDelegate;
+
+    private Task TakeAsync(bool shift)
+        => shift && Bankable ? OnBank.InvokeAsync()
+            : Takeable ? OnTake.InvokeAsync()
+            : Task.CompletedTask;
+
+    // Enter and Space need nothing here: a focused button is pressed by the browser with a click
+    // that carries the Shift key, and Space presses it without scrolling the Board (HIG 2).
+    private Task ClickAsync(Microsoft.AspNetCore.Components.Web.MouseEventArgs e) => TakeAsync(e.ShiftKey);
+
+    /// <summary>
+    /// The cell itself, held apart from its wrapper so the live and closing paths render the
+    /// same thing rather than two copies that drift. A price that can be taken is a real
+    /// <c>&lt;button type="button"&gt;</c>; any other is the plain reading it always was — a
+    /// visitor's price is not a button at all. The inside is <see cref="Inside"/> either way,
+    /// and one reset rule in xlines.css makes the two look the same.
+    /// </summary>
+    private RenderFragment Body(bool closing) => @<text>
+        @if (Takeable)
+        {
+            @* While its take is open under the row, the cell stays lit and says it controls it, so
+               the strip below reads as this price's and a second press puts it away. *@
+            <button type="button" class="price price--take @(Taking ? "price--taking" : null)" title="@Tooltip"
+                    aria-expanded="@(OnTake.HasDelegate ? (Taking ? "true" : "false") : null)"
+                    @onclick="ClickAsync" @onclick:stopPropagation="true">@Inside(closing)</button>
+        }
+        else
+        {
+            <div class="price @(closing ? "price--closing" : null)" tabindex="0">@Inside(closing)</div>
+        }
+    </text>;
+
+    /// <summary>
+    /// What the cell shows. Spans throughout, because a button may hold phrasing content only;
+    /// <c>.price__top</c> and <c>.rail</c> set their own display.
+    /// </summary>
+    private RenderFragment Inside(bool closing) => @<text>
+            <span class="price__top">
+                @if (Selection is { Length: > 0 } selection)
+                {
+                    <span class="price__sel">@selection</span>
+                }
+                @if (Offer!.Line is { } line)
+                {
+                    <span class="price__line">@FormatLine(line, Offer.Outcome)</span>
+                }
+                <span class="price__odds">@FormatPrice(Offer.PriceAmerican)</span>
+                <span class="price__book">@Monogram(Offer.Book)</span>
+            </span>
+
+            @if (Offer.Rungs.Count > 1)
+            {
+                @* The rail is one picture with one name — every book and its price — and its ticks
+                   are marks within it, hidden from a screen reader. A title per tick reached a
+                   pointer only, and a two-pixel one barely (HIG 12). *@
+                <span class="rail" role="img" aria-label="@RailLabel">
+                    @foreach (var rung in Offer.Rungs)
+                    {
+                        <span class="rail__tick @(rung.Book == Offer.Book ? "rail__tick--best" : null)"
+                              style="left:@(Position(rung).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"
+                              aria-hidden="true"></span>
+                    }
+                </span>
+
+                @* The line varying outranks the price gap: books quoting -110 on totals of 7, 8
+                   and 9 have a price spread of zero and the largest real difference on the board. *@
+                <span class="price__edge @(IsWide ? "price__edge--wide" : null)">@EdgeLabel</span>
+            }
+            else if (closing)
+            {
+                @* One book leaves no rail to carry the fact, so the cell states it in a word.
+                   Always legible rather than revealed on hover: it is a property of the number,
+                   not a detail about it. *@
+                <span class="price__edge price__edge--closing">closed</span>
+            }
+
+            @* Value against the fair price, where there is one. Only for a live price: at the
+               close there is nothing left to take, and the fair close is in the tooltip. *@
+            @if (!closing && Offer.Ev is { } ev)
+            {
+                <span class="price__ev @(ev > 0 ? "price__ev--plus" : null)">@EvLabel(ev)</span>
+            }
+
+            @* A Shift-click's leg stays visible on the cell it came from: the toast goes in four
+               seconds, and a parlay is built by scanning back across the rows. Always shown,
+               not revealed on hover, because it is a fact about this price now. *@
+            @if (Banked && !closing)
+            {
+                <span class="price__slip"><Glyph Icon="@Icons.Material.Filled.Check" />on slip</span>
+            }
+    </text>;
+
+    /// <summary>
+    /// Expected value, as a percentage of the stake, signed. "+2.1% EV".
+    /// </summary>
+    public static string EvLabel(double ev)
+    {
+        var percent = ev * 100;
+        return Math.Abs(percent) < 0.05 ? "fair price" : $"{(percent > 0 ? "+" : "−")}{Math.Abs(percent):0.0}% EV";
+    }
+
+    /// <summary>
+    /// The fair price and where it came from, in a phrase. "Fair −118 (Pinnacle, no-vig)" — spelt
+    /// as every book table spells it (<see cref="Checks.Basis"/>, <c>BookRanking.FairText</c>).
+    /// It is the tooltip's own line, because the first thing a reader asks of "+2.1% EV" is
+    /// "against what".
+    /// </summary>
+    public static string FairLabel(FairPrice fair)
+        => $"Fair {FormatPrice(fair.PriceAmerican)} ({Checks.Basis(fair)}, no-vig)";
+
+    /// <summary>
+    /// How many books the tooltip names: the tables' own <c>BookRanking.Top</c>. A tooltip is
+    /// read at a glance and cannot be scrolled or clicked into, so past five the rest are counted
+    /// and pointed at More bets, which lists them all.
+    /// </summary>
+    public const int TipBooks = XLines.Web.Components.Snippets.BookRanking.Top;
+
+    /// <summary>"Closing price" for a close; "Best price" when books compete for it; "Price" for one book.</summary>
+    private string TipTitle
+        => Offer is null ? string.Empty
+            : Offer.IsClosing ? PriceProvenance.ClosingTitle
+            : Offer.Rungs.Count > 1 ? "Best price" : "Price";
+
+    /// <summary>
+    /// When a close was taken, then the fair price it is measured against, each on its own line.
+    /// Null when there is neither — a live price with no fair has nothing to add to its rows.
+    /// </summary>
+    private string? TipCaption
+    {
+        get
+        {
+            if (Offer is null)
+                return null;
+
+            var lines = new List<string>();
+            if (Offer.IsClosing)
+                lines.Add(PriceProvenance.Caption(Offer.CapturedAt, StartsAt));
+            if (Offer.Fair is { } fair)
+                lines.Add(FairLabel(fair));
+
+            return lines.Count == 0 ? null : string.Join("\n", lines);
+        }
+    }
+
+    /// <summary>
+    /// Every book on this side, best first: the cell's own book — the one holding the price —
+    /// then the rest by value against fair, highest first (a book without one after those with),
+    /// the name last. Not the two-sided tables' order (<c>BookRanking</c>: best on either side,
+    /// then lowest hold): that put +170 above +172 here, and with five rows and a count for the
+    /// rest, the reader has to be able to trust that nothing left out beats what is shown. Value
+    /// rather than the bare price, because on a spread or a total books quote different numbers.
+    /// </summary>
+    private IReadOnlyList<BookPrice> Ranked
+        => Offer is null ? []
+            : Offer.Rungs
+                .OrderBy(r => string.Equals(r.Book, Offer.Book, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(r => r.Ev is null ? 1 : 0)
+                .ThenByDescending(r => r.Ev ?? 0)
+                .ThenByDescending(r => r.PriceAmerican)
+                .ThenBy(r => BookNames.Display(r.Book), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+    /// <summary>The books the tooltip names: the first <see cref="TipBooks"/> of <see cref="Ranked"/>.</summary>
+    private IReadOnlyList<BookPrice> Shown => Ranked.Take(TipBooks).ToList();
+
+    private int Unshown => Offer is null ? 0 : Math.Max(0, Offer.Rungs.Count - Shown.Count);
+
+    /// <summary>One row a book: its name, its number (the line too where it has one), its value.</summary>
+    private IReadOnlyList<DeskTooltipRow> TipRows
+        => Offer is null ? []
+            : Shown.Select(r => new DeskTooltipRow(
+                    BookNames.Display(r.Book),
+                    XLines.Web.Components.Snippets.BookRanking.Quote(r, Offer.Outcome),
+                    r.Ev is { } ev ? EvLabel(ev) : null,
+                    Emphasis: Offer.Rungs.Count > 1 && r.Book == Offer.Book))
+                .ToList();
+
+    /// <summary>Where the books left out are — a tooltip cannot be clicked into, More bets lists them.</summary>
+    private string? TipFootnote => Unshown > 0 ? $"+{Unshown} more in More bets" : null;
+
+    /// <summary>
+    /// What shopping is worth here, said plainly. A differing line is reported as such rather
+    /// than folded into a price gap it does not appear in.
+    /// </summary>
+    private string EdgeLabel
+    {
+        get
+        {
+            if (Offer is null)
+                return string.Empty;
+
+            var edge = Offer.EdgePoints ?? 0;
+
+            // A closed market is not a shopping opportunity. Reporting "+1.4 pts vs worst" on a
+            // game that has finished invites moving to a book that is no longer quoting it, so
+            // the label says where the books finished rather than what could have been won.
+            var suffix = Offer.IsClosing ? " at close" : "";
+
+            return Offer.LinesVary
+                ? edge < 0.05 ? "line varies" + suffix : $"line varies · +{edge:0.0} pts{suffix}"
+                : edge < 0.05 ? "books agree" + suffix : $"+{edge:0.0} pts vs worst{suffix}";
+        }
+    }
+
+    /// <summary>
+    /// Whether this market is worth the work. Never true of a close: "wide" is a call to go and
+    /// shop, and there is nothing left to shop.
+    /// </summary>
+    private bool IsWide
+        => Offer is not null && !Offer.IsClosing && (Offer.LinesVary || (Offer.EdgePoints ?? 0) >= 2);
+
+    /// <summary>
+    /// A book's two-character mark. Colour means state on this desk, so a book is identified
+    /// typographically instead — see ADR 0008.
+    /// </summary>
+    /// <remarks>The marks live with the names in <see cref="BookNames.Code"/>, so a book named there always has a mark of its own.</remarks>
+    public static string Monogram(string book) => BookNames.Code(book);
+
+    /// <summary>
+    /// Where a book's tick sits, 0% at the best price and 100% at the worst. When every book
+    /// quotes the same number the range collapses and they all land on the left — which is the
+    /// correct picture: there is nothing to shop for.
+    /// </summary>
+    private double Position(BookPrice rung)
+    {
+        if (Offer is null || Offer.Rungs.Count < 2)
+            return 0;
+
+        var best = Offer.Rungs.Min(r => r.Implied);
+        var worst = Offer.Rungs.Max(r => r.Implied);
+        var span = worst - best;
+
+        return span <= 0 ? 0 : (rung.Implied - best) / span * 100;
+    }
+
+    /// <summary>
+    /// The tooltip in plain lines, one book a line: what a screen reader is told when the
+    /// structured tooltip is up, and the takeable button's native title, which cannot draw a
+    /// table but does keep a line break — so neither runs ten books into one ribbon. The cell's
+    /// own book is said to be the best, since its weight in the table cannot be heard.
+    /// </summary>
+    private string Tooltip
+    {
+        get
+        {
+            if (Offer is null)
+                return string.Empty;
+
+            var rows = TipRows.Select(r => r.Emphasis ? r with { Label = $"{r.Label} (best)" } : r).ToList();
+            var footnote = string.Join("\n", new[]
+            {
+                TipFootnote,
+                Bankable ? "Click to log this price. Shift-click adds it to the slip as a parlay leg."
+                    : Takeable ? "Click to log this price."
+                    : null
+            }.Where(s => s is not null));
+
+            return DeskTooltip.Compose(TipTitle, TipCaption, rows, footnote);
+        }
+    }
+
+    /// <summary>
+    /// The rail's accessible name: where every book stands, best first as the ticks run, by the
+    /// name a listener knows it by. "Books: DraftKings o7 -110, FanDuel o7.5 +105".
+    /// </summary>
+    private string RailLabel
+        => Offer is null
+            ? string.Empty
+            : "Books: " + string.Join(", ", Offer.Rungs.OrderBy(Position).Select(r =>
+                $"{BookNames.Display(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"));
+
+    private static string FormatPrice(int american) => OddsMath.FormatPrice(american);
+
+    private static string FormatLine(decimal line, string outcome) => OddsMath.FormatLine(line, outcome);
+}

@@ -41,7 +41,7 @@ Sizes: 1280×800 (every window, dark; the form-heavy windows again in light) and
 
 **Text under 11px.** The script counted 10px text in the Board's price cells (`price__sel`,
 `price__book`, `price__edge`, `price__ev`), the starter role on a matchup chip and
-`value__bet` — all set from `--text-caption`, which lineops.css pins at 10px as rendered,
+`value__bet` — all set from `--text-caption`, which xlines.css pins at 10px as rendered,
 "the macOS floor (HIG Typography)", and ThemeContrastTests asserts. Kept: the desk keeps
 macOS density, and 10pt is macOS's caption. Nothing renders below it.
 

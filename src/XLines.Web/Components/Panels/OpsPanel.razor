@@ -1,0 +1,1173 @@
+@using XLines.Data
+@using XLines.Reliability
+@using XLines.Ingestion.Services
+@using XLines.Ingestion.Configuration
+@using XLines.Core.Contracts
+@using XLines.Desk.Windowing
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+@inject IOptions<ReliabilityOptions> Options
+@inject IOptions<XLines.Ingestion.Configuration.IngestionOptions> Ingestion
+@inject DeskToasts Toasts
+
+@* A visitor reads Ops — source health, SLOs, the alerts and what they cost — and changes none of
+   it: no evaluation, no polling switch, no incident, no fault injected (ADR 0018). *@
+
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@* Until the first read, the figures and tables below would all say zero and "no alerts" —
+   the all-clear this window exists to give only when it is true. Their shape stands in. *@
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        <DeskStack>
+            <DeskSkeleton Lines="2" />
+            <DeskGrid T="SourceHealth" Items="_health" Loading="true" LoadingLabel="Reading source health" />
+        </DeskStack>
+    }
+}
+else
+{
+@* The window reads top to bottom as figures, what needs attention, then the record: the tiles
+   and the key that recomputes them, the open alerts, each source's health, and last the odds
+   feeds with the switch that prices them. Alerts used to sit under two tables and a switch,
+   so the one section that asks for action was the last a reader reached. *@
+<MetricRow Class="ops-metrics--4">
+    <Metric Label="Sources in SLO"
+            State="@(_healthy == _health.Count ? DeskState.Positive : DeskState.Warning)">
+        @_healthy/@_health.Count
+    </Metric>
+    <Metric Label="Open alerts"
+            Value='@_alerts.Count.ToString("N0")'
+            Note='@(_criticals > 0 ? $"{_criticals:N0} critical" : "none critical")'
+            State="@(_criticals > 0 ? DeskState.Negative : _alerts.Count > 0 ? DeskState.Warning : DeskState.Positive)" />
+    <Metric Label="Rows today" Value='@_rowsToday.ToString("N0")' />
+    <Metric Label="Open incidents"
+            Value='@_openIncidents.ToString("N0")'
+            State="@(_openIncidents > 0 ? DeskState.Negative : DeskState.Positive)" />
+</MetricRow>
+
+@* The one action this window exists to commit — rolling the KPIs up and re-running the alert
+   rules — so it is the panel's single Filled. Busy rather than Disabled: an evaluation in
+   flight is a control that is occupied, not one that is not for you, and the shimmer says
+   which. See ADR 0016.
+
+   It sits under the figures it recomputes, leading, with the line that says what it does. It
+   used to be the only thing in a toolbar of its own, pinned to the right edge: in a maximised
+   window that was a 40px band above the tiles that read as empty, with the key a screen's width
+   from anything it acts on (HIG: the primary action aligns with the content; nothing pinned to
+   a far edge away from what it belongs to). A KeyRow lays it as every key row on the desk
+   reads: the sentence, then the Filled key last, and the key described by the sentence. *@
+@if (Manager.Access.CanOperate)
+{
+    <KeyRow Class="opsact" Justify="DeskJustify.Start"
+            Reason="Rolls today's figures up and runs the alert rules again.">
+        <Primary Context="why">
+            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
+                        OnClick="EvaluateAsync" Busy="@_busy" aria-describedby="@why">
+                Evaluate now
+            </DeskButton>
+        </Primary>
+    </KeyRow>
+}
+
+@* The sections below are section cards in one card flow (the Desk's grouping contract, Nov 22):
+   each a fill with one hairline edge and its name in the bar inside it, so a section ends where
+   its card does rather than where the next heading rule happens to start. A wide window gives
+   the short cards — the stats source, the key, scanning, the drill — columns of their own; a
+   card whose body is a table of several columns spans the row, so the table has the window's
+   width and the Books column is not squeezed to one word a line beside a growing Notes column.
+   It was one long column of bare rules over tables and prose, which ran together. *@
+<div class="wflow opsflow">
+
+@* ESPN is opt-in (EspnOptIn): a clone calls it only once its operator has read why and turned it
+   on. Off, nothing writes schedules, scores or box scores, and every section below reads as quiet
+   for that reason alone — so this says so first, says why, and says exactly how to turn it on.
+   Read from configuration, so it stands whether or not the database answered. *@
+@* Three states, one statement (ADR 0026): ESPN on, it is the stats source as it always was; off
+   with a key, The Odds API supplies fixtures (free) and scores (metered) and the rest needs ESPN;
+   off with no key, nothing does, and the fix is the key field under Odds feeds. The statement is a
+   focusable sentence whose tooltip says what a stats source is; the ESPN notice follows whenever
+   ESPN is off, unchanged.
+
+   Spelled by hand rather than as a FormGroup: its footer is three paragraphs, and FormGroup's is
+   one. The source's name is the bar's key, so the state reads before the sentence does. *@
+<section class="wsection" aria-labelledby="@($"{_uid}-stats")">
+    <div class="wgroup">
+        <div class="wgroup__bar">
+            <h3 class="wgroup__title" id="@($"{_uid}-stats")">Stats source</h3>
+            <div class="wgroup__keys">@StatsSourceName</div>
+        </div>
+        @switch (_port)
+        {
+            case StatsPort.Espn:
+                <div class="opsprose">
+                    <DeskTooltip Text="@StatsSourceTip">
+                        <span tabindex="0">ESPN is the stats source on this host: schedules, scores, box scores, player stats, play-by-play, injuries and UFC cards.</span>
+                    </DeskTooltip>
+                    The Odds API supplies prices only.
+                </div>
+                break;
+
+            case StatsPort.TheOddsApi:
+                <div class="opsprose">
+                    <DeskTooltip Text="@StatsSourceTip">
+                        <span tabindex="0">The Odds API is the stats source on this host, on your key.</span>
+                    </DeskTooltip>
+                    Fixtures are free and refresh on their own. Final scores cost
+                    <span class="num">@ScoresCredits</span> credits a league a pull: on request from
+                    <strong>Pull data → Pull scores</strong>, or once a night per league when scanning is Automatic.
+                    Scores reach back three days; a game older than that with no final stays unfinished.
+                    Box scores, player stats, play-by-play, injuries and UFC need ESPN, which is off.
+                </div>
+                break;
+
+            default:
+                @* The tooltip wraps the whole statement: EmptyState is a paragraph, which cannot hold the
+                   tooltip's block, so the paragraph takes focus and the tooltip sits outside it. *@
+                <DeskTooltip Text="@StatsSourceTip">
+                    <EmptyState tabindex="0">
+                        No stats source: ESPN is off and no Odds API key is held, so no fixtures or scores are pulled.
+                        Enter your free key under <strong>Odds feeds</strong> below and fixtures and prices appear; scores cost credits.
+                    </EmptyState>
+                </DeskTooltip>
+                break;
+        }
+    </div>
+
+    @if (!Ingestion.Value.Espn.Enabled)
+    {
+        <p class="wgroup__foot">@EspnOptIn.Notice</p>
+        <p class="wgroup__foot"><strong>To turn it on</strong> with @EspnOptIn.DockerHowTo</p>
+        <p class="wgroup__foot"><strong>Or</strong> with @EspnOptIn.HostHowTo</p>
+    }
+</section>
+
+@* Nothing open is a sentence, not an empty table: a header row with nothing under it reads as a
+   table that failed to fill, and this is the all-clear the window exists to give. The sentence
+   is a short card beside the stats source; a list of alerts is a table, and spans the row. *@
+<FormGroup Title="Open alerts" Span="@(_alerts.Count == 0 ? DeskCardSpan.Track : DeskCardSpan.Row)">
+    <Keys>
+        @if (_alerts.Count > 0)
+        {
+            <span class="num">@_alerts.Count.ToString("N0")</span> <text>open</text>
+        }
+    </Keys>
+    <ChildContent>
+@if (_alerts.Count == 0)
+{
+    <EmptyState>No open alerts. Every source is inside its SLO.</EmptyState>
+}
+else
+{
+<DeskGrid T="Alert" Items="_alerts" EmptyText="No open alerts. Every source is inside its SLO.">
+    <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
+                    InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <Tag State="@SeverityState(context.Item.Severity)">@AlertWords.Severity(context.Item.Severity)</Tag>
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* The rule's name in words; its key, which is what the runbook is filed under, in a tooltip
+       that keyboard focus raises as well as hover — a title on text reached a pointer only.
+       Folded away in a narrow window: the message beside it says what the rule found. *@
+    <PropertyColumn T="Alert" TProperty="string" Property="a => a.RuleKey" Title="Rule"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <CellTemplate>
+            <DeskTooltip Text="@($"Rule key: {context.Item.RuleKey}")">
+                <span class="dim" tabindex="0">@RuleName(context.Item.RuleKey)</span>
+            </DeskTooltip>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="Alert" TProperty="string" Property="a => a.Message" Title="What happened"
+                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+        <CellTemplate><span class="trunc" title="@context.Item.Message">@context.Item.Message</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="Alert" TProperty="DateTimeOffset" Property="a => a.TriggeredAt" Title="Age" Align="Align.Right"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <span class="dim">@Age((DateTimeOffset.UtcNow - context.Item.TriggeredAt).TotalMinutes)</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <TemplateColumn T="Alert" Title="" Sortable="false" Align="Align.Right"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            @if (context.Item.IncidentId is null)
+            {
+                @if (Manager.Access.CanOperate)
+                {
+                    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                                OnClick="() => PromoteAsync(context.Item.Id)">
+                        Open incident
+                    </DeskButton>
+                }
+            }
+            else
+            {
+                <DeskLink Destination="incident"
+                          Icon="@Icons.Material.Filled.ReportProblem"
+                          OnClick="() => Manager.OpenIncident(context.Item.IncidentId.Value)">
+                    <span class="num">#@context.Item.IncidentId</span>
+                </DeskLink>
+            }
+        </CellTemplate>
+    </TemplateColumn>
+</DeskGrid>
+}
+    </ChildContent>
+</FormGroup>
+
+<FormGroup Title="Source health" Span="DeskCardSpan.Row">
+    <Keys>
+        @if (_health.Count > 0)
+        {
+            <span class="num">@_healthy.ToString("N0")</span> <text>of</text> <span class="num">@_health.Count.ToString("N0")</span> <text>in SLO</text>
+        }
+    </Keys>
+    <ChildContent>
+<DeskGrid T="SourceHealth" Items="_health" EmptyText="No sources registered. A source appears here once it is configured and has run.">
+    @* The source name goes through to its runs — "why is this stale" is answered there. *@
+    <PropertyColumn T="SourceHealth" TProperty="string" Property="h => h.Source.Name" Title="Source"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <DeskLink Destination="runs"
+                      Icon="@Icons.Material.Filled.History"
+                      OnClick="() => Manager.OpenRuns(context.Item.Source.Id, context.Item.Source.Name)">
+                @context.Item.Source.Name
+            </DeskLink>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="SourceKind" Property="h => h.Source.Kind" Title="Kind"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <CellTemplate><span class="dim">@context.Item.Source.Kind</span></CellTemplate>
+    </PropertyColumn>
+
+    @* Sorts on minutes, so "stalest first" is a click. A never-run source sorts as the worst
+       rather than as zero, which is the two-kinds-of-zero rule from ADR 0003. *@
+    <PropertyColumn T="SourceHealth" TProperty="double"
+                    Property="h => h.FreshnessMinutes ?? double.MaxValue"
+                    Title="Freshness" Align="Align.Right" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <span class="@(IsStale(context.Item) ? "down" : null)">
+                @(context.Item.FreshnessMinutes is { } m ? Age(m) : "never")
+            </span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.SuccessRate"
+                    Title="Success 7d" Align="Align.Right" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <Note Inline State="@(IsRateLow(context.Item) ? DeskState.Warning : DeskState.Neutral)">@context.Item.SuccessRate.ToString("P0")</Note>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="int" Property="h => h.RowsToday"
+                    Title="Rows today" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit" Align="Align.Right" Format="N0" />
+
+    <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.VolumeRatio ?? -1"
+                    Title="Volume" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit" Align="Align.Right">
+        <CellTemplate>
+            <span class="dim">@(context.Item.VolumeRatio is { } v ? v.ToString("P0") : "—")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* Healthy is a check mark, as a successful run is: a column of the same word on every row
+       hid the one row that was not. Stale, Degraded and Not run keep their tags. The column
+       takes the slack, so the figures sit together beside the name they describe. *@
+    <TemplateColumn T="SourceHealth" Title="State" Sortable="false" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+        <CellTemplate>
+            @if (context.Item.NeverRun)
+            {
+                <Tag>Not run</Tag>
+            }
+            else if (IsStale(context.Item))
+            {
+                <Tag State="DeskState.Negative">Stale</Tag>
+            }
+            else if (IsRateLow(context.Item))
+            {
+                <Tag State="DeskState.Warning">Degraded</Tag>
+            }
+            else
+            {
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Healthy</span></span>
+            }
+        </CellTemplate>
+    </TemplateColumn>
+</DeskGrid>
+    </ChildContent>
+</FormGroup>
+
+@*
+    Odds feeds get their own section because their failure mode is silence: an unconfigured
+    provider is never registered, so it writes no runs and appears nowhere in source health.
+    "No prices" and "no feed" look identical without this.
+
+    Spelled by hand: with no Scanning switch to price, the prose that prices scanning is this
+    card's footer, and that prose is a block with a tooltip in it and several paragraphs, which
+    FormGroup's one-paragraph footer cannot hold.
+*@
+<section class="wsection wsection--span" aria-labelledby="@($"{_uid}-feeds")">
+    <div class="wgroup">
+        <div class="wgroup__bar">
+            <h3 class="wgroup__title" id="@($"{_uid}-feeds")">Odds feeds</h3>
+            @if (_feeds.Count > 0)
+            {
+                <div class="wgroup__keys">
+                    <span class="num">@_feeds.Count(f => f.IsLive).ToString("N0")</span> of <span class="num">@_feeds.Count.ToString("N0")</span> live
+                </div>
+            }
+        </div>
+<DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="@NoFeedText">
+    @* Live is the state a feed is meant to be in, so it is a check mark; Off keeps its tag,
+       because it is the one an operator is looking for. *@
+    <PropertyColumn T="OddsProviderState" TProperty="bool" Property="f => f.IsLive" Title="State"
+                    InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            @if (context.Item.IsLive)
+            {
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Live</span></span>
+            }
+            else
+            {
+                <Tag>Off</Tag>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="OddsProviderState" TProperty="string" Property="f => f.Name" Title="Provider"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit" />
+
+    @* The books keep a reading width of their own. Beside Notes, which takes the slack, an
+       unsized column was given its narrowest — one book a line, a stack one word wide down a
+       window with room to spare. .opsbooks sets a floor (scoped CSS); each book holds its name
+       on one line, so the list wraps between books, never inside one. *@
+    <TemplateColumn T="OddsProviderState" Title="Books" Sortable="false" HeaderClass="col--wide" CellClass="col--wide">
+        <CellTemplate>
+            <span class="dim opsbooks">
+                @foreach (var (book, i) in context.Item.Books.Select((b, i) => (b, i)))
+                {
+                    <span class="opsbooks__name">@BookNames.Display(book)@(i < context.Item.Books.Count - 1 ? "," : "")</span>
+                }
+            </span>
+        </CellTemplate>
+    </TemplateColumn>
+
+    <PropertyColumn T="OddsProviderState" TProperty="string" Property="f => f.Reason" Title="Notes"
+                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+        <CellTemplate><span class="trunc dim" title="@context.Item.Reason">@context.Item.Reason</span></CellTemplate>
+    </PropertyColumn>
+</DeskGrid>
+    </div>
+    @if (!ShowsScanning)
+    {
+        @* With no switch to price, the same prose is the feeds' footer. *@
+        @ScanningCost()
+    }
+</section>
+
+@* The key, beside the feed it turns on. An operator's alone: it is a credential and a month of
+   credits. One row: with no key held here it is the field and the key that checks and keeps it;
+   with one, the last four characters and the two things to do about it. The provider is asked
+   before anything is kept, so a wrong key is refused here and not found as an unpriced board.
+   Drawn only on a host that takes a key this way (DeskOddsKey registered). The card is named
+   for the key, so its one row is the key's value, under the same name the tooltip explains. *@
+@if (Manager.Access.CanOperate && _oddsKey is not null)
+{
+    <FormGroup Title="The Odds API key" LabelWidth="var(--ops-label)">
+        <ChildContent>
+            <FormRow Label="Key">
+                <LabelContent>
+                    <DeskTooltip Text="@KeyTip">
+                        <span tabindex="0">Key</span>
+                    </DeskTooltip>
+                </LabelContent>
+                <ChildContent>
+                <div class="opsrow">
+                    @if (_keyHint is not null && !_replacingKey)
+                    {
+                        <span class="opsrow__text">Ends in @_keyHint</span>
+                        <DeskButton Size="DeskKeySize.Small" OnClick="() => _replacingKey = true">Replace</DeskButton>
+                        <DeskButton Size="DeskKeySize.Small" OnClick="RemoveKeyAsync" Busy="@_keyBusy">Remove</DeskButton>
+                    }
+                    else
+                    {
+                        <DeskField TValue="string" Class="opsrow__fill" type="password" Immediate="true"
+                                   autocomplete="off" spellcheck="false" aria-label="The Odds API key"
+                                   placeholder="Paste your key" @bind-Value="_keyDraft" />
+                        <DeskButton Emphasis="DeskEmphasis.Tinted" Size="DeskKeySize.Small"
+                                    OnClick="SaveKeyAsync" Busy="@_keyBusy"
+                                    Disabled="@string.IsNullOrWhiteSpace(_keyDraft)">
+                            Check and save
+                        </DeskButton>
+                        @if (_replacingKey)
+                        {
+                            <DeskButton Size="DeskKeySize.Small" OnClick="CancelReplace">Cancel</DeskButton>
+                        }
+                    }
+                </div>
+                </ChildContent>
+            </FormRow>
+        </ChildContent>
+        <Footer>
+            A free key (500 credits a month) comes by email from
+            <a href="https://the-odds-api.com/#get-access" target="_blank" rel="noopener noreferrer">the-odds-api.com</a>.
+            Checking it spends nothing. It is kept encrypted on this machine, outside the database,
+            and replaces a key set in configuration.
+        </Footer>
+    </FormGroup>
+}
+
+@* The switch the footers below price. Held with the data, so the web host and the worker obey
+   the same choice and it outlives a restart. Turning scanning on is confirmed beside its price;
+   turning it off stops spending and needs no second thought. Only offered with a live feed:
+   scheduling scans of a provider that cannot be reached would spend nothing and say otherwise.
+
+   A section card, as a setting is drawn (apple-hig-components, forms.md): the card is named
+   Scanning, its one row the mode — the name leads, the control trails — and what the choice
+   costs is the card's footer rather than a paragraph running the width of the window. Two
+   modes, both worth seeing, so a segmented control; a choice of Automatic waits on the confirm
+   row under it before anything is spent. Spelled by hand: the price is several paragraphs. *@
+@if (ShowsScanning)
+{
+    <section class="wsection" aria-labelledby="@($"{_uid}-scan")">
+        <div class="wgroup" style="--form-label: var(--ops-label)">
+            <div class="wgroup__bar">
+                <h3 class="wgroup__title" id="@($"{_uid}-scan")">Scanning</h3>
+            </div>
+            <FormRow Label="Mode">
+                <LabelContent>
+                    <DeskTooltip Text="@ScanningTip">
+                        <span tabindex="0">Mode</span>
+                    </DeskTooltip>
+                </LabelContent>
+                <ChildContent>
+                <DeskSwitch TValue="bool" Options="ScanModes" Label="Scanning" Size="DeskKeySize.Small"
+                            Value="@(_unattended || _confirmAutomatic)" ValueChanged="ChooseScanningAsync" />
+                </ChildContent>
+            </FormRow>
+            @if (_confirmAutomatic)
+            {
+                <InlineConfirm Class="wgroup__row" ConfirmLabel="Scan automatically"
+                               ConfirmIcon="@Icons.Material.Filled.Schedule"
+                               OnConfirm="() => SetPollingAsync(automatic: true)"
+                               OnCancel="() => _confirmAutomatic = false">
+                    Scan at this price until switched back, from this host and the worker alike?
+                    @if (_scores is { } plan && plan.Leagues.Count > 0)
+                    {
+                        @($" Scores are pulled too: once a night per league, about {plan.PerDay:N0} credits a day.")
+                    }
+                </InlineConfirm>
+            }
+        </div>
+        @ScanningCost()
+    </section>
+}
+
+@if (Manager.Access.CanOperate)
+{
+    @Drill()
+}
+</div>
+}
+
+@* Until the first read the flow is not drawn, but the drill is the operator's whatever the
+   record says, so it stands on its own in a flow of one. *@
+@if (!Loaded && Manager.Access.CanOperate)
+{
+    <div class="wflow opsflow">@Drill()</div>
+}
+
+@code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs, DataTopics.Alerts };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    private IReadOnlyList<SourceHealth> _health = [];
+    private IReadOnlyList<OddsProviderState> _feeds = [];
+    private PollPlan? _plan;
+
+    private XLines.Ingestion.Configuration.LinePollingOptions LinePolling => Ingestion.Value.LinePolling;
+
+    /// <summary>Whether lines are scanned unasked — the stored choice where there is one, else configuration.</summary>
+    private bool _unattended;
+    private bool _pollingSetHere;
+    private bool _confirmAutomatic;
+
+    // Every action below catches its own failure. PanelBase catches a load, not a write, and an
+    // exception escaping an event handler ends the circuit — the whole desk, not this window.
+    // The operator is told in one sentence what did not happen; the window keeps what it shows.
+
+    private async Task SetPollingAsync(bool automatic)
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<XLinesDbContext>();
+
+            await db.SetSettingAsync(AppSetting.LinePolling,
+                automatic ? AppSetting.LinePollingScheduled : AppSetting.LinePollingManual);
+
+            _confirmAutomatic = false;
+            Toasts.Success(automatic
+                ? "Lines are scanned automatically, paced to the allowance."
+                : "Lines are pulled on request only. Nothing more is spent unasked.");
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            // The confirm row stays open on a failed yes, so trying again is the key already
+            // under the pointer.
+            Log.LogError(ex, "Line polling was not set to {Mode}", automatic ? "automatic" : "manual");
+            Toasts.Fail("Scanning was not changed. Try again.");
+        }
+    }
+
+    // The Odds API key, entered here. Null on a host that takes its key from configuration only.
+    private XLines.Web.Services.DeskOddsKey? _oddsKey;
+    private string? _keyHint;
+    private string? _keyDraft;
+    private bool _replacingKey;
+    private bool _keyBusy;
+
+    private string NoFeedText => _oddsKey is not null && Manager.Access.CanOperate
+        ? "No odds provider is configured, so nothing prices the board. A key for The Odds API, entered below, adds one."
+        : "No odds provider is configured, so nothing prices the board. A provider's key in the web host's configuration adds one.";
+
+    private void CancelReplace()
+    {
+        _replacingKey = false;
+        _keyDraft = null;
+    }
+
+    private async Task SaveKeyAsync()
+    {
+        if (_oddsKey is null || string.IsNullOrWhiteSpace(_keyDraft) || _keyBusy)
+            return;
+
+        _keyBusy = true;
+        try
+        {
+            var check = await _oddsKey.SaveAsync(_keyDraft);
+
+            switch (check.Verdict)
+            {
+                case XLines.Web.Services.OddsKeyVerdict.Accepted:
+                    _keyDraft = null;
+                    _replacingKey = false;
+                    Toasts.Success(check.CreditsRemaining is { } left
+                        ? $"Key accepted and saved. {left:N0} credits left this month."
+                        : "Key accepted and saved.");
+                    await LoadAsync();
+                    break;
+
+                case XLines.Web.Services.OddsKeyVerdict.Rejected:
+                    Toasts.Fail("The Odds API refused that key. Check it against the email from the-odds-api.com; an odds-api.io key is a different provider's.");
+                    break;
+
+                default:
+                    Toasts.Fail("The Odds API could not be reached, so the key was not saved. Try again.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            // The type only: nothing that could carry the key reaches the log.
+            Log.LogError("The odds key was not saved ({Kind})", ex.GetType().Name);
+            Toasts.Fail("The key was not saved. Try again.");
+        }
+        finally
+        {
+            _keyBusy = false;
+        }
+    }
+
+    private async Task RemoveKeyAsync()
+    {
+        if (_oddsKey is null || _keyBusy)
+            return;
+
+        _keyBusy = true;
+        try
+        {
+            await _oddsKey.RemoveAsync();
+            Toasts.Success("Key removed from this desk.");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The odds key was not removed");
+            Toasts.Fail("The key was not removed. Try again.");
+        }
+        finally
+        {
+            _keyBusy = false;
+        }
+    }
+
+    /// <summary>The two ways lines are fetched, as the Scanning row's segments.</summary>
+    private static readonly IReadOnlyList<DeskSwitchOption<bool>> ScanModes =
+    [
+        new(false, "On request", "Nothing is spent unasked: lines and scores are pulled only from Pull data"),
+        new(true, "Automatic", "Lines are scanned on a schedule paced to the month's credits; scores, where The Odds API supplies them, once a night per league")
+    ];
+
+    // ---- The stats source and the month (ADR 0026) ---------------------------------------------
+
+    /// <summary>What supplies the schedule here. Configuration's answer until the registry has been read.</summary>
+    private StatsPort _port;
+
+    /// <summary>The Odds API account's month, where its feed or its scores are in use here.</summary>
+    private AllowanceState? _allowance;
+
+    /// <summary>What scores would take from the month, where they are metered here.</summary>
+    private ScoresPlan? _scores;
+
+    private int ScoresCredits => _scores?.CreditsPerCall ?? XLines.Ingestion.Adapters.TheOddsApiScheduleAdapter.CreditsWithDaysFrom;
+
+    protected override void OnInitialized()
+    {
+        _port = Ingestion.Value.Espn.Enabled ? StatsPort.Espn : StatsPort.None;
+        base.OnInitialized();
+    }
+
+    private const string StatsSourceTip =
+        "The stats source writes each game's schedule and result, which the board lists and settlement grades. "
+        + "One runs at a time: ESPN when you turn it on, otherwise The Odds API on your key.";
+
+    private const string KeyTip =
+        "Your key for the-odds-api.com. Free keys carry 500 credits a month, reset on the 1st. "
+        + "Lines cost one credit per market per league; scores two a league; fixtures nothing.";
+
+    private const string ScanningTip =
+        "On request spends nothing unless you choose a pull from Pull data. Automatic scans lines on a schedule "
+        + "paced so the month's credits last, keeping a reserve for pulls on request, and pulls scores once a night "
+        + "per league where The Odds API is the stats source. Credits reset on the 1st.";
+
+    private static string CreditsTip(AllowanceState month)
+        => (month.Reported
+               ? "The Odds API reports what is left on the key with every call; this is its latest word this month, so it counts spend from any machine using the key."
+               : "No call this month has reported what is left on the key yet, so this is this desk's own count; another machine using the key would not show here.")
+           + $" {month.Reserve:N0} credits are kept back from automatic scanning for pulls on request. The month resets on {month.ResetsOnText}.";
+
+    /// <summary>
+    /// The segment pressed. Automatic is held on the confirm row until it is said yes to, so the
+    /// control shows the choice while the question beside it is open; On request stops spending
+    /// at once, and pressing the mode already in force withdraws a pending question.
+    /// </summary>
+    private async Task ChooseScanningAsync(bool automatic)
+    {
+        if (automatic == _unattended)
+        {
+            _confirmAutomatic = false;
+            return;
+        }
+
+        if (automatic)
+        {
+            _confirmAutomatic = true;
+            return;
+        }
+
+        await SetPollingAsync(automatic: false);
+    }
+
+    /// <summary>The switch is the operator's, and only offered when there is a live feed to scan.</summary>
+    private bool ShowsScanning => Manager.Access.CanOperate && _feeds.Any(f => f.IsLive);
+
+    /// <summary>
+    /// The prose that prices scanning is a card's footer wherever it is drawn: the Scanning card's
+    /// when the switch is offered, the Odds feeds card's when it is not.
+    /// </summary>
+    private const string FootClass = "wgroup__foot";
+
+    /// <summary>The ids the hand-spelled cards' bars label them by; one window's, never another's.</summary>
+    private readonly string _uid = "ops-" + Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>The stats source in a word, for the Stats source card's bar.</summary>
+    private string StatsSourceName => _port switch
+    {
+        StatsPort.Espn => "ESPN",
+        StatsPort.TheOddsApi => "The Odds API",
+        _ => "None"
+    };
+
+    /// <summary>
+    /// The drill breaks a source on purpose; a visitor watches the result, never causes it.
+    ///
+    /// A section card: each injectable source a row, its name leading and its fault trailing;
+    /// what the drill does is the card's footer, and the key that runs it leads under the card.
+    /// With no injectable source the card says so in its one row rather than standing empty.
+    /// One fragment, because the drill is drawn in the flow once the record is read and on its
+    /// own before then.
+    /// </summary>
+    private RenderFragment Drill() => @<section class="wsection" aria-labelledby="@($"{_uid}-drill")">
+        <div class="wgroup" style="--form-label: var(--ops-source-label)">
+            <div class="wgroup__bar">
+                <h3 class="wgroup__title" id="@($"{_uid}-drill")">On-call drill</h3>
+            </div>
+            @if (_injectable.Count > 0)
+            {
+                @foreach (var source in _injectable)
+                {
+                    <FormRow Label="@source.Name" @key="source.Id">
+                        <div class="opsrow">
+                            <DeskSelect TValue="string"
+                                        Value="@(source.FailureMode ?? "")"
+                                        ValueChanged="v => SetModeAsync(source.Id, v)"
+                                        aria-label="@($"Fault injected into {source.Name}")">
+                                <option value="">Healthy</option>
+                                <option value="error">Upstream 503</option>
+                                <option value="timeout">Request timeout</option>
+                                <option value="empty">Empty payload (silent)</option>
+                            </DeskSelect>
+                            @if (source.FailureMode is not null)
+                            {
+                                <Tag State="DeskState.Negative">Injecting</Tag>
+                            }
+                        </div>
+                    </FormRow>
+                }
+            }
+            else
+            {
+                @* Said rather than implied: with no injectable source registered the footer still
+                   promises "inject a fault" and nothing on screen offers one, which reads as a
+                   missing control rather than as a missing adapter. *@
+                <EmptyState>
+                    No registered source accepts an injected fault. The drill still runs an ingest,
+                    the rollup and the alert rules.
+                </EmptyState>
+            }
+        </div>
+        <p class="wgroup__foot">@WhatTheDrillDoes()</p>
+
+        <KeyRow Justify="DeskJustify.Start">
+            <Primary>
+                <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.PlayArrow"
+                            OnClick="DrillAsync" Busy="@_busy">
+                    Run the drill
+                </DeskButton>
+            </Primary>
+        </KeyRow>
+    </section>;
+
+    /// <summary>
+    /// What scanning costs, in words. One fragment for both places it is drawn, so the footer
+    /// and the footnotes cannot drift apart.
+    /// </summary>
+    private RenderFragment ScanningCost() => @<text>
+        @* The month in one place (ADR 0026): what is left, by whose count, when it resets, and what the
+           settings in force will take from it — lines and scores together — so the arithmetic is on the
+           page before anything is spent. The figure is focusable and its tooltip says how it is counted;
+           the figure itself is always text. *@
+        @if (_allowance is { } month)
+        {
+            @* A div, not a paragraph: the figure's tooltip is a block, which a paragraph cannot hold. *@
+            <div class="@FootClass">
+                <DeskTooltip Text="@CreditsTip(month)">
+                    <span tabindex="0"><span class="num">@month.Remaining.ToString("N0")</span> of <span class="num">@month.Budget.ToString("N0")</span> credits left this month</span>
+                </DeskTooltip>@($", {(month.Reported ? "by The Odds API's own count" : "by this desk's count")}; they reset on {month.ResetsOnText}.")
+                @if (_scores is { } scores && scores.Leagues.Count > 0)
+                {
+                    @if (scores.Automatic)
+                    {
+                        @($" Scores take one call a night per league in play ({string.Join(", ", scores.Leagues.Select(l => l.ToUpperInvariant()))}) at {scores.CreditsPerCall} credits: about {scores.PerDay:N0} a day, {scores.ToMonthEnd:N0} to the month's end, set aside before lines are paced.")
+                    }
+                    else
+                    {
+                        @($" Scores cost {scores.CreditsPerCall} credits a league a pull; on Automatic they would take about {scores.PerDay:N0} a day ({string.Join(", ", scores.Leagues.Select(l => l.ToUpperInvariant()))}).")
+                    }
+                }
+            </div>
+        }
+
+        @* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
+           here regardless would describe a schedule that is not running — the number would be real
+           arithmetic about an allowance nobody is spending. What is left still matters, because that is
+           what a press of Pull lines draws on. *@
+        @if (!_unattended)
+        {
+            <p class="@FootClass">
+                Lines are pulled on request only; nothing is fetched unasked.
+                @if (_plan?.ScansRemainingToday is { } available)
+                {
+                    <text>
+                        @* Credits, not requests. The two are equal on this desk — one sport, two
+                           markets — which is exactly why showing the wrong one would look right until
+                           a market or a sport is added. *@
+                        <span class="num">@available.ToString("N0")</span> pulls left in @_plan.WindowLabel allowance, at
+                        <span class="num">@_plan.CreditsPerScan.ToString("N0")</span> credits each.
+                    </text>
+                }
+                @* A visitor has no Pull data menu (ADR 0018); pointing at it would send them looking. *@
+                @if (Manager.Access.CanOperate)
+                {
+                    <text>Use <strong>Pull data → Pull lines</strong>.</text>
+                }
+                @Provenance
+            </p>
+
+            @* The price, before anything is spent: what each sport's scan asks for and bills, and how
+               often the scheduler would scan at that price if it were switched on. The planner paces on
+               what is left, so it never overspends — a longer market list shows up here as a slower
+               cadence, which is the real cost of adding one. *@
+            @if (_plan is { } projected && _marketsBySport.Count > 0)
+            {
+                @* One clause per league, parted by semicolons as a sentence parts a list of lists;
+                   the leagues used to be strung together with middle dots, which read as a row of
+                   tags rather than as what a scan asks for. *@
+                <p class="@FootClass">
+                    A scan asks for
+                    @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
+                    {
+                        @(index > 0 ? "; " : "")<span>@sport.Sport.ToUpperInvariant()</span>
+                        @* Spelled as one expression: a leading space inside <text> before code was dropped, and
+                           the sport ran into its markets ("MLBmoneyline"). *@
+                        @($" {string.Join(", ", sport.Markets.Select(m => XLines.Web.Services.SelectionText.MarketWord(m).ToLowerInvariant()))}")
+                        @if (sport.Credits > 0)
+                        {
+                            <text> (<span class="num">@sport.Credits.ToString("N0")</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
+                        }
+                    }.
+                    @if (projected.ScansRemainingToday is { } left && left > 0)
+                    {
+                        <text>
+                            On automatic that is a scan about every
+                            <span class="num">@Cadence(projected.BudgetInterval)</span> for the rest of
+                            @(projected.Window == BudgetWindow.Month ? "the month" : "the day"), more
+                            often near game time.
+                        </text>
+                    }
+                </p>
+            }
+        }
+        else if (_plan is { } plan)
+        {
+            <p class="@FootClass">
+                Scanning every <span class="num">@Cadence(plan.Interval)</span> at
+                <span class="num">@plan.CostPerScan.ToString("N0")</span> requests a scan
+                @if (plan.ScansRemainingToday is { } left)
+                {
+                    @* "today's" or "this month's" — the provider decides which, and saying the wrong
+                       one turns a month's remaining allowance into an apparently generous day. *@
+                    <text>— <span class="num">@left.ToString("N0")</span> scans left in @plan.WindowLabel allowance</text>
+                    @if (plan.BoundBy is { } bound)
+                    {
+                        <text>, paced by @FeedName(bound)</text>
+                    }
+                }
+                else
+                {
+                    <text>— nothing is metered, so this is the politeness floor, not a budget</text>
+                }.
+                @Provenance
+            </p>
+        }
+    </text>;
+
+    /// <summary>
+    /// Where the mode in force came from — said only beside the switch that sets it. It follows
+    /// a sentence, and Razor drops the whitespace before an expression, so the space is its own.
+    /// </summary>
+    private string? Provenance => !ShowsScanning
+        ? null
+        : _pollingSetHere
+            ? " Chosen here, for this host and the worker alike."
+            : " Set by configuration until it is chosen here.";
+
+    private IReadOnlyList<SportMarkets> _marketsBySport = [];
+
+    /// <summary>A provider by the name the feeds table gives it; the planner reports its key.</summary>
+    private string FeedName(string key)
+        => _feeds.FirstOrDefault(f => string.Equals(f.Key, key, StringComparison.OrdinalIgnoreCase))?.Name ?? key;
+
+    /// <summary>
+    /// A rule by name rather than by key: "volume_anomaly" reads as "Volume anomaly". The key
+    /// stays on the cell's tooltip, because it is what the runbook files the rule under.
+    /// </summary>
+    private static string RuleName(string key)
+        => string.IsNullOrEmpty(key) ? key : char.ToUpperInvariant(key[0]) + key[1..].Replace('_', ' ');
+
+    /// <summary>A cadence read as minutes until it is long enough to read as hours.</summary>
+    private static string Cadence(TimeSpan interval)
+        => interval.TotalHours >= 1
+            ? $"{interval.TotalHours:0.#}h"
+            : $"{interval.TotalMinutes:0.#}m";
+
+    private IReadOnlyList<Alert> _alerts = [];
+    private List<Source> _injectable = [];
+    private int _healthy;
+    private int _criticals;
+    private int _openIncidents;
+    private long _rowsToday;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    // Pulled out of the markup when the table became a grid: a cell template evaluates per
+    // render, and both of these were previously computed once per row in a foreach.
+    private bool IsStale(SourceHealth h)
+        => !h.NeverRun && h.IsStale(Options.Value.FreshnessSlo);
+
+    private bool IsRateLow(SourceHealth h)
+        => h.RunsInWindow >= 3 && h.SuccessRate < Options.Value.SuccessRateSlo;
+
+    protected override string LoadSubject => "Source health";
+
+    // This window is the reason the pulse exists: it reports the platform's worst state,
+    // so a minimised Ops window still shows red when something breaches.
+    private Task LoadAsync() => WithActivityAsync(ReadAsync,
+        () => _criticals > 0 ? PulseState.Critical
+            : _alerts.Count > 0 ? PulseState.Warn
+            : PulseState.Healthy,
+        () => _alerts.Count == 0 ? "all clear" : $"{_alerts.Count} open");
+
+    private async Task ReadAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var kpi = scope.ServiceProvider.GetRequiredService<KpiCalculator>();
+        var alerts = scope.ServiceProvider.GetRequiredService<AlertEngine>();
+        var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+        var db = scope.ServiceProvider.GetRequiredService<XLinesDbContext>();
+
+        _feeds = scope.ServiceProvider.GetRequiredService<OddsFeedStatus>().Describe();
+
+        _oddsKey = scope.ServiceProvider.GetService<XLines.Web.Services.DeskOddsKey>();
+        _keyHint = _oddsKey?.Hint;
+
+        _pollingSetHere = await db.GetSettingAsync(AppSetting.LinePolling) is not null;
+        _unattended = await db.LinesRunUnattendedAsync(LinePolling.RunsUnattended);
+
+        // Recomputed here rather than read off the scheduler: it is a pure function of the
+        // budget already spent, so the panel and the scheduler reach the same answer without
+        // the panel needing a handle on a background service.
+        var planner = scope.ServiceProvider.GetRequiredService<LinePollPlanner>();
+        var oddsKeys = registry.OddsSources.Select(s => s.Key).ToList();
+        _plan = await planner.PlanAsync(oddsKeys);
+        _marketsBySport = oddsKeys.Count == 0 ? [] : planner.MarketsBySport(oddsKeys);
+
+        _port = registry.Port;
+        _scores = await planner.ScoresPlanAsync();
+        _allowance = registry.FindOdds(XLines.Ingestion.Adapters.TheOddsApiAdapter.SourceKey) is not null || registry.Scores is not null
+            ? await scope.ServiceProvider.GetRequiredService<CreditAllowance>().ReadAsync()
+            : null;
+
+        var o = Options.Value;
+
+        _health = await kpi.GetAllHealthAsync(o.SuccessRateWindow, o.VolumeBaselineDays);
+        _alerts = await alerts.GetOpenAlertsAsync();
+        _healthy = _health.Count(h => h.NeverRun || !h.IsStale(o.FreshnessSlo));
+        _criticals = _alerts.Count(a => a.Severity == AlertSeverity.Critical);
+        _openIncidents = await db.Incidents.CountAsync(i => i.Status != IncidentStatus.Resolved);
+
+        var dayStart = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+        _rowsToday = await db.IngestionRuns
+            .Where(r => r.StartedAt >= dayStart)
+            .SumAsync(r => (long?)r.RowsIngested) ?? 0;
+
+        var keys = registry.OddsSources.OfType<IFailureInjectable>().Cast<IOddsSource>().Select(s => s.Key)
+            .Concat(registry.StatsSources.OfType<IFailureInjectable>().Cast<IStatsSource>().Select(s => s.Key))
+            .ToList();
+
+        _injectable = await db.Sources.Where(s => keys.Contains(s.Key)).OrderBy(s => s.Name).ToListAsync();
+    }
+
+    // Identity, not arithmetic. The same EvaluateAsync pass that opens an alert also
+    // auto-resolves any whose condition has cleared, so a count delta reports zero — or a
+    // negative — for a pass that genuinely raised something. On a drill that is the exact
+    // answer being asked for, so the two are compared by id.
+    private HashSet<long> OpenAlertIds() => _alerts.Select(a => a.Id).ToHashSet();
+
+    private int CountNew(HashSet<long> seen) => _alerts.Count(a => !seen.Contains(a.Id));
+
+    private static DeskState SeverityState(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Critical => DeskState.Negative,
+        AlertSeverity.Warn => DeskState.Warning,
+        _ => DeskState.Info
+    };
+
+    private async Task EvaluateAsync()
+    {
+        _busy = true;
+        Report(PulseState.Active, "evaluating");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
+            await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
+
+            var seen = OpenAlertIds();
+            await LoadAsync();
+
+            // A pass that changes nothing repaints identically to one that did not run, and
+            // the rollup takes long enough that the operator has usually looked away. The
+            // notice reports the outcome, not the click — and it is transient because the
+            // alert table below is the durable record either way.
+            var opened = CountNew(seen);
+
+            if (_criticals > 0)
+                Toasts.Warn($"Evaluated — {_alerts.Count} open, {_criticals} critical.");
+            else if (opened > 0)
+                Toasts.Warn($"Evaluated — {opened} new alert{(opened == 1 ? "" : "s")} opened.");
+            else
+                Toasts.Success($"Evaluated — {(_alerts.Count == 0 ? "every source inside its SLO" : $"{_alerts.Count} open, none critical")}.");
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The evaluation did not run");
+            Toasts.Fail("The evaluation did not run. Try again.");
+
+            // The pulse still says "evaluating". A read settles it on what the platform holds,
+            // and catches its own failure if the database is what went.
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Games inside the movement window, by sport slug — what the drill reads to decide which
+    /// league is worth spending a credit on. The window is the ingestion one so the drill and a
+    /// real pull agree about which fixtures are still priceable.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, int>> UpcomingBySportAsync(IServiceProvider provider)
+    {
+        var db = provider.GetRequiredService<XLinesDbContext>();
+        var horizon = DateTimeOffset.UtcNow + Ingestion.Value.MovementWindow;
+
+        var counts = await db.Games
+            .Where(g => g.StartsAt > DateTimeOffset.UtcNow && g.StartsAt <= horizon)
+            .GroupBy(g => g.Sport!.Key)
+            .Select(g => new { Sport = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        return counts.ToDictionary(c => c.Sport, c => c.Count, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task SetModeAsync(int sourceId, string? mode)
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<XLinesDbContext>();
+
+            var source = await db.Sources.FirstAsync(s => s.Id == sourceId);
+            source.FailureMode = string.IsNullOrEmpty(mode) ? null : mode;
+            await db.SaveChangesAsync();
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The fault on source {Source} was not set", sourceId);
+            Toasts.Fail("The fault was not set. Try again.");
+        }
+    }
+
+    private async Task DrillAsync()
+    {
+        _busy = true;
+        Report(PulseState.Active, "drill running");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+            var ingestion = scope.ServiceProvider.GetRequiredService<OddsIngestionService>();
+
+            var sport = IngestionJobs.DrillSport(
+                await UpcomingBySportAsync(scope.ServiceProvider),
+                Ingestion.Value.EffectiveSports);
+
+            if (sport is null)
+            {
+                Toasts.Warn("Drill skipped — no league is configured to scan.");
+                return;
+            }
+
+            foreach (var source in registry.OddsSources)
+                await ingestion.IngestAsync(source, sport, "odds:drill", CancellationToken.None);
+
+            await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
+            await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
+
+            var seen = OpenAlertIds();
+            await LoadAsync();
+
+            // The drill's whole point is "did the fault get caught?", and a drill that caught
+            // nothing looks exactly like one that has not finished. Two outcomes, one line.
+            var fired = CountNew(seen);
+
+            // Naming the league is not decoration: with no fault injected the drill performs a
+            // real, metered pull, and an operator who cannot see what it bought cannot tell a
+            // drill from a spend.
+            var league = sport.ToUpperInvariant();
+
+            if (fired > 0)
+                Toasts.Success($"Drill complete on {league} — {fired} alert{(fired == 1 ? "" : "s")} fired.");
+            else
+                Toasts.Warn($"Drill complete on {league} — no new alerts fired.");
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The drill did not run");
+            Toasts.Fail("The drill did not run. Try again.");
+
+            // A drill can fail part-way, after an ingest has landed or an alert has opened; the
+            // read shows what did happen and settles the pulse it left on "drill running".
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task PromoteAsync(long alertId)
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var incidents = scope.ServiceProvider.GetRequiredService<IncidentService>();
+
+            await incidents.PromoteAsync(alertId);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            // No incidents window either: raising it would show a list without the incident the
+            // operator just asked for.
+            Log.LogError(ex, "Alert {Alert} was not promoted", alertId);
+            Toasts.Fail("The alert was not promoted. Try again.");
+            return;
+        }
+
+        // Raise the incidents window so the promotion has somewhere visible to land.
+        var definition = WindowCatalog.Find(WindowCatalog.Incidents);
+        if (definition is not null)
+            Manager.Open(definition);
+    }
+
+    /// <summary>What a drill does and what it spends, under the faults it injects.</summary>
+    private static RenderFragment WhatTheDrillDoes() => @<text>
+        Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> matters
+        most: it answers HTTP 200 with no rows, so nothing else would catch it. With no fault injected
+        the drill is a real, metered pull of the league with the most games still to start.
+    </text>;
+}

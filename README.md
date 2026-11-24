@@ -3,13 +3,14 @@
 **A multi-source sports-data ingestion and analytics operations platform.**
 .NET 10 · Blazor (Interactive Server) · MudBlazor 9 · PostgreSQL 17 · Docker
 
-> **XLines is the product; LineOps is the platform it is built on.** The desk says XLines; every project, path, image
-> and command below still says `LineOps`, and the repository is still `LineExtractor`, until the
-> 1.0 release moves it to a repository of its own
-> ([ADR 0031](docs/adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md)). The two
-> names mean the same desk.
+> **XLines was called LineOps until 1.0.** Projects, namespaces, packages, images and commands
+> say XLines. A few stored values keep the old spelling so nothing saved on a machine is lost:
+> the database and role `lineops`, the compose project and its volumes, the connection string
+> `ConnectionStrings:LineOps`, the Data Protection application name, the saved-key folder
+> `%LOCALAPPDATA%\LineOps` and the desk's saved-layout key
+> ([ADR 0031](docs/adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md), amended).
 
-LineOps ingests sports statistics and betting-market data from multiple external providers on
+XLines ingests sports statistics and betting-market data from multiple external providers on
 a schedule, stores line movement as partitioned time-series, computes performance analytics
 (closing-line value, ROI, bankroll), and monitors its own ingestion health with operational
 KPIs, alerting, and an incident log with written root-cause analyses.
@@ -95,11 +96,11 @@ About ten minutes, most of it the first image build. The default runs on The Odd
 below are written for `LineX_Development`.
 
 ```powershell
-git clone -b LineX_Development https://github.com/wNohejl/LineExtractor.git LineOps
+git clone -b LineX_Development https://github.com/wNohejl/XLines.git XLines
 ```
 
 ```powershell
-cd LineOps
+cd XLines
 ```
 
 **2. Generate the local secrets, and decide about ESPN.** Writes `.env` (a random database
@@ -217,7 +218,7 @@ was accepted and what is left of the month.
 **Check it worked**
 
 ```powershell
-docker compose ps                               # lineops-postgres healthy, lineops-web up
+docker compose ps                               # xlines-postgres healthy, xlines-web up
 ```
 
 ```powershell
@@ -246,22 +247,22 @@ docker compose logs -f web                      # ingestion and alert activity
 ### Hand it to an agent
 
 The repository ships its setup procedure as a Claude Code skill,
-[`.claude/skills/lineops-setup/SKILL.md`](.claude/skills/lineops-setup/SKILL.md): the steps above
+[`.claude/skills/xlines-setup/SKILL.md`](.claude/skills/xlines-setup/SKILL.md): the steps above
 plus what to check, what to ask you, the key check, and what never to do unasked. Any agent can
 follow it; it is plain Markdown.
 
-**Already cloned?** Open Claude Code in the `LineOps` folder and say:
+**Already cloned?** Open Claude Code in the `XLines` folder and say:
 
 ```text
-/lineops-setup
+/xlines-setup
 ```
 
 **Starting from an empty folder?** Paste this into Claude Code, or any coding agent with a shell:
 
 ```text
-Clone https://github.com/wNohejl/LineExtractor.git into ./LineOps on branch LineX_Development,
-then read LineOps/.claude/skills/lineops-setup/SKILL.md and follow it to get the desk running
-in Docker on this machine. Work inside LineOps. Check prerequisites before installing anything,
+Clone https://github.com/wNohejl/XLines.git into ./XLines on branch LineX_Development,
+then read XLines/.claude/skills/xlines-setup/SKILL.md and follow it to get the desk running
+in Docker on this machine. Work inside XLines. Check prerequisites before installing anything,
 show me the ESPN notice and ask before turning ESPN on (it is optional), let me enter my The Odds
 API key in the desk myself (or paste it into .env), never print .env, and do not pull lines or
 scores, switch scanning to Automatic, or change security settings without asking. Done is docker compose ps healthy
@@ -398,7 +399,7 @@ one book — a price rather than a market — so it stays the stats port.
 
 The key can be entered in the desk itself, under **Ops → Odds feeds** (Quick start, step 3).
 In Docker it can also go in `.env`. For a host run (`dotnet run`), copy
-`src/LineOps.Web/appsettings.Local.example.json` to `appsettings.Local.json` and fill in the
+`src/XLines.Web/appsettings.Local.example.json` to `appsettings.Local.json` and fill in the
 key. That file never enters an image; it is gitignored and loaded last, so it wins over everything else — the
 environment-named files are *not* ignored, which is why a key put in the obvious place ends up in
 the repository with it. The example file ships `Ingestion:Espn:Enabled` as false, with the
@@ -553,13 +554,13 @@ Run Postgres in Docker and the hosts on the host, for hot reload and a debugger:
 ```powershell
 .\scripts\setup.ps1                   # .env, and the connection string in both hosts' user-secrets
 docker compose -f docker-compose.yml -f compose/dev.yml up -d postgres
-dotnet run --project src/LineOps.Web --launch-profile http
-dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
+dotnet run --project src/XLines.Web --launch-profile http
+dotnet run --project src/XLines.Worker   # optional: ingestion on its own host
 ```
 
 A host run does not read `.env`, so `ESPN_ENABLED` does not reach it. To turn ESPN on there,
 put `"Ingestion": { "Espn": { "Enabled": true } }` in the host's `appsettings.Local.json`
-(`src/LineOps.Web/`, and `src/LineOps.Worker/` for the Worker), or set
+(`src/XLines.Web/`, and `src/XLines.Worker/` for the Worker), or set
 `Ingestion__Espn__Enabled=true` in the environment. The owner restores their private snapshot
 between the first two lines instead of starting Postgres alone (`CLAUDE.md`, "Data").
 
@@ -609,7 +610,7 @@ rather than a migration.
 
 ### Whose data it is, and what you may do with it
 
-LineOps is a personal tool. It runs on your machine, pulls with your own key, and stores what
+XLines is a personal tool. It runs on your machine, pulls with your own key, and stores what
 it pulls in your own Docker Postgres. Nothing is sent to the project or to anyone else.
 
 - **The Odds API.** You sign up yourself and use your own key (Quick start, step 3); the
@@ -632,7 +633,7 @@ it pulls in your own Docker Postgres. Nothing is sent to the project or to anyon
   [individual, non-commercial, non-bulk use](http://gdx.mlb.com/components/copyright.txt) only.
   It is off whenever ESPN is.
 
-LineOps is not affiliated with or endorsed by ESPN, Disney, MLB, The Odds API or any
+XLines is not affiliated with or endorsed by ESPN, Disney, MLB, The Odds API or any
 sportsbook. It takes no bets and is not betting advice. If you gamble, do it legally where
 you are, at the legal age, and within your means.
 
@@ -642,22 +643,22 @@ you are, at the legal age, and within your means.
 
 ```
 src/
-  LineOps.Core            Domain entities, odds maths, grading, analytics (no dependencies)
-  LineOps.Data            EF Core model, migrations, partition maintenance, seeding
-  LineOps.Reliability     Shared reliability library: KPIs, alert engine, incidents
-  LineOps.Ingestion       Provider adapters, scheduler, settlement (library)
-  LineOps.Observability   OpenTelemetry wiring and the KPI gauges
-  LineOps.Worker          Standalone ingestion host (optional; Web can host the schedule)
-  LineOps.Web             Blazor UI — every view is a window on one desk
-  LineOps.Desk            The desk itself as a reusable Razor package: windows, tokens, controls
-  LineOps.Desk.Hosting    Access gate, sign-in and edge headers for a Desk app
-  LineOps.Desk.Templates  `dotnet new deskapp`
-  LineOps.Desk.Testing    bUnit bench for Desk components
+  XLines.Core            Domain entities, odds maths, grading, analytics (no dependencies)
+  XLines.Data            EF Core model, migrations, partition maintenance, seeding
+  XLines.Reliability     Shared reliability library: KPIs, alert engine, incidents
+  XLines.Ingestion       Provider adapters, scheduler, settlement (library)
+  XLines.Observability   OpenTelemetry wiring and the KPI gauges
+  XLines.Worker          Standalone ingestion host (optional; Web can host the schedule)
+  XLines.Web             Blazor UI — every view is a window on one desk
+  XLines.Desk            The desk itself as a reusable Razor package: windows, tokens, controls
+  XLines.Desk.Hosting    Access gate, sign-in and edge headers for a Desk app
+  XLines.Desk.Templates  `dotnet new deskapp`
+  XLines.Desk.Testing    bUnit bench for Desk components
 tests/
-  LineOps.Tests           Unit, fixture, and Testcontainers integration tests
-  LineOps.Web.Tests       The desk's windows and services
-  LineOps.Desk.Tests      The Desk package, its theme contrast and template
-  LineOps.Desk.Hosting.Tests
+  XLines.Tests           Unit, fixture, and Testcontainers integration tests
+  XLines.Web.Tests       The desk's windows and services
+  XLines.Desk.Tests      The Desk package, its theme contrast and template
+  XLines.Desk.Hosting.Tests
 compose/                  Overlays on docker-compose.yml: dev (Postgres on 127.0.0.1:5433), tailnet, tailnet-db, telemetry
 deploy/                   A hosted stack: Caddy, web, worker, Postgres, backups
 site/                     The static landing page, published by hand to GitHub Pages (ADR 0031)
@@ -680,7 +681,7 @@ docs/
 ## Tests
 
 ```bash
-dotnet test LineOps.slnx
+dotnet test XLines.slnx
 ```
 
 Integration tests need Docker running (Testcontainers). CI runs on pushes and pull requests to
@@ -697,5 +698,5 @@ Testcontainers, because the features worth testing (native partitioning, `jsonb`
 The code is released under the [MIT License](LICENSE). The licence covers the code in this
 repository and nothing else: it grants no rights in any provider's data, which stays under that
 provider's own terms. Who those providers are, what their terms allow, and the fact that none
-of them is affiliated with LineOps are under
+of them is affiliated with XLines are under
 [Whose data it is, and what you may do with it](#whose-data-it-is-and-what-you-may-do-with-it).

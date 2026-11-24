@@ -33,7 +33,7 @@ Spec: `docs/specs/2026-10-24-panel-anatomy-design.md`.
 
 Every window body renders its parts in one order — **title, toolbar, note, metrics,
 sections, with forms as inset cards inside a section** — and each part owns the air beneath
-it, so a panel never writes a margin. Four components in `LineOps.Desk/Primitives` carry
+it, so a panel never writes a margin. Four components in `XLines.Desk/Primitives` carry
 it:
 
 - **`PanelTitle`** — a subject window's name in `--text-title2`, tags on its baseline, one
@@ -65,7 +65,7 @@ the next panel is copied from it rather than invented.
   bodies and row expansions — content, not anatomy — and is listed in the commit that
   finished the sweep.
 - **`PanelHeader`'s `Gap` and `Level` are legacy.** They stay for the callers this did not
-  touch and for nothing new; nothing in `LineOps.Web` references `PanelHeaderGap` any more.
+  touch and for nothing new; nothing in `XLines.Web` references `PanelHeaderGap` any more.
   The global rule that gives a heading after content 18px stands, because `PanelSection`
   renders its rule `Tight` and that inline `margin:0` wins.
 - **The heading outline changed on purpose.** A title at h2 over sections at h3 and

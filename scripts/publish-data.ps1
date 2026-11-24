@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Snapshot the local LineOps database into the owner's private journal repository, so another
+    Snapshot the local XLines database into the owner's private journal repository, so another
     of the owner's machines can restore exactly the same data with one command.
 
 .DESCRIPTION
@@ -46,10 +46,10 @@
     .\scripts\publish-data.ps1 -Commit
 
 .EXAMPLE
-    .\scripts\publish-data.ps1 -DisplayableOnly -OutDir $env:TEMP\lineops-shared
+    .\scripts\publish-data.ps1 -DisplayableOnly -OutDir $env:TEMP\xlines-shared
 #>
 param(
-    [string]$Container = "lineops-postgres",
+    [string]$Container = "xlines-postgres",
     [string]$Database = "lineops",
     [string]$User = "lineops",
     [switch]$Commit,
@@ -179,7 +179,7 @@ else {
     #
     # Which sources are displayable is read from "Sources"."Licence"; a database from before
     # that column (migration SourceLicence) is classified by key, from the same table as
-    # SourceLicences.Known in LineOps.Core.
+    # SourceLicences.Known in XLines.Core.
     $scrub = @'
 -- Which sources may be shown.
 CREATE TEMP TABLE shown AS SELECT "Id" FROM "Sources" WHERE "Key" IN ('the-odds-api', 'balldontlie');

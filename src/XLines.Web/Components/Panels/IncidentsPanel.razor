@@ -1,0 +1,580 @@
+@using XLines.Reliability
+@using XLines.Desk.Windowing
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+@inject DeskToasts Toasts
+
+@if (_selected is null)
+{
+    @if (Failed)
+    {
+        <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+    }
+
+    @if (!Loaded)
+    {
+        @if (!Failed)
+        {
+            <DeskGrid T="Incident" Items="_incidents" Loading="true" LoadingLabel="Fetching incidents" />
+        }
+    }
+    else
+    {
+    <MetricRow Class="ops-metrics--3">
+        <Metric Label="Open"
+                Value='@_open.ToString("N0")'
+                State="@(_open > 0 ? DeskState.Negative : DeskState.Positive)" />
+        <Metric Label="Resolved" Value='@_resolved.ToString("N0")' State="DeskState.Positive" />
+        <Metric Label="Median resolve" Value="@_mttr" />
+    </MetricRow>
+
+    @if (_incidents.Count == 0)
+    {
+        @* The sentence named a window and left the reader to find it on the rail. EmptyState
+           has carried an Action slot for exactly this since it was written, and no call site
+           had ever filled one. *@
+        <EmptyState Kind="EmptyStateKind.New">
+            <ChildContent>
+                No incidents yet. The on-call drill in Ops raises one on purpose, so the path
+                from alert to RCA can be walked before it is needed.
+            </ChildContent>
+            <Action>
+                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                            Icon="@Icons.Material.Filled.MonitorHeart"
+                            OnClick="() => Manager.OpenOps()">
+                    Open Ops
+                </DeskButton>
+            </Action>
+        </EmptyState>
+    }
+    else
+    {
+        @* Two lists under two names. One table held both, sorted by when each opened, so the
+           tiles sat straight on a run of rows whose first question — is this still open? — was
+           answered in the fifth column. Open leads, because it is the work; Resolved is the
+           record. A list with nothing in it is not drawn: the Open tile already says zero. *@
+        <div class="wflow incflow">
+        @if (_openIncidents.Count > 0)
+        {
+            <FormGroup Title="Open" Span="DeskCardSpan.Row">
+                <DeskGrid T="Incident" Items="_openIncidents" Class="deskgrid--clickable"
+                          OnRowClick="@(e => SelectAsync(e.Item.Id))"
+                          EmptyText="No open incidents.">
+                    <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+                        <CellTemplate><span class="num dim">@context.Item.Id</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                        <CellTemplate>
+                            <Tag State="@SeverityState(context.Item.Severity)">@AlertWords.Severity(context.Item.Severity)</Tag>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened"
+                                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+                        <CellTemplate>
+                            <DeskLink Destination="RCA"
+                                      Icon="@Icons.Material.Filled.Description"
+                                      OnClick="() => SelectAsync(context.Item.Id)">
+                                @context.Item.Title
+                            </DeskLink>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                        <CellTemplate><Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit"
+                                    Align="Align.Right" InitialDirection="SortDirection.Descending">
+                        <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
+                    </PropertyColumn>
+
+                    @* Sorted, because "which incidents still owe an RCA" is the discipline this
+                       window exists to enforce. A written one is said quietly; a missing one
+                       keeps its tag, so it is the thing that stands out. *@
+                    <PropertyColumn T="Incident" TProperty="bool"
+                                    Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                        <CellTemplate>@Rca(context.Item)</CellTemplate>
+                    </PropertyColumn>
+                </DeskGrid>
+            </FormGroup>
+        }
+
+        @if (_resolvedIncidents.Count > 0)
+        {
+            @* The record. Its state is in its name, so it has no State column; how long each took
+               is the reading instead. Severity is a fact about the past here, said in words: a run
+               of red capsules down a list of finished incidents would read as an alarm. *@
+            <FormGroup Title="Resolved" Span="DeskCardSpan.Row">
+                <DeskGrid T="Incident" Items="_resolvedIncidents" Class="deskgrid--clickable"
+                          OnRowClick="@(e => SelectAsync(e.Item.Id))"
+                          EmptyText="No resolved incidents.">
+                    <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+                        <CellTemplate><span class="num dim">@context.Item.Id</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                        <CellTemplate><span class="quiet">@AlertWords.Severity(context.Item.Severity)</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened"
+                                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+                        <CellTemplate>
+                            <DeskLink Destination="RCA"
+                                      Icon="@Icons.Material.Filled.Description"
+                                      OnClick="() => SelectAsync(context.Item.Id)">
+                                @context.Item.Title
+                            </DeskLink>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit"
+                                    Align="Align.Right" InitialDirection="SortDirection.Descending">
+                        <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
+                    </PropertyColumn>
+
+                    @* Sorts on the real duration, so "slowest to resolve" is a click. *@
+                    <PropertyColumn T="Incident" TProperty="double"
+                                    Property="i => i.TimeToResolve == null ? 0 : i.TimeToResolve.Value.TotalMinutes"
+                                    Title="Took" Align="Align.Right" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                        <CellTemplate>
+                            <span class="num dim">@(context.Item.TimeToResolve is { } took ? Duration(took) : "—")</span>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="bool"
+                                    Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                        <CellTemplate>@Rca(context.Item)</CellTemplate>
+                    </PropertyColumn>
+                </DeskGrid>
+            </FormGroup>
+        }
+        </div>
+    }
+    }
+}
+else
+{
+    @* The incident is the window's subject, so its name is the window's title — not a section
+       rule, which names a part of the window rather than the thing the window is about.
+       Severity and state are tags on its baseline, said once: the meta line used to repeat the
+       severity the toolbar's tag already showed, and the toolbar is for keys. *@
+    <PanelTitle>
+        <ChildContent>@_selected.Title</ChildContent>
+        <Tags>
+            <Tag State="@SeverityState(_selected.Severity)">@AlertWords.Severity(_selected.Severity)</Tag>
+            <Tag State="@StatusState(_selected.Status)">@_selected.Status</Tag>
+        </Tags>
+        <Detail>Incident <span class="num">#@_selected.Id</span>, opened @Starts(_selected.OpenedAt)</Detail>
+    </PanelTitle>
+
+    <PanelToolbar>
+        <DeskButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _selected = null">
+            All incidents
+        </DeskButton>
+    </PanelToolbar>
+
+    @* The procedure before the workspace: an incident is opened to be worked, and the first thing
+       the person working it needs is the triage steps for the rule that raised it. Each runbook
+       carries its own summary line, so it needs no section rule above it. *@
+    @foreach (var rule in _rules)
+    {
+        <RunbookSteps RuleKey="@rule" Open="@(_selected.Status != IncidentStatus.Resolved)" />
+    }
+
+    @* The timeline and the RCA are two section cards in one flow: side by side in a wide window,
+       the record beside the form that answers it, one above the other in a narrow one. They were
+       two bare rules over a group each, and ran together down a single column. *@
+    <div class="wflow incflow">
+
+    @* A grouped list: the time leads each row in one column and the note trails, an inset
+       hairline between. It was a stack of stamp-over-text pairs with nothing to align them, and
+       the composer under them a field named only by its placeholder. Writing a note is the
+       operator's; a visitor reads the timeline (ADR 0018). A note the database would not take is
+       said in the card's Notice, under the note it is about. *@
+    <FormGroup Title="Timeline" GroupClass="opsgroup--log">
+        <Keys>
+            @if (_timeline.Count > 0)
+            {
+                <span class="num">@_timeline.Count.ToString("N0")</span> @(_timeline.Count == 1 ? "note" : "notes")
+            }
+        </Keys>
+        <ChildContent>
+        @if (_timeline.Count == 0 && !Manager.Access.CanOperate)
+        {
+            <EmptyState Kind="EmptyStateKind.New">Nothing on the timeline yet.</EmptyState>
+        }
+        else
+        {
+                @foreach (var note in _timeline)
+                {
+                    @* The stamp is the row's label; .opsstamp on the row sets it in the secondary
+                       colour and tabular figures. *@
+                    <FormRow Label="@($"{DisplayTime.Format(note.At, "MMM d HH:mm:ss")} {DisplayTime.Label}")" Class="opsstamp">
+                        <span class="opsrow__text">@note.Note</span>
+                    </FormRow>
+                }
+
+                @if (Manager.Access.CanOperate)
+                {
+                    <FormRow Label="New note">
+                        <div class="opsrow">
+                            @* Immediate: the Add key beside it is disabled until there is text, so the key has
+                               to learn about the first keystroke rather than about the blur. *@
+                            <DeskField TValue="string" Immediate="true" Class="opsrow__fill"
+                                       aria-label="New timeline note"
+                                       placeholder="What was seen, or what was tried" @bind-Value="_newNote" />
+                            @* The Add key waits for text, and says so on the row: a disabled key's
+                               title never shows. *@
+                            <KeyRow Justify="DeskJustify.Start"
+                                    Reason="@(string.IsNullOrWhiteSpace(_newNote) ? "Type the note first." : null)">
+                                <Primary Context="why">
+                                    <DeskButton OnClick="AddNoteAsync"
+                                                Disabled="@string.IsNullOrWhiteSpace(_newNote)"
+                                                aria-describedby="@why">
+                                        Add
+                                    </DeskButton>
+                                </Primary>
+                            </KeyRow>
+                        </div>
+                    </FormRow>
+                }
+        }
+        </ChildContent>
+        <Notice>
+            @* Said under the note it is about, not in the RCA's form beside it: the field still
+               holds what was typed, so Add sends it again. *@
+            @if (_noteError is not null)
+            {
+                <Note State="DeskState.Warning">@_noteError</Note>
+            }
+        </Notice>
+    </FormGroup>
+
+    @* The RCA writes: a visitor reads it once it is resolved — which is the point of keeping
+       one (ADR 0018) — and an operator fills it in. *@
+    @if (!Manager.Access.CanOperate)
+    {
+        @if (_selected.Status == IncidentStatus.Resolved)
+        {
+            @* Read back as the facts of a grouped list, each under its own name; the two answers
+               used to sit one above the other with nothing to say which was which. *@
+            <FormGroup Title="Root-cause analysis" GroupClass="opsgroup--log">
+                <FormRow Label="Root cause">
+                    <span class="opsrow__text">@_selected.RootCause</span>
+                </FormRow>
+                <FormRow Label="Corrective action">
+                    <span class="opsrow__text">@_selected.CorrectiveActions</span>
+                </FormRow>
+            </FormGroup>
+        }
+    }
+    else
+    {
+        @* The grouped form, row for row as a visitor's read-back draws it: each answer under its
+           own name in the label column, one inset rule between them. Two text areas stacked
+           under their own labels were a third look for a form on the desk. The card's bar names
+           it, so the form carries no second title. It takes one track of the flow, so across a
+           maximised window the fields are a form's width and the keys sit under the text they
+           commit, not a screen away. What the form needs is said once, quietly, as the card's
+           footer; the Resolve key's tooltip says which of it is still missing. *@
+        <PanelForm Class="pform--grouped opsrca">
+            <ChildContent>
+                <FormGroup Title="Root-cause analysis" GroupClass="opsgroup--log">
+                    <ChildContent>
+                        <FormRow Label="Root cause">
+                            <DeskTextArea rows="4" Class="wfield--fill" aria-label="Root cause" Required
+                                          placeholder="What actually broke, and why did it break now?"
+                                          @bind-Value="_rootCause" />
+                        </FormRow>
+                        <FormRow Label="Corrective action">
+                            <DeskTextArea rows="4" Class="wfield--fill" aria-label="Corrective action" Required
+                                          placeholder="What change prevents a recurrence? Reference the commit."
+                                          @bind-Value="_corrective" />
+                        </FormRow>
+                    </ChildContent>
+                    <Footer>
+                        Both are needed to resolve. An incident without a cause and a fix teaches
+                        nothing later.
+                    </Footer>
+                </FormGroup>
+
+                @if (_error is not null)
+                {
+                    <Note State="DeskState.Warning">@_error</Note>
+                }
+            </ChildContent>
+            <Footer>
+                @* Mark mitigated takes Cancel's place: the way out of the form that is not
+                   the primary.
+
+                   Two different reasons Resolve is grey, and the operator cannot tell them
+                   apart by looking: the RCA is short of a field, or the incident is already
+                   resolved and there is nothing left to do. The card's footer states the rule;
+                   the sentence before the key states which of the two is true right now. *@
+                <KeyRow Reason="@ResolveHint">
+                    <Secondary>
+                        @if (_selected.Status == IncidentStatus.Open)
+                        {
+                            <DeskButton OnClick="MitigateAsync">Mark mitigated</DeskButton>
+                        }
+                    </Secondary>
+                    <Primary Context="why">
+                        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
+                                    OnClick="ResolveAsync" Disabled="@(!CanResolve)"
+                                    aria-describedby="@why">
+                            Resolve incident
+                        </DeskButton>
+                    </Primary>
+                </KeyRow>
+            </Footer>
+        </PanelForm>
+    }
+    </div>
+}
+
+@code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Alerts };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    /// <summary>Set when opened from an alert's incident reference elsewhere on the desk.</summary>
+    [Parameter] public int? IncidentId { get; set; }
+
+    private IReadOnlyList<Incident> _incidents = [];
+
+    /// <summary>The work and the record, split once per read rather than per render.</summary>
+    private IReadOnlyList<Incident> _openIncidents = [];
+    private IReadOnlyList<Incident> _resolvedIncidents = [];
+
+    private Incident? _selected;
+    private IReadOnlyList<TimelineNote> _timeline = [];
+
+    /// <summary>Distinct rules behind this incident. Usually one, but a source failing two ways at
+    /// once is promoted from whichever alert was clicked and can accumulate more.</summary>
+    private IReadOnlyList<string> _rules = [];
+    private string _rootCause = string.Empty;
+    private string _corrective = string.Empty;
+    private string _newNote = string.Empty;
+    private string? _error;
+
+    /// <summary>Why the last timeline note was not added, said beside the note field.</summary>
+    private string? _noteError;
+    private int _open;
+    private int _resolved;
+    private string _mttr = "—";
+
+    private bool CanResolve
+        => !string.IsNullOrWhiteSpace(_rootCause)
+           && !string.IsNullOrWhiteSpace(_corrective)
+           && _selected?.Status != IncidentStatus.Resolved;
+
+    /// <summary>Why the resolve key is grey, or null when it is not.</summary>
+    private string? ResolveHint => CanResolve
+        ? null
+        : _selected?.Status == IncidentStatus.Resolved
+            ? "This incident is already resolved."
+            : "Both the cause and the corrective action are needed.";
+
+    private int? _aimedAt;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _aimedAt = IncidentId;
+        await LoadAsync();
+
+        // Following an alert's incident number lands on that incident's RCA, not the list.
+        if (IncidentId is { } id)
+            await SelectAsync(id);
+    }
+
+    /// <summary>
+    /// The window is a singleton, so following another incident re-aims this one rather than
+    /// opening a second, and Back re-aims it at what it showed before. Both arrive here.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IncidentId == _aimedAt)
+            return;
+
+        _aimedAt = IncidentId;
+
+        if (IncidentId is { } id)
+            await SelectAsync(id);
+        else
+            _selected = null;
+    }
+
+    protected override string LoadSubject => "The incidents";
+
+    private Task LoadAsync() => WithActivityAsync(ReadAsync,
+        () => _open > 0 ? PulseState.Critical : PulseState.Healthy,
+        () => _open > 0 ? $"{_open} open" : "none open");
+
+    private async Task ReadAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<IncidentService>();
+
+        // Every open incident, and the newest IncidentService.RecentLimit resolved ones: past the
+        // cap, the Resolved tile and the median resolve read over those, not the whole record.
+        _incidents = await service.GetAllAsync();
+        _openIncidents = _incidents.Where(i => i.Status != IncidentStatus.Resolved).ToList();
+        _resolvedIncidents = _incidents.Where(i => i.Status == IncidentStatus.Resolved).ToList();
+        _open = _openIncidents.Count;
+        _resolved = _resolvedIncidents.Count;
+
+        var durations = _incidents
+            .Where(i => i.TimeToResolve is not null)
+            .Select(i => i.TimeToResolve!.Value)
+            .OrderBy(t => t).ToList();
+
+        _mttr = durations.Count == 0 ? "—" : Duration(durations[durations.Count / 2]);
+    }
+
+    private async Task SelectAsync(int id)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<IncidentService>();
+
+        _selected = await service.GetAsync(id);
+        _error = null;
+        _noteError = null;
+
+        if (_selected is not null)
+        {
+            _timeline = IncidentService.Deserialise(_selected.Timeline);
+            _rootCause = _selected.RootCause ?? string.Empty;
+            _corrective = _selected.CorrectiveActions ?? string.Empty;
+
+            _rules = _selected.Alerts
+                .Select(a => a.RuleKey)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(k => k, StringComparer.Ordinal)
+                .ToList();
+        }
+    }
+
+    private async Task AddNoteAsync()
+    {
+        if (_selected is null)
+            return;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IncidentService>()
+                .AddNoteAsync(_selected.Id, _newNote);
+
+            _newNote = string.Empty;
+            await SelectAsync(_selected.Id);
+        }
+        catch (Exception ex)
+        {
+            // The note stays in its field, so the operator sends it again rather than retyping it.
+            Log.LogError(ex, "A note was not added to incident #{Id}", _selected?.Id);
+            _noteError = "The note was not saved. Try again.";
+        }
+    }
+
+    private async Task ResolveAsync()
+    {
+        if (_selected is null)
+            return;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IncidentService>()
+                .ResolveAsync(_selected.Id, _rootCause, _corrective);
+
+            _error = null;
+            var id = _selected.Id;
+            await LoadAsync();
+            await SelectAsync(id);
+
+            // Resolving closes the loop somewhere the operator is not looking: the desk's open
+            // count, the pulse, and the Ops window's incident metric all move. The status tag
+            // on this page already confirms the resolve itself, so the notice reports the
+            // wider consequence rather than repeating it.
+            //
+            // The failure path deliberately does not toast. A rejected resolve needs the
+            // operator to edit the two fields above it, and a notice that has auto-dismissed
+            // cannot be read next to the field it is about — that stays in _error, inline.
+            Toasts.Success($"Incident #{id} resolved — {(_open == 0 ? "none" : _open.ToString())} still open.");
+        }
+        catch (ArgumentException ex)
+        {
+            // The service refuses a blank field; say which, in the desk's words, beside it.
+            Log.LogWarning(ex, "Incident #{Id} was not resolved", _selected?.Id);
+            _error = ex.ParamName == "correctiveActions"
+                ? "A corrective action is needed to resolve the incident."
+                : ex.ParamName == "rootCause"
+                    ? "A root cause is needed to resolve the incident."
+                    : "The incident was not saved. Try again.";
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Incident #{Id} was not resolved", _selected?.Id);
+            _error = "The incident was not saved. Try again.";
+        }
+    }
+
+    private async Task MitigateAsync()
+    {
+        if (_selected is null)
+            return;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IncidentService>()
+                .SetStatusAsync(_selected.Id, IncidentStatus.Mitigated);
+
+            await SelectAsync(_selected.Id);
+        }
+        catch (Exception ex)
+        {
+            // Inline, under the form whose key it was, as a failed resolve is.
+            Log.LogError(ex, "Incident #{Id} was not marked mitigated", _selected?.Id);
+            _error = "The incident was not updated. Try again.";
+        }
+    }
+
+    private static DeskState StatusState(IncidentStatus status) => status switch
+    {
+        IncidentStatus.Open => DeskState.Negative,
+        IncidentStatus.Mitigated => DeskState.Warning,
+        _ => DeskState.Positive
+    };
+
+    /// <summary>Critical reads as Negative; anything below it is Warning.</summary>
+    private static DeskState SeverityState(AlertSeverity severity)
+        => severity == AlertSeverity.Critical ? DeskState.Negative : DeskState.Warning;
+
+    /// <summary>
+    /// Whether the RCA is written. Written is the expected state and is a check mark, its word
+    /// kept for a screen reader; Missing keeps its tag, so down a column of incidents it is the
+    /// one that stands out.
+    /// </summary>
+    private RenderFragment Rca(Incident incident)
+    {
+        if (string.IsNullOrWhiteSpace(incident.RootCause))
+            return @<Tag State="DeskState.Warning">Missing</Tag>;
+
+        return @<span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Written</span></span>;
+    }
+
+    private static string Duration(TimeSpan t) => t.TotalMinutes switch
+    {
+        < 60 => $"{t.TotalMinutes:F0}m",
+        < 1440 => $"{t.TotalHours:F1}h",
+        _ => $"{t.TotalDays:F1}d"
+    };
+}

@@ -1,0 +1,53 @@
+@*
+    A team's mark beside its name or score: the club's crest where ESPN serves one (TeamLogos),
+    otherwise a disc in the club's colour (TeamColors), otherwise nothing. Team identity is
+    content, not chrome, so this is the one place a crest or a club colour reaches the page.
+
+    The crest is two images, one drawn for a dark ground and one for a light, and the sheet shows
+    the one the theme wants; both are lazy, so the hidden one is never fetched. The box is sized
+    by the class whether or not the image arrives, so a row does not shift when it does, and an
+    image that fails draws nothing (its alt is empty). Decorative, so hidden from assistive tech:
+    the name beside it says who the team is.
+*@
+
+@if (TeamLogos.Has(Sport, Abbrev))
+{
+    <span class="teammark teammark--crest @SizeClass" aria-hidden="true">
+        <img class="teammark__img teammark__img--dark" src="@TeamLogos.For(Sport, Abbrev, onDark: true, Pixels)"
+             alt="" width="@Box" height="@Box" loading="lazy" decoding="async" draggable="false" />
+        <img class="teammark__img teammark__img--light" src="@TeamLogos.For(Sport, Abbrev, onDark: false, Pixels)"
+             alt="" width="@Box" height="@Box" loading="lazy" decoding="async" draggable="false" />
+    </span>
+}
+else if (TeamColors.For(Sport ?? "", Abbrev ?? "") is { } hex)
+{
+    <span class="teammark teammark--disc @SizeClass" style="--team:@hex" aria-hidden="true"></span>
+}
+
+@code {
+    /// <summary>The sport's key, <c>nfl</c>, <c>mlb</c> or <c>nba</c>.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    /// <summary>The team's abbreviation as ESPN spells it.</summary>
+    [Parameter] public string? Abbrev { get; set; }
+
+    [Parameter] public TeamMarkSize Size { get; set; } = TeamMarkSize.Small;
+
+    private string SizeClass => Size switch
+    {
+        TeamMarkSize.Hero => "teammark--hero",
+        TeamMarkSize.Large => "teammark--lg",
+        _ => "teammark--sm",
+    };
+
+    // The crest's drawn square, matching --teammark-crest in xlines.css, and the file asked
+    // for: three times it, so it stays sharp on a dense display and when the page is zoomed.
+    private int Box => Size switch
+    {
+        TeamMarkSize.Hero => 44,
+        TeamMarkSize.Large => 28,
+        _ => 18,
+    };
+
+    private int Pixels => Box * 3;
+}

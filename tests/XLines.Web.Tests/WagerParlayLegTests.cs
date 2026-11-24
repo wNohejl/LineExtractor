@@ -1,0 +1,125 @@
+using AngleSharp.Dom;
+using Bunit;
+using XLines.Desk.Primitives;
+using XLines.Core.Entities;
+using XLines.Web.Components.Panels;
+using XLines.Web.Services;
+using XLines.Web.Tests.Support;
+
+namespace XLines.Web.Tests;
+
+/// <summary>
+/// Parlay legs from the wager window: Add as leg beside Add to slip, needing no stake, and the
+/// Journal's Build parlay door, where every bet picked is a leg and the game search clears for
+/// the next one.
+/// </summary>
+public class WagerParlayLegTests : WagerTestContext
+{
+    private static IElement Key(IRenderedFragment cut, string startsWith)
+        => cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith(startsWith, StringComparison.Ordinal));
+
+    private IRenderedComponent<BoardWager> FromBoard(string market, string outcome)
+        => RenderComponent<BoardWager>(p => p
+            .Add(x => x.GameId, BoardRows.GameId)
+            .Add(x => x.Market, market)
+            .Add(x => x.Outcome, outcome));
+
+    private IRenderedComponent<BoardWager> Building()
+        => RenderComponent<BoardWager>(p => p.Add(x => x.BuildParlay, true));
+
+    private static void PickGame(IRenderedComponent<BoardWager> cut)
+    {
+        cut.Find("input[aria-label='Find a game']").Input("chiefs");
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")), Settle);
+        cut.FindAll(".game-search__opt")[0].Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".selection-chip")));
+    }
+
+    [Fact]
+    public void Add_as_leg_banks_the_side_with_no_stake_where_Add_to_slip_waits_for_one()
+    {
+        var cut = FromBoard(Markets.Total, "Over");
+
+        // A key that cannot be used yet is not on screen: Add to slip waits for a stake out of sight.
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim().StartsWith("Add to slip", StringComparison.Ordinal));
+        Assert.False(Key(cut, "Add as leg").HasAttribute("disabled"));
+
+        Key(cut, "Add as leg").Click();
+
+        var leg = Assert.Single(Slip.Items);
+        Assert.True(leg.AsLeg);
+        Assert.Equal(0m, leg.Stake);
+        Assert.Equal((Markets.Total, "Over", 47.5m), (leg.Market, leg.Outcome, leg.Line));
+        Assert.Equal(SlipMode.Parlay, Slip.Mode);
+    }
+
+    /// <summary>
+    /// A parlay of Sunday's bets, built on Monday: a started game's side opens on a typed price
+    /// from its close, so it can be a leg at the price the operator got rather than being refused.
+    /// </summary>
+    [Fact]
+    public void A_started_game_can_be_a_leg_at_the_price_you_got()
+    {
+        Data.Row = BoardRows.Row(closing: true);
+        var cut = FromBoard(Markets.Moneyline, BoardRows.Home);
+
+        Assert.Contains("The game has started", cut.Find(".wstatus__text").TextContent);
+
+        cut.Find("input[placeholder='-110']").Input("-125");
+        Key(cut, "Add as leg").Click();
+
+        var leg = Assert.Single(Slip.Items);
+        Assert.True(leg.AsLeg);
+        Assert.False(leg.IsClosing);
+        Assert.True(leg.ManualPrice);
+        Assert.Equal(-125, leg.PriceAmerican);
+    }
+
+    [Fact]
+    public void Building_a_parlay_has_no_stake_step_and_no_Log()
+    {
+        Data.Games = [BoardRows.Game()];
+        var cut = Building();
+        Assert.Contains("Find each leg's game", cut.Find(".whead__hint").TextContent);
+
+        PickGame(cut);
+
+        Assert.Equal(["Bet", "Review and add"],
+            cut.FindAll(".wstep__title").Select(t => t.TextContent.Trim()));
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim().StartsWith("Log ", StringComparison.Ordinal));
+        Assert.DoesNotContain(cut.FindAll("button.gate__opt"), b => b.TextContent.Contains("No game"));
+    }
+
+    [Fact]
+    public void Each_leg_added_clears_the_game_for_the_next_and_the_count_stays_in_view()
+    {
+        Data.Games = [BoardRows.Game()];
+        Slip.SetMode(SlipMode.Parlay);
+        var cut = Building();
+
+        PickGame(cut);
+        cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "Spread · Chiefs -2.5").Click();
+
+        // The key is drawn by the render the chip's press asks for, which under a loaded parallel
+        // suite has not always landed when the click returns: waited for, then pressed.
+        cut.WaitForAssertion(() => Key(cut, "Add leg"), Settle);
+        Key(cut, "Add leg").Click();
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".selection-chip")), Settle);
+        // The addition is a green toast that names the count, not a grey note above the steps.
+        Assert.Contains("1 leg on the slip", LastToast.Message);
+        Assert.Equal(DeskState.Positive, LastToast.State);
+        Assert.Empty(cut.FindAll(".wager-legs"));
+
+        // A same-game second leg: the total on the game just used.
+        PickGame(cut);
+        cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "Total · Over o47.5").Click();
+        cut.WaitForAssertion(() => Key(cut, "Add leg"), Settle);
+        Key(cut, "Add leg").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("2 legs on the slip", LastToast.Message), Settle);
+        Assert.Equal([Markets.Spread, Markets.Total], Slip.Legs.Select(l => l.Market));
+        Assert.True(Slip.IsSameGame);
+        Assert.All(Slip.Items, i => Assert.Equal(0m, i.Stake));
+    }
+}

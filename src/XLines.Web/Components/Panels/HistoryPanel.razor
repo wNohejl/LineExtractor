@@ -1,0 +1,730 @@
+@using XLines.Core.Analytics
+@using XLines.Core.Entities
+@using XLines.Data
+@using XLines.Ingestion.Services
+@using XLines.Reliability
+@using XLines.Desk.Primitives
+@using XLines.Desk.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<XLinesDbContext> DbFactory
+@inject HistoryBackfillService Backfill
+@inject BackfillCoordinator Coordinator
+
+@*
+    The history backfill, as an operator sees it.
+
+    The walk itself lives in BackfillCoordinator and outlives this window, so everything here
+    is a view onto something already running: close the window mid-backfill and it keeps
+    going; reopen it and this reattaches.
+
+    What a walk is for used to open the window as a filled note. It is the footer of the Run
+    group now, under the keys it explains, so the window opens on what it holds.
+*@
+
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@* Figures first, then what can walk, then the keys that walk it, then the record: the window
+   opened on the sources, a list of facts that rarely changes, with the coverage it exists to
+   report a screen below. *@
+@* The tiles stand on the window's body, as a row of figures does on every window: a tile is a
+   box of its own, so a card around them would be a box inside a box. *@
+@if (Loaded || !Failed)
+{
+@if (_coverage is { } c)
+{
+    <MetricRow Class="ops-metrics--4">
+        <Metric Label="Days held"
+                Value='@c.Completed.ToString("N0")'
+                Note='@($"of {c.TargetDayFetches:N0} wanted")'
+                State="@(c.Completed > 0 ? DeskState.Positive : DeskState.Neutral)"
+                Numeric="true" />
+        <Metric Label="Games" Value='@c.GamesFound.ToString("N0")' State="DeskState.Info" Numeric="true" />
+        <Metric Label="Rows" Value='@c.RowsIngested.ToString("N0")' State="DeskState.Info" Numeric="true" />
+        <Metric Label="Days failed"
+                Value='@c.Failed.ToString("N0")'
+                State="@(c.Failed > 0 ? DeskState.Warning : DeskState.Neutral)"
+                Numeric="true" />
+    </MetricRow>
+
+    @* The tiles' footnote: how far the record reaches and what it cost, in the secondary colour
+       directly under them, rather than a body-size paragraph with a gap of its own. *@
+    <p class="opsfoot">
+        @if (c.EarliestCovered is { } earliest && c.LatestCovered is { } latest)
+        {
+            <text>Reaches back to @LongDay(earliest), forward to @LongDay(latest).
+                <span class="num">@c.RequestsMade.ToString("N0")</span> requests spent, no credits.</text>
+        }
+        else
+        {
+            <text>No history gathered yet.</text>
+        }
+    </p>
+}
+else if (!Loaded && !Failed)
+{
+    <DeskSkeleton Lines="2" />
+}
+}
+
+@* Then the sections, as section cards in one card flow (the Desk's grouping contract, Nov 22):
+   the sources beside the walk's form in a wide window, and the two record tables each across the
+   row under them. They were four bare rules down one column, and ran together. *@
+<div class="wflow histflow">
+
+@if (_eligibility.Count > 0)
+{
+    @* Each source the walk would use, by name, with why it will or will not be used: a grouped
+       list of facts, the name leading and the reason trailing. Only a refusal wears a tag — Free
+       was a green capsule on a row that already said "unmetered and available" — and the raw
+       provider key it showed ("espn") is a configuration value, not a name. *@
+    <FormGroup Title="Sources" GroupClass="opsgroup--wide">
+        <ChildContent>
+            @foreach (var source in _eligibility)
+            {
+                <FormRow Label="@SourceName(source.Key)" @key="source.Key">
+                    <div class="opsrow">
+                        @if (!source.Eligible)
+                        {
+                            <Tag State="DeskState.Warning">Refused</Tag>
+                        }
+                        <span class="opsrow__text quiet">@source.Reason</span>
+                    </div>
+                </FormRow>
+            }
+        </ChildContent>
+        <Notice>
+            @if (!_eligibility.Any(s => s.Eligible))
+            {
+                <Note State="DeskState.Warning">
+                    Nothing can walk history. Backfill uses unmetered providers only: a metered one's
+                    quota is kept for the live schedule, even when it is configured and working.
+                </Note>
+            }
+        </Notice>
+    </FormGroup>
+}
+
+@* The walk, as one grouped form: a row for what starts it and a row for what corrects it, each
+   named in the label column with its key trailing, and what a walk does as the group's footer.
+   It was a row with the re-walk key at the far left and the one Filled key at the far right —
+   a screen's width apart in a maximised window, under a gap that made the section read as
+   holding one stray key. The group, its footer and what the last walk did are one section, as
+   every grouped form on the desk is.
+
+   A section card spelled by hand: under it come a warning, the footer and what the last walk did,
+   in that order, which is more than FormGroup's one Notice and one footer. *@
+    <section class="wsection" aria-labelledby="@($"{_uid}-run")">
+        <div class="wgroup" style="--form-label: var(--hist-run-label)">
+            <div class="wgroup__bar">
+                <h3 class="wgroup__title" id="@($"{_uid}-run")">Run</h3>
+            </div>
+            @if (Coordinator.IsRunning)
+            {
+                @* A state, drawn as a state. This was a DeskButton carrying Busy and no OnClick — a key
+                   that could never be pressed, which is the one thing a key must not be. Busy means
+                   "the work you started is still running on this control"; there is no work to start
+                   here, only a walk to report, and Stop beside it is the control. *@
+                <FormRow Label="Walking">
+                    <div class="opsrow">
+                        <span class="opsrow__text">@WalkingAt</span>
+                        @if (Manager.Access.CanOperate)
+                        {
+                            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
+                                        Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
+                                Stop
+                            </DeskButton>
+                        }
+                    </div>
+                </FormRow>
+            }
+            else if (!Manager.Access.CanOperate)
+            {
+                @* A visitor reads what the history holds; walking it spends requests (ADR 0018). *@
+                <FormRow Label="Walk">
+                    <span class="opsrow__text quiet">Idle</span>
+                </FormRow>
+            }
+            else
+            {
+                @* There is no Refresh key here on purpose. BackfillCoordinator is the only writer of
+                   everything this panel shows, and it raises Changed on start, on every day walked and
+                   on finish — which this panel is subscribed to. A key offering to reload data that
+                   nothing else can have changed is a key that only ever repaints the same numbers. *@
+                <FormRow Label="Past days">
+                    <KeyRow Class="opsrow" Justify="DeskJustify.Start" Reason="@GatherWaits">
+                        <Primary Context="why">
+                            <DeskButton Emphasis="DeskEmphasis.Filled"
+                                        Icon="@Icons.Material.Filled.History"
+                                        Disabled="@(GatherWaits is not null)"
+                                        aria-describedby="@why"
+                                        OnClick="Start">
+                                Gather history
+                            </DeskButton>
+                        </Primary>
+                    </KeyRow>
+                </FormRow>
+
+                @* Re-walking is how a day stored by older, wronger code gets corrected. It is behind a
+                   confirm because it is slow — every day walked again, one request per finished game —
+                   not because it is dangerous: rows are re-resolved onto themselves, never duplicated. *@
+                <FormRow Label="Held days">
+                    @if (_confirmRewalk)
+                    {
+                        <InlineConfirm Class="opsrow" ConfirmLabel="Re-walk"
+                                       ConfirmIcon="@Icons.Material.Filled.Restore"
+                                       OnConfirm="RewalkAsync" OnCancel="() => _confirmRewalk = false">
+                            Walk <span class="num">@HeldDays.ToString("N0")</span> held @(HeldDays == 1 ? "day" : "days") again?
+                        </InlineConfirm>
+                    }
+                    else
+                    {
+                        @* Disabled with the reason rather than hidden: "there is nothing held to re-walk"
+                           is a fact about the desk worth reading, and a key that vanishes teaches nothing.
+                           The reason is text on the row; a disabled key's title never shows. *@
+                        <KeyRow Class="opsrow" Justify="DeskJustify.Start"
+                                Reason="@(HeldDays == 0 ? "No day is held yet, so there is nothing to walk again." : null)">
+                            <Primary Context="why">
+                                <DeskButton Icon="@Icons.Material.Filled.Restore"
+                                            Disabled="@(HeldDays == 0)"
+                                            aria-describedby="@why"
+                                            OnClick="() => _confirmRewalk = true">
+                                    Re-walk…
+                                </DeskButton>
+                            </Primary>
+                        </KeyRow>
+                    }
+                </FormRow>
+
+                @* A range, named: the sports and the days to walk again — how a season stored before its
+                   finals is finalized, and how its finals get ESPN's closing line, without re-walking
+                   every held day of every league. *@
+                <FormRow Label="Sports">
+                    <div class="opsrow">
+                        @foreach (var sport in Backfill.Sports)
+                        {
+                            var key = sport;
+                            <DeskCheckbox Label="@League(key)" Checked="@_rangeSports.Contains(key)"
+                                          CheckedChanged="@((bool on) => ToggleRangeSport(key, on))" />
+                        }
+                    </div>
+                </FormRow>
+                <FormRow Label="Dates">
+                    <div class="opsrow">
+                        <DeskField TValue="string" type="date" aria-label="From" Class="wfield--short"
+                                   Value="@_rangeFrom" ValueChanged="@((string v) => _rangeFrom = v)" />
+                        <span class="opsrow__text quiet">to</span>
+                        <DeskField TValue="string" type="date" aria-label="To" Class="wfield--short"
+                                   Value="@_rangeTo" ValueChanged="@((string v) => _rangeTo = v)" />
+                        <DeskButton Size="DeskKeySize.Small" OnClick="SeasonToDate"
+                                    Title="From the earliest chosen sport's season start to today">
+                            Season to date
+                        </DeskButton>
+                    </div>
+                </FormRow>
+                <FormRow Label="Range">
+                    @* What the range will walk while it is a range; why its key waits while it is not. *@
+                    <KeyRow Class="opsrow" Justify="DeskJustify.Start" Reason="@RangeWaits">
+                        <Secondary>
+                            @if (RangeAsked is not null)
+                            {
+                                <span class="opsrow__text">@RangeSummary</span>
+                            }
+                        </Secondary>
+                        <Primary Context="why">
+                            <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Restore"
+                                        Disabled="@(RangeWaits is not null)"
+                                        aria-describedby="@why"
+                                        OnClick="BackportRange">
+                                Backport range
+                            </DeskButton>
+                        </Primary>
+                    </KeyRow>
+                </FormRow>
+            }
+        </div>
+
+        @* A key that did nothing must say so where it was pressed: a toast would be gone before
+           the operator looked back from the coverage tiles, and the keys look the same either way. *@
+        @if (_runError is { } runError)
+        {
+            <Note State="DeskState.Warning">@runError</Note>
+        }
+
+        <p class="wgroup__foot">
+            The daily schedule adds one day at a time. Gathering reaches back over past days, one
+            request per sport per day, from an unmetered provider only.
+            @if (Manager.Access.CanOperate)
+            {
+                <text>
+                    Re-walk fetches every held day again to correct one stored by older code. It is
+                    slow, but rows are re-resolved onto themselves, never duplicated.
+                </text>
+            }
+        </p>
+
+        @if (Coordinator.IsRunning && Coordinator.Progress is { } p)
+        {
+            <p class="wgroup__foot">
+                So far <span class="num">@p.Walked.ToString("N0")</span> walked,
+                <span class="num">@p.Skipped.ToString("N0")</span> already held,
+                <span class="num">@p.Failed.ToString("N0")</span> failed —
+                <span class="num">@p.GamesFound.ToString("N0")</span> games,
+                <span class="num">@p.RowsIngested.ToString("N0")</span> rows.
+            </p>
+        }
+        else if (!Coordinator.IsRunning && Coordinator.LastReport is { } r)
+        {
+            @* A walk that ran to its end is a footnote; one that stopped short is a cost worth
+               knowing, so it keeps the warning note, with the reason it gives. *@
+            @if (r.StoppedBecause is null)
+            {
+                <p class="wgroup__foot">
+                    Last walk: <span class="num">@r.Walked.ToString("N0")</span> days walked,
+                    <span class="num">@r.Skipped.ToString("N0")</span> already held,
+                    <span class="num">@r.Failed.ToString("N0")</span> failed —
+                    <span class="num">@r.GamesFound.ToString("N0")</span> games,
+                    <span class="num">@r.RowsIngested.ToString("N0")</span> rows.
+                </p>
+            }
+            else
+            {
+                <Note State="DeskState.Warning">
+                    The last walk stopped after <span class="num">@r.Walked.ToString("N0")</span> days walked,
+                    <span class="num">@r.Skipped.ToString("N0")</span> already held and
+                    <span class="num">@r.Failed.ToString("N0")</span> failed —
+                    <span class="num">@r.GamesFound.ToString("N0")</span> games,
+                    <span class="num">@r.RowsIngested.ToString("N0")</span> rows. @r.StoppedBecause
+                </Note>
+            }
+        }
+    </section>
+
+@* The whole record, one row per season part: whether "we have the 2025 season" is true is a
+   number here rather than a belief. Held against the league's schedule where it fixes one. *@
+@* Placeholders until the record is read; nothing at all if that read failed, since "no games
+   on record" would be a finding the failure line above has just said was not made — not even
+   the card, whose name over nothing would read as a table that failed to fill. *@
+@if (Loaded || !Failed)
+{
+<FormGroup Title="Seasons" Span="DeskCardSpan.Row">
+<DeskGrid T="SeasonCoverage" Items="_seasons" Loading="@(!Loaded)" LoadingLabel="Reading the seasons"
+          SkeletonRows="4" EmptyText="No games on record for the leagues in play.">
+    @* Every column here is a figure or a short name, so each holds one line; the season takes
+       the slack, keeping the figures together at the right. Finals and closes fold away first in
+       a narrow window: games held and box scores are the two a backfill pass is planned from. *@
+    <PropertyColumn T="SeasonCoverage" TProperty="string" Property="s => s.SportKey" Title="League"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate><span>@context.Item.SportKey.ToUpperInvariant()</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.SeasonYear" Title="Season"
+                    InitialDirection="SortDirection.Descending" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+        <CellTemplate>
+            <span class="num">@context.Item.SeasonYear</span>
+            <span class="dim">@context.Item.SeasonType.ToString().ToLowerInvariant()</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.Held" Title="Games" Align="Align.Right"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <span class="num">@context.Item.Held.ToString("N0")</span>
+            @if (context.Item.Expected is { } expected)
+            {
+                <span class="dim num"> of @expected.ToString("N0")</span>
+            }
+            @if (context.Item.Missing is > 0 and var missing)
+            {
+                @* What "missing" means, raised by focus as well as hover: a tag's title reached a
+                   pointer only (HIG finding 12). *@
+                <DeskTooltip Text="Scheduled by the league and not on record at all — a game the schedule never reached, or one called off and not made up.">
+                    <Tag State="DeskState.Warning" tabindex="0">@missing.ToString("N0") missing</Tag>
+                </DeskTooltip>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.Final" Title="Final" Align="Align.Right"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <CellTemplate>
+            <span class="num">@context.Item.Final.ToString("N0")</span>
+            @if (context.Item.Postponed > 0)
+            {
+                <span class="dim num">@($" ({context.Item.Postponed:N0} postponed)")</span>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* Every final with its box score is the expected state, said quietly; a shortfall keeps its
+       tag, so the season that needs a pass is the one that stands out. *@
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.FinalsWithoutStats" Title="Box scores" Align="Align.Right"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            @if (context.Item.FinalsWithoutStats == 0)
+            {
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">All</span></span>
+            }
+            else
+            {
+                <span class="num">@context.Item.WithStats.ToString("N0")</span>
+                <DeskTooltip Text="Finals with no player stat lines.">
+                    <Tag State="DeskState.Warning" tabindex="0">@context.Item.FinalsWithoutStats.ToString("N0") short</Tag>
+                </DeskTooltip>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* A book market's close and the stats provider's one-book reference are different things
+       (ADR 0011), so the count says how many of each. *@
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.WithClose" Title="Closes" Align="Align.Right"
+                    HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
+        <CellTemplate>
+            <span class="num">@context.Item.WithClose.ToString("N0")</span>
+            <DeskTooltip Text="Closed by a book market; the rest by the stats provider's single-book reference.">
+                <span class="dim num" tabindex="0">@($" ({context.Item.WithMarketClose:N0} market)")</span>
+            </DeskTooltip>
+        </CellTemplate>
+    </PropertyColumn>
+</DeskGrid>
+</FormGroup>
+}
+
+@if (Loaded || !Failed)
+{
+<FormGroup Title="Recent days" Span="DeskCardSpan.Row">
+<DeskGrid T="BackfillCheckpoint" Items="_recent" Loading="@(!Loaded)" LoadingLabel="Reading recent days"
+          EmptyText="Nothing walked yet. Gather history above, and days land here as they complete.">
+    <PropertyColumn T="BackfillCheckpoint" TProperty="DateOnly" Property="c => c.Date" Title="Day"
+                    InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate><span class="num">@LongDay(context.Item.Date)</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="BackfillCheckpoint" TProperty="string" Property="c => c.Sport!.Name" Title="Sport"
+                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+        <CellTemplate><span class="dim">@(context.Item.Sport?.Name ?? "—")</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="BackfillCheckpoint" TProperty="int" Property="c => c.GamesFound"
+                    Title="Games" Align="Align.Right" Format="N0" HeaderClass="ops-col--fit" CellClass="ops-col--fit" />
+
+    <PropertyColumn T="BackfillCheckpoint" TProperty="int" Property="c => c.RowsIngested"
+                    Title="Rows" Align="Align.Right" Format="N0" HeaderClass="ops-col--fit" CellClass="ops-col--fit" />
+
+    @* Sorting by state is how you find the days that need a retry pass. Held is the expected
+       state and is a check mark; Failed keeps its tag, and its error is the tag's tooltip, which
+       keyboard focus raises as well as hover. *@
+    <PropertyColumn T="BackfillCheckpoint" TProperty="bool" Property="@(c => c.Error == null)" Title="State"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            @if (context.Item.Error is null)
+            {
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Held</span></span>
+            }
+            else
+            {
+                <DeskTooltip Text="@context.Item.Error">
+                    <Tag State="DeskState.Negative" tabindex="0">Failed</Tag>
+                </DeskTooltip>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+</DeskGrid>
+</FormGroup>
+}
+</div>
+
+@code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
+
+    // A runs notice and the coordinator's own Changed (heard empty) both mean a run moved: its
+    // progress, checkpoints and coverage count. The season table is whole-database work, so it is
+    // left to the cadence in SeasonsDue rather than redone on every one-second settle.
+    protected override Task RefreshAsync(IReadOnlySet<string> heard) => LoadAsync(seasons: false);
+
+    protected override string LoadSubject => "The history record";
+
+    /// <summary>The id the Run card's bar labels it by; one window's, never another's.</summary>
+    private readonly string _uid = "hist-" + Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>
+    /// How long the season coverage may stand while runs keep arriving. Thirty seconds: the table
+    /// is a summary an operator glances at during a walk, a day walked moves it by a handful of
+    /// games, and the walk's end re-reads it at once, so the figure left standing is exact.
+    /// </summary>
+    public static readonly TimeSpan SeasonsInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Whether a load re-reads the season coverage: when asked for (opening, Re-walk, Try again
+    /// after a failure), never yet read, the walk just ended, or the last read is
+    /// <see cref="SeasonsInterval"/> old. Otherwise a load reads only what a run changes.
+    /// </summary>
+    public static bool SeasonsDue(bool asked, DateTimeOffset? lastRead, DateTimeOffset now, bool walkEnded)
+        => asked || walkEnded || lastRead is not { } at || now - at >= SeasonsInterval;
+
+    // True until a load finishes, so a load that fails leaves the next one — Try again repeats it —
+    // reading everything again, as it did before the season table had a cadence.
+    private bool _seasonsAsked = true;
+    private DateTimeOffset? _seasonsReadAt;
+    private bool _wasWalking;
+
+    /// <summary>A refresh is already set for when the skipped season read falls due.</summary>
+    private volatile bool _seasonsCatchUp;
+
+    private IReadOnlyList<SourceEligibility> _eligibility = [];
+    private BackfillCoverage? _coverage;
+    private List<BackfillCheckpoint> _recent = [];
+    private IReadOnlyList<SeasonCoverage> _seasons = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Coordinator.Changed += OnCoordinatorChanged;
+        await LoadAsync();
+    }
+
+    // The coordinator raises Changed from its own worker thread on every day it walks, so a
+    // backfill is a burst of them. They go through the same second's settle as the database's
+    // change notices — one reload per burst, on the renderer's context — rather than one read
+    // of the whole record per day walked.
+    private void OnCoordinatorChanged() => RequestRefresh();
+
+    private async Task LoadAsync(bool seasons = true)
+    {
+        _seasonsAsked |= seasons;
+
+        await WithActivityAsync(async () =>
+        {
+            var walking = Coordinator.IsRunning;
+            var now = DateTimeOffset.UtcNow;
+            var readSeasons = SeasonsDue(_seasonsAsked, _seasonsReadAt, now, walkEnded: _wasWalking && !walking);
+            var heldSince = _seasonsReadAt;
+
+            // Claimed as the read starts, not as it ends. Notices arrive every second during a
+            // walk and each starts a load beside this one: while the season read was slow — the
+            // case the cadence is for — every one of them saw it still asked for and read it too.
+            _seasonsAsked = false;
+
+            if (readSeasons)
+                _seasonsReadAt = now;
+
+            try
+            {
+                // Eligibility is read again inside GetCoverageAsync for its target; this copy is the
+                // list the Sources section shows, and HistoryBackfillService returns it no other way.
+                _eligibility = await Backfill.GetEligibilityAsync(CancellationToken.None);
+                _coverage = await Backfill.GetCoverageAsync(CancellationToken.None);
+
+                await using var db = await DbFactory.CreateDbContextAsync();
+                _recent = await db.BackfillCheckpoints.AsNoTracking()
+                    .Include(c => c.Sport)
+                    .OrderByDescending(c => c.CompletedAt)
+                    .Take(40)
+                    .ToListAsync();
+
+                if (readSeasons)
+                    _seasons = await new DataQuality(db).SeasonsAsync();
+
+                // Names for the keys the backfill reports in. Read with the rest so a source renamed
+                // in the registry is renamed here on the next change, not on the next restart.
+                var names = await db.Sources.AsNoTracking()
+                    .Select(s => new { s.Key, s.Name })
+                    .ToListAsync();
+
+                _sourceNames = names
+                    .GroupBy(s => s.Key, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                // A load that failed leaves the next one — Try again repeats it — reading everything.
+                _seasonsAsked = true;
+                _seasonsReadAt = heldSince;
+                throw;
+            }
+
+            _wasWalking = walking;
+
+            // Skipped this time: the last notice of a walk can land inside the interval, and with
+            // no later one the table would stand as it was for as long as the window stayed open
+            // (a walk run by the Worker never shows here as ended). One refresh is asked for at
+            // the moment the read falls due.
+            if (!readSeasons && !_seasonsCatchUp && _seasonsReadAt is { } read)
+            {
+                _seasonsCatchUp = true;
+                var wait = read + SeasonsInterval - now;
+                _ = Task.Delay(wait > TimeSpan.Zero ? wait : TimeSpan.Zero).ContinueWith(_ =>
+                {
+                    _seasonsCatchUp = false;
+                    RequestRefresh();
+                }, TaskScheduler.Default);
+            }
+        },
+        settle: () => Coordinator.IsRunning ? PulseState.Active
+            : _coverage is { Failed: > 0 } ? PulseState.Warn
+            : _coverage is { Completed: > 0 } ? PulseState.Healthy
+            : PulseState.Idle,
+        status: () => Coordinator.IsRunning
+            ? $"{Coordinator.Progress?.Walked ?? 0:N0} days"
+            : _coverage is { Completed: > 0 } ? $"{_coverage.Completed:N0} days held" : "no history");
+    }
+
+    private IReadOnlyDictionary<string, string> _sourceNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A source by the name the registry gives it — "ESPN (unofficial)", as Ops and Runs show it —
+    /// rather than the configuration key the backfill reports in. A key the registry does not
+    /// hold is shown as itself, since that is exactly the source the row says is not registered.
+    /// </summary>
+    private string SourceName(string key) => _sourceNames.TryGetValue(key, out var name) ? name : key;
+
+    /// <summary>A league by its abbreviation; a pass named after one ("ufc fighters") keeps the rest in words.</summary>
+    private static string League(string sportKey)
+    {
+        var space = sportKey.IndexOf(' ');
+        return space < 0
+            ? sportKey.ToUpperInvariant()
+            : sportKey[..space].ToUpperInvariant() + sportKey[space..];
+    }
+
+    /// <summary>A day as the desk writes one with its year: "Sep 4, 2025", never ISO.</summary>
+    private static string LongDay(DateOnly day) => day.ToString("MMM d, yyyy");
+
+    /// <summary>Where the walk is: the source, the league and the day it is fetching.</summary>
+    private string WalkingAt => Coordinator.Progress is { } p
+        ? $"{League(p.SportKey)}, {LongDay(p.Date)}, from {SourceName(p.SourceKey)}"
+        : "Starting…";
+
+    /// <summary>Days the record holds, which is what a re-walk would walk again.</summary>
+    private int HeldDays => _coverage?.Completed ?? 0;
+
+    private bool _confirmRewalk;
+
+    /// <summary>
+    /// Clears the held-day bookkeeping and starts a fresh walk.
+    ///
+    /// This is the operation that previously required editing the database by hand: the walk
+    /// skips days it has already recorded, so a day stored by code that has since been fixed
+    /// could never be corrected from inside the app.
+    /// </summary>
+    private async Task RewalkAsync()
+    {
+        _confirmRewalk = false;
+        _runError = null;
+
+        try
+        {
+            await Backfill.ForgetAsync(null, CancellationToken.None);
+            await LoadAsync();
+
+            Coordinator.TryStart();
+        }
+        catch (Exception ex)
+        {
+            // Caught here because nothing above this handler will: an exception out of an event
+            // handler ends the circuit, and the desk with it.
+            Log.LogError(ex, "The re-walk did not start");
+            _runError = WalkDidNotStart;
+        }
+    }
+
+    private void Start()
+    {
+        _runError = null;
+
+        try
+        {
+            Coordinator.TryStart();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The walk did not start");
+            _runError = WalkDidNotStart;
+        }
+    }
+
+    private const string WalkDidNotStart = "The walk did not start. Try again.";
+
+    // The range a Backport walks: every backfill sport and the last week, until changed.
+    private HashSet<string>? _rangeSportsSet;
+    private HashSet<string> _rangeSports => _rangeSportsSet ??= new HashSet<string>(Backfill.Sports, StringComparer.OrdinalIgnoreCase);
+    private string _rangeFrom = LeagueClock.Today().AddDays(-7).ToString("yyyy-MM-dd");
+    private string _rangeTo = LeagueClock.Today().ToString("yyyy-MM-dd");
+
+    private void ToggleRangeSport(string sport, bool on)
+    {
+        if (on)
+            _rangeSports.Add(sport);
+        else
+            _rangeSports.Remove(sport);
+    }
+
+    /// <summary>From the earliest chosen sport's season start (Backfill:Seasons) to today.</summary>
+    private void SeasonToDate()
+    {
+        var chosen = _rangeSports.Count > 0 ? _rangeSports : Backfill.Sports.ToHashSet();
+        _rangeFrom = chosen.Select(Backfill.SeasonStart).Min().ToString("yyyy-MM-dd");
+        _rangeTo = LeagueClock.Today().ToString("yyyy-MM-dd");
+    }
+
+    private static DateOnly? Day(string? text)
+        => DateOnly.TryParseExact(text, "yyyy-MM-dd", out var day) ? day : null;
+
+    /// <summary>Why Gather history waits, or null when a provider can walk.</summary>
+    private string? GatherWaits => _eligibility.Any(s => s.Eligible)
+        ? null
+        : "No unmetered provider is available to walk — see Sources above.";
+
+    /// <summary>Why Backport range waits: no range named yet, or nothing to walk it with.</summary>
+    private string? RangeWaits => RangeAsked is null
+        ? "Choose a sport and a From no later than To."
+        : GatherWaits;
+
+    /// <summary>The range as asked, or null while it is not one: no sport, a missing day, or From after To.</summary>
+    private BackfillRange? RangeAsked
+        => _rangeSports.Count > 0 && Day(_rangeFrom) is { } from && Day(_rangeTo) is { } to && from <= to
+            ? new BackfillRange(Backfill.Sports.Where(_rangeSports.Contains).ToList(), from, to)
+            : null;
+
+    /// <summary>What the range will walk, in words: "MLB and NFL over 34 days, held days included".</summary>
+    private string RangeSummary => RangeAsked is { } r
+        ? $"{Joined(r.Sports.Select(League).ToList())} over {r.To.DayNumber - r.From.DayNumber + 1:N0} {(r.From == r.To ? "day" : "days")}, held days included"
+        : "Choose a sport and dates";
+
+    /// <summary>A list as a sentence says it: "MLB", "MLB and NFL", "MLB, NBA and NFL".</summary>
+    private static string Joined(IReadOnlyList<string> items) => items.Count switch
+    {
+        0 => string.Empty,
+        1 => items[0],
+        _ => $"{string.Join(", ", items.Take(items.Count - 1))} and {items[^1]}"
+    };
+
+    private void BackportRange()
+    {
+        _runError = null;
+
+        if (RangeAsked is not { } range)
+            return;
+
+        try
+        {
+            if (!Coordinator.TryStart(range: range))
+                _runError = "A walk is already running. Stop it first, or wait for it to finish.";
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The range walk did not start");
+            _runError = WalkDidNotStart;
+        }
+    }
+
+    /// <summary>Why the last press of Gather history or Re-walk did nothing, until the next press.</summary>
+    private string? _runError;
+
+    private void Stop() => Coordinator.Stop();
+
+    protected override void OnDispose() => Coordinator.Changed -= OnCoordinatorChanged;
+}

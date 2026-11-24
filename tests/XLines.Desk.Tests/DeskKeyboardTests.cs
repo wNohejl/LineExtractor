@@ -1,0 +1,187 @@
+using Bunit;
+using XLines.Desk.Tests.Support;
+using XLines.Desk.Windowing;
+using Microsoft.Extensions.DependencyInjection;
+using TheDesk = XLines.Desk.Windowing.Desk;
+
+namespace XLines.Desk.Tests;
+
+/// <summary>
+/// The desk from the keyboard.
+///
+/// <para>
+/// Reordering the row was a tab drag and nothing else, settings were a key in the strip with no
+/// chord, and the only way back from an eviction was a footer key that said "Undo" without saying
+/// what it would undo. windowing.js now turns Ctrl+Alt+arrows, Ctrl+, and Ctrl+Z into calls on the
+/// desk, and holds nothing but the chords: which window moves, where it lands and what opens are
+/// all decided here, where a test can reach them.
+/// </para>
+/// </summary>
+public class DeskKeyboardTests : SampleDeskTestContext
+{
+    private static WindowManager Manager(int capacity = 4)
+    {
+        var manager = new WindowManager(new SampleCatalog());
+        manager.UpdateSettings(s => s.MaxConcurrentWindows = capacity);
+        return manager;
+    }
+
+    private static WindowDefinition Window(string key) => SampleCatalog.Find(key);
+
+    private static string[] Row(WindowManager desk)
+        => desk.Windows.OrderBy(w => w.Sequence).Select(w => w.Definition.Key).ToArray();
+
+    // ---- Moving a window -------------------------------------------------------
+
+    [Fact]
+    public void Shifted_moves_the_window_one_place()
+    {
+        string[] order = ["a", "b", "c"];
+
+        Assert.Equal(["b", "a", "c"], TheDesk.Shifted(order, "b", -1));
+        Assert.Equal(["a", "c", "b"], TheDesk.Shifted(order, "b", +1));
+    }
+
+    /// <summary>
+    /// The row does not wrap: Ctrl+Alt+Left on the leftmost window is a key that does nothing,
+    /// which is what the end of a list does everywhere else on the platform.
+    /// </summary>
+    [Fact]
+    public void Shifted_at_the_end_returns_the_same_order()
+    {
+        string[] order = ["a", "b", "c"];
+
+        Assert.Equal(order, TheDesk.Shifted(order, "a", -1));
+        Assert.Equal(order, TheDesk.Shifted(order, "c", +1));
+        Assert.Equal(order, TheDesk.Shifted(order, "missing", +1));
+    }
+
+    [Fact]
+    public void Moving_shifts_the_focused_window_and_only_it()
+    {
+        var desk = Manager();
+        desk.Open(Window(SampleCatalog.Health));
+        desk.Open(Window(SampleCatalog.Alerts));
+        var jobs = desk.Open(Window(SampleCatalog.Jobs));
+        desk.Focus(jobs.Id);
+
+        TheDesk.MoveFocused(desk, -1);
+
+        Assert.Equal([SampleCatalog.Health, SampleCatalog.Jobs, SampleCatalog.Alerts], Row(desk));
+        Assert.Equal(jobs.Id, desk.FocusedId);
+    }
+
+    /// <summary>A move that cannot happen is not a step: Back must not have a no-op to walk through.</summary>
+    [Fact]
+    public void A_move_past_the_end_leaves_no_history()
+    {
+        var desk = Manager();
+        desk.Open(Window(SampleCatalog.Health));
+        var alerts = desk.Open(Window(SampleCatalog.Alerts));
+        desk.Focus(alerts.Id);
+        var depth = desk.HistoryDepth;
+
+        TheDesk.MoveFocused(desk, +1);
+
+        Assert.Equal([SampleCatalog.Health, SampleCatalog.Alerts], Row(desk));
+        Assert.Equal(depth, desk.HistoryDepth);
+    }
+
+    // ---- A window's own pages ----------------------------------------------------
+
+    /// <summary>
+    /// Ctrl+[ and Ctrl+] press the focused window's Back and Forward, the keys on its bar;
+    /// nowhere to go is a chord that does nothing.
+    /// </summary>
+    [Fact]
+    public void The_page_chords_turn_the_focused_window()
+    {
+        var desk = Manager();
+        var item = desk.Open(Window(SampleCatalog.Item), new Dictionary<string, object> { ["ItemId"] = 1 }, "First item");
+        desk.Follow(item.Id, Window(SampleCatalog.Company), new Dictionary<string, object> { ["CompanyId"] = 7 }, "Seventh company");
+        Assert.Equal(SampleCatalog.Company, item.Definition.Key);
+
+        Assert.True(TheDesk.PageFocused(desk, -1));
+        Assert.Equal(SampleCatalog.Item, item.Definition.Key);
+
+        Assert.True(TheDesk.PageFocused(desk, +1));
+        Assert.Equal(SampleCatalog.Company, item.Definition.Key);
+
+        Assert.False(TheDesk.PageFocused(desk, +1));
+    }
+
+    // ---- Settings --------------------------------------------------------------
+
+    [Fact]
+    public void Settings_opens_the_window_manager()
+    {
+        var desk = Manager();
+
+        TheDesk.OpenSettings(desk);
+
+        Assert.Equal([SampleCatalog.Settings], Row(desk));
+    }
+
+    // ---- The palette's commands ------------------------------------------------
+
+    [Fact]
+    public async Task The_palette_lists_the_keyboard_commands_with_their_chords()
+    {
+        var desk = Manager();
+        var commands = new DeskCommands(desk);
+
+        var found = await commands.SearchAsync("move window", CancellationToken.None);
+
+        Assert.Equal(["Move window left", "Move window right"], found.Select(r => r.Title));
+        Assert.All(found, r => Assert.StartsWith("Ctrl+Alt+", r.Detail));
+
+        var settings = Assert.Single(await commands.SearchAsync("settings", CancellationToken.None));
+        Assert.Equal("Ctrl+,", settings.Detail);
+    }
+
+    [Fact]
+    public async Task Choosing_move_window_left_moves_the_focused_window()
+    {
+        var desk = Manager();
+        desk.Open(Window(SampleCatalog.Health));
+        var alerts = desk.Open(Window(SampleCatalog.Alerts));
+        desk.Focus(alerts.Id);
+
+        var left = (await new DeskCommands(desk).SearchAsync("left", CancellationToken.None)).Single();
+        left.Open();
+
+        Assert.Equal([SampleCatalog.Alerts, SampleCatalog.Health], Row(desk));
+    }
+
+    // ---- Undo, labelled --------------------------------------------------------
+
+    /// <summary>
+    /// "Undo" said nothing about what would come back. The key names the window it reopens, the
+    /// way a Mac's Edit menu says "Undo Close Notes" rather than "Undo".
+    /// </summary>
+    [Fact]
+    public void Reopen_key_names_the_window_it_reopens()
+    {
+        Services.AddSingleton<XLines.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
+        Services.AddScoped<XLines.Desk.Primitives.DeskToasts>();
+        var desk = Services.GetRequiredService<WindowManager>();
+        desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
+        var notes = desk.Open(Window(SampleCatalog.Notes));
+        desk.Open(Window(SampleCatalog.Health));
+        desk.Close(notes.Id);
+        Assert.Equal("Closed Notes.", desk.Notice);
+
+        // The notice and its key are a toast now (ADR 0028), raised for the sentence on the desk.
+        RenderComponent<DeskNoticeToasts>();
+
+        var toast = Assert.Single(Services.GetRequiredService<XLines.Desk.Primitives.DeskToasts>().Shown);
+        Assert.Equal("Reopen Notes", toast.ActionLabel);
+    }
+
+    [Theory]
+    [InlineData(new[] { "Notes" }, "Reopen Notes")]
+    [InlineData(new[] { "Notes", "List" }, "Reopen 2 windows")]
+    [InlineData(new string[0], "Undo")]
+    public void The_undo_label_names_the_closed_windows(string[] titles, string label)
+        => Assert.Equal(label, DeskHeader.UndoLabel(titles));
+}

@@ -1,0 +1,87 @@
+@using XLines.Desk.Windowing
+@inject DeskBrand Brand
+
+@*
+    The header's own menu: the workspace launcher, opened from the wordmark.
+
+    Deliberately not MudMenu: this is the primary way windows get created, so it should not
+    inherit another library's positioning and z-index rules. It is a DeskPopover holding a
+    DeskMenu, so it opens with focus on its first item, takes arrows, Home, End and typeahead,
+    closes on Escape or an outside press, and gives focus back to the wordmark — and opening
+    another menu closes it in the same click.
+
+    The items are the caller's own buttons, not DeskMenuItems; DeskMenu drives any
+    role="menuitem" descendant, so the launcher markup a caller passes did not have to change.
+*@
+
+<DeskPopover Open="_open"
+             OpenChanged="OnOpenChanged"
+             Align="@(AlignEnd ? DeskPopoverAlign.End : DeskPopoverAlign.Start)"
+             Class="@($"railmenu {Class}")">
+    <Anchor>
+        @* Two triggers, one menu. The brand is a trigger rather than a decoration because the
+           thing it opens changes the whole desk, and the identity is the only element on the
+           header that is about the desk as a whole. *@
+        <button class="@(Trigger == "brand" ? "hdr__brand hdr__brand--menu" : $"rail__btn {(Accent ? "rail__btn--accent" : null)}")"
+                type="button"
+                title="@Label"
+                aria-label="@Label"
+                aria-haspopup="menu"
+                aria-expanded="@(_open ? "true" : "false")"
+                data-popover-return="true"
+                @onclick="Toggle">
+            @if (Trigger == "brand")
+            {
+                <span>@Brand.Wordmark<em>@Brand.Emphasis</em></span>
+                <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
+            }
+            else
+            {
+                <Glyph Icon="@Icon" />
+            }
+        </button>
+    </Anchor>
+    <ChildContent>
+        <DeskMenu Label="@Label">
+            @ChildContent
+        </DeskMenu>
+    </ChildContent>
+</DeskPopover>
+
+@code {
+    /// <summary>Unused when <see cref="Trigger"/> is "brand", which draws the wordmark instead.</summary>
+    [Parameter] public string Icon { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public bool Accent { get; set; }
+
+    /// <summary>"brand" draws the wordmark as the button; anything else draws the icon.</summary>
+    [Parameter] public string? Trigger { get; set; }
+
+    /// <summary>Extra classes on the wrapper, so a host can position the menu it owns.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Anchor the panel's right edge to the button — for a menu whose button sits
+    /// near the right viewport edge, where a left-anchored panel would overflow off-screen.</summary>
+    [Parameter] public bool AlignEnd { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _open;
+
+    private void Toggle() => _open = !_open;
+
+    private void OnOpenChanged(bool open) => _open = open;
+
+    /// <summary>
+    /// Closes the menu — what a caller does after one of its items ran. Focus goes back to the
+    /// trigger, because the item that held it has gone.
+    /// </summary>
+    public void Close()
+    {
+        if (!_open)
+            return;
+
+        _open = false;
+        StateHasChanged();
+    }
+}

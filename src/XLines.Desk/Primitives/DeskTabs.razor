@@ -1,0 +1,198 @@
+@namespace XLines.Desk.Primitives
+@typeparam TValue
+
+@*
+    A window's sections, with the marble sliding between them.
+
+    The gate switch beside this one changes what a single reading is made of — a
+    market, a lookback. Tabs change which reading you are looking at, so they are
+    navigation and they are flat: nothing here catches the light, because nothing
+    here is a key. What they share with the gate is the travel, which is the whole
+    point of it — the selection moves rather than jumps, so you keep hold of where
+    it went.
+
+    Two rules keep the bar honest, and both are the component's job rather than
+    every caller's:
+
+      · A section with nothing behind it is not offered. The caller states
+        availability on the tab; an empty one never renders. A section that is
+        empty for now is disabled instead (DeskTab.Enabled): it keeps its place in
+        the bar, dim, and cannot be picked, so the bar holds its shape as the
+        section fills and empties.
+      · Fewer than two available sections is not a choice, so the bar disappears
+        and its one section renders on its own.
+
+    A tab may carry a count. It is drawn as a badge after the name, never written into
+    it, so the name a reader or a test finds the tab by holds still while the count moves.
+
+    The value is kept in range: if what the caller holds is a section that has gone
+    away, the first available one is selected and reported back, so a window cannot
+    come to rest on a tab that is no longer there.
+*@
+
+@if (Available.Count > 1)
+{
+    <div class="marble-row tabs @Class"
+         role="tablist"
+         aria-label="@Label"
+         @onkeydown="OnKeyDown"
+         style="--n:@Available.Count; --i:@SelectedIndex">
+
+        <span class="marble marble--track tabs__marble" aria-hidden="true"></span>
+
+        @for (var i = 0; i < Available.Count; i++)
+        {
+            var index = i;
+            var tab = Available[index];
+            var selected = index == SelectedIndex;
+
+            <button class="tabs__tab @(selected ? "tabs__tab--on" : null) @(tab.Enabled ? null : "tabs__tab--off")"
+                    type="button"
+                    role="tab"
+                    id="@TabId(index)"
+                    aria-selected="@(selected ? "true" : "false")"
+                    aria-disabled="@(tab.Enabled ? null : "true")"
+                    disabled="@(!tab.Enabled)"
+                    aria-controls="@PanelId"
+                    tabindex="@(selected ? "0" : "-1")"
+                    title="@(tab.Enabled ? tab.Label : $"{tab.Label}: nothing here yet")"
+                    @ref="_refs[index]"
+                    @onclick="() => SelectAsync(index)">
+                @tab.Label
+                @if (tab.Count is { } count)
+                {
+                    <DeskBadge Count="count" Label="items" One="item" Class="tabs__badge" />
+                }
+            </button>
+        }
+    </div>
+
+    <div class="tabs__panel"
+         role="tabpanel"
+         id="@PanelId"
+         aria-labelledby="@TabId(SelectedIndex)"
+         tabindex="0">
+        @ChildContent(Current)
+    </div>
+}
+else if (Available.Count == 1)
+{
+    @* One section is not a choice. It renders as itself, with no bar and no
+       tabpanel role — there is no tab for that role to answer to. *@
+    @ChildContent(Available[0].Value)
+}
+
+@code {
+    /// <summary>The sections, in reading order. Unavailable ones are dropped before display.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<DeskTab<TValue>> Tabs { get; set; } = [];
+
+    [Parameter] public TValue? Value { get; set; }
+    [Parameter] public EventCallback<TValue> ValueChanged { get; set; }
+
+    /// <summary>The accessible name of the bar — "Account sections", not a per-tab label.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>The selected section's content, given the selected value.</summary>
+    [Parameter, EditorRequired] public RenderFragment<TValue> ChildContent { get; set; } = default!;
+
+    [Parameter] public string? Class { get; set; }
+
+    private static int _seed;
+    private readonly string _instance = $"tabs{Interlocked.Increment(ref _seed)}";
+
+    private ElementReference[] _refs = [];
+
+    /// <summary>Guards the correction below: a caller that ignores ValueChanged must not be
+    /// asked to fix the same value on every render.</summary>
+    private TValue? _corrected;
+
+    private List<DeskTab<TValue>> Available => Tabs.Where(t => t.Available).ToList();
+
+    private string PanelId => $"{_instance}-panel";
+
+    private string TabId(int index) => $"{_instance}-tab{index}";
+
+    private int SelectedIndex
+    {
+        get
+        {
+            var available = Available;
+
+            for (var i = 0; i < available.Count; i++)
+            {
+                if (EqualityComparer<TValue>.Default.Equals(available[i].Value, Value))
+                    return i;
+            }
+
+            return 0;
+        }
+    }
+
+    private TValue Current => Available[SelectedIndex].Value;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var available = Available;
+
+        if (_refs.Length != available.Count)
+            _refs = new ElementReference[available.Count];
+
+        if (available.Count == 0)
+            return;
+
+        // The held value names a section that is no longer offered, or one that cannot be
+        // opened now — say so once, so the caller's state and the bar agree about what is on
+        // screen. The first enabled section stands in; with none enabled, the first there is.
+        var held = available.Any(t => t.Enabled && EqualityComparer<TValue>.Default.Equals(t.Value, Value));
+
+        if (!held && !EqualityComparer<TValue>.Default.Equals(_corrected, Value))
+        {
+            _corrected = Value;
+            await ValueChanged.InvokeAsync((available.FirstOrDefault(t => t.Enabled) ?? available[0]).Value);
+        }
+    }
+
+    private async Task SelectAsync(int index)
+    {
+        if (index == SelectedIndex || !Available[index].Enabled)
+            return;
+
+        await ValueChanged.InvokeAsync(Available[index].Value);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        var available = Available;
+        var current = SelectedIndex;
+        var last = available.Count - 1;
+
+        // Wraps, unlike the gate: a tab bar is a ring you cycle, where a gate is a
+        // track with two ends you can feel. A disabled tab is not on the ring.
+        var next = e.Key switch
+        {
+            "ArrowRight" or "ArrowDown" => Step(current, +1),
+            "ArrowLeft" or "ArrowUp" => Step(current, -1),
+            "Home" => Enumerable.Range(0, available.Count).FirstOrDefault(i => available[i].Enabled, current),
+            "End" => Enumerable.Range(0, available.Count).Reverse().FirstOrDefault(i => available[i].Enabled, current),
+            _ => current
+        };
+
+        int Step(int from, int by)
+        {
+            var at = from;
+            for (var n = 0; n <= last; n++)
+            {
+                at = at + by < 0 ? last : at + by > last ? 0 : at + by;
+                if (available[at].Enabled)
+                    return at;
+            }
+            return from;
+        }
+
+        if (next == current)
+            return;
+
+        await SelectAsync(next);
+        await _refs[next].FocusAsync();
+    }
+}

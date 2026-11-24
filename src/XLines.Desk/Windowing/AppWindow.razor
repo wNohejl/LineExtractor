@@ -1,0 +1,384 @@
+@using XLines.Desk.Windowing
+@implements IDisposable
+@inject WindowManager Manager
+@inject IDeskAlerts Alerts
+
+@*
+    One window in the row: chrome, pulse strip, and the hosted panel. In a tab group (ADR 0027) the
+    window showing draws the group's pop-up key as its title (WindowTabs); a window behind a tab draws
+    no bar and is hidden, inert and out of the tree, but stays mounted with its panel as it was.
+
+    Full height, positioned only horizontally — the manager owns X and Width. The title bar
+    doubles as the tab: dragging it past a neighbour reorders the row (see windowing.js);
+    dragging the divider at its edge resizes it. Collapsed, only the bar and pulse show, the
+    panel kept hidden beneath them — there is no separate list a collapsed window moves into,
+    it just gets narrow.
+
+    The panel inside receives its window id as a cascading value so it can report status
+    upward, and that is the only coupling to the window system.
+
+    It draws only when it has something new to draw. The desk re-renders for every change to
+    the row, and a window that redrew with it repainted its chrome — and handed its panel its
+    parameters again — for a notice dismissed or a workspace saved. The manager moves a window's
+    version whenever it changes anything the window shows; the window compares that version and
+    its focus with what it last drew (ShouldRender), and hears its own status straight from the
+    manager (WindowChanged), so a status line redraws this window and not the desk.
+*@
+
+@{
+    // Recorded as the pass draws it, so what ShouldRender compares against is what is on screen.
+    _drawnWindow = Window;
+    _drawnVersion = Window.Version;
+    _drawnFocused = IsFocused;
+
+    var column = Manager.ColumnOf(Window.Id);
+    _drawnTabs = Signature(column);
+
+    // A tab behind another stays mounted — its panel, scroll and input kept — but is not in view,
+    // not in the tab order and not in the accessibility tree: the tab key of the window showing is
+    // how it is reached. A window in a column another one's maximise covers waits the same way.
+    _drawnConcealed = Concealed;
+    _behind = Concealed || (column is not null && column.Showing != Window);
+    var grouped = column is { IsGroup: true };
+}
+
+@* One element whether the window shows or waits behind a tab, and the body always in the same
+   place inside it: Blazor keeps a component only while its place in the tree holds, and a second
+   shape for a tab behind would have rebuilt the panel — input, scroll and all — on every switch. *@
+<div @ref="_root"
+     class="win @(IsFocused && !_behind ? "win--focused" : null) @(Window.Minimised ? "win--collapsed" : null) @(grouped ? "win--grouped" : null) @(_behind ? "win--behind" : null)"
+     id="@ElementId"
+     style="left:@Px(Window.X); width:@Px(Window.Width);"
+     data-min-width="@MinWidth(column)"
+     role="@(_behind ? null : "region")"
+     aria-label="@(_behind ? null : RegionLabel(column))"
+     aria-hidden="@(_behind ? "true" : null)"
+     inert="@_behind"
+     tabindex="@(_behind ? null : "-1")"
+     @onpointerdown="OnPointerDown">
+
+    @* A collapsed column is an icon and nothing else, so its bar names it under the pointer. A tab
+       behind draws no bar: the tab key of the window showing is its title, and two keys would
+       name the same tabs twice. *@
+    @if (!_behind)
+    {
+    <div class="win__bar @(grouped && !Window.Minimised ? "win__bar--group" : null)" data-tab-handle
+         @ondblclick="OnBarDoubleClick" @onclick="OnBarClick"
+         title="@(Window.Minimised ? $"{RegionLabel(column)} — press to restore" : null)">
+        @* Back and Forward live on the window they move, at the leading edge of its bar, as a
+           Finder or Safari window carries them (HIG, Toolbars). They used to sit in the header,
+           where they undid the last open or close anywhere on the desk — a direction the
+           operator had to work out from what changed. Here each pair says what it does: this
+           window, to the page it names.
+
+           Every window draws them, dimmed when there is nowhere to go, so a title sits in the
+           same place on every bar and never jumps sideways the first time a link is followed.
+           Only subject windows follow links in place (WindowManager.Follow); a catalogue
+           window's pair stays dimmed and says so. Ctrl+[ and Ctrl+] (⌘ on a Mac) press them
+           on the focused window. *@
+        @if (!Window.Minimised)
+        {
+            <div class="win__nav" role="group" aria-label="@($"{Window.Title} history")">
+                <button class="win__nav-btn" type="button" data-window-control
+                        title="@BackTitle"
+                        aria-label="@(Window.BackTitle is { } backLabel ? $"Back to {backLabel}" : "Back")"
+                        aria-keyshortcuts="Control+[ Meta+["
+                        disabled="@(!Window.CanPageBack)"
+                        @onclick="PageBack" @onclick:stopPropagation="true"
+                        @ondblclick:stopPropagation="true">
+                    <Glyph Icon="@Icons.Material.Filled.ChevronLeft" />
+                </button>
+                <button class="win__nav-btn" type="button" data-window-control
+                        title="@ForwardTitle"
+                        aria-label="@(Window.ForwardTitle is { } forwardLabel ? $"Forward to {forwardLabel}" : "Forward")"
+                        aria-keyshortcuts="Control+] Meta+]"
+                        disabled="@(!Window.CanPageForward)"
+                        @onclick="PageForward" @onclick:stopPropagation="true"
+                        @ondblclick:stopPropagation="true">
+                    <Glyph Icon="@Icons.Material.Filled.ChevronRight" />
+                </button>
+            </div>
+        }
+
+        @if (grouped && !Window.Minimised)
+        {
+            @* A tab group's title is a pop-up key naming the window showing, with the column's
+               count; the windows behind it are listed in its menu, not drawn along the bar. *@
+            <WindowTabs Column="column!" />
+        }
+        else
+        {
+            <span class="win__icon">
+                <Glyph Icon="@Window.Definition.Icon" />
+            </span>
+
+            @if (grouped)
+            {
+                @* Collapsed, a group is still more than one window: the count says so under its icon. *@
+                <span class="win__tabcount num" aria-hidden="true">@column!.Tabs.Count</span>
+            }
+        }
+
+        @if (!Window.Minimised)
+        {
+            @if (!grouped)
+            {
+                @* At a column's narrowest the status gives way first and then the title is cut, so
+                   the title carries both whole as its tooltip: nothing the bar says is lost to the
+                   width, only moved under the pointer. *@
+                <span class="win__title" title="@FullTitle">@Window.Title</span>
+            }
+
+            @* A group's status sits beside its key exactly where a plain window's sits beside its
+               title, and gives way first in the same order. *@
+            @if (!string.IsNullOrEmpty(Window.StatusText))
+            {
+                <span class="win__status">@Window.StatusText</span>
+            }
+
+            <span class="win__spacer"></span>
+
+            @* Every control here stops the click going any further. The bar behind them
+               is itself a control — it expands a collapsed window — and a click that
+               reaches both runs both: minimise set the flag, the bar read the flag it
+               had just set and expanded the window straight back. The button appeared
+               to do nothing. A press on a control is for that control only.
+
+               They are the desk's own plain icon keys, glyphs always drawn, kept at the
+               trailing edge in the order a Windows title bar has them. They were grey dots
+               that showed their glyphs on hover — a Mac's traffic lights in a Windows order,
+               the half-imitation of system chrome the HIG warns reads as broken. Close takes
+               the same neutral hover as the others: dismissing a window destroys nothing, and
+               a window holding unsaved input asks before it goes. *@
+            <div class="win__controls" data-glide>
+                <button class="win__ctl" type="button" data-window-control
+                        title="Minimise" aria-label="Minimise @Window.Title"
+                        @onclick="Minimise" @onclick:stopPropagation="true">
+                    <Glyph Icon="@Icons.Material.Filled.Remove" />
+                </button>
+                <button class="win__ctl" type="button" data-window-control
+                        title="@(Window.Maximised ? "Restore the row" : "Take the whole row")"
+                        aria-label="@(Window.Maximised ? "Restore" : "Maximise") @Window.Title"
+                        @onclick="Maximise" @onclick:stopPropagation="true"
+                        @ondblclick:stopPropagation="true">
+                    <Glyph Icon="@(Window.Maximised
+                                   ? Icons.Material.Filled.FilterNone
+                                   : Icons.Material.Filled.CropSquare)" />
+                </button>
+                @* In a group, Close closes the window showing, as a plain window's does; the next
+                   most recent comes forward. Minimise and Maximise act on the column. *@
+                <button class="win__ctl win__ctl--close" type="button" data-window-control
+                        title="Close" aria-label="Close @Window.Title"
+                        @onclick="Close" @onclick:stopPropagation="true">
+                    <Glyph Icon="@Icons.Material.Filled.Close" />
+                </button>
+            </div>
+        }
+    </div>
+    }
+
+    @* SIGNATURE: this window's own state, readable without focusing it — including collapsed. In a
+       group it is the showing window's; a tab behind says its own on its tab. *@
+    <div class="pulse @PulseClass" role="@(_behind ? null : "status")"
+         aria-label="@(_behind ? null : $"{Window.Title} status: {Window.Pulse}")"></div>
+
+    @* Keyed on the page, so turning to another page builds the body afresh: scrolled to the
+       top, with none of the last page's tabs or filters carried into the next. In a group it
+       is the panel its tab controls.
+
+       Drawn collapsed too, hidden, inert and out of the tree: a column collapses to its bar, but
+       its panels keep what they hold — input above all — as a tab behind does. It used to be
+       left out while collapsed, and minimising a column threw away every tab's half-typed entry
+       without a question. Hidden rather than visibility-hidden, because a collapsed column is a
+       stub too narrow to lay a panel out in. *@
+    <div class="win__body" @key="Window.PageVersion"
+         id="winbody-@Window.Id"
+         hidden="@Window.Minimised"
+         inert="@Window.Minimised"
+         aria-hidden="@(Window.Minimised ? "true" : null)">
+        @* The boundary is per window, so one panel's fault never takes the desk: an exception
+           that reached the circuit ended it, and every other window went with it. It sits
+           inside the keyed body, so a page turn builds a fresh one. The boundary logs the
+           exception itself; the reader gets the window's name and a key, never the message. *@
+        <ErrorBoundary @ref="_boundary">
+            <ChildContent>
+                <CascadingValue Value="@Window.Id" Name="WindowId">
+                    <DynamicComponent Type="Window.Definition.ComponentType"
+                                      Parameters="Window.Parameters" />
+                </CascadingValue>
+            </ChildContent>
+            <ErrorContent Context="_">
+                <EmptyState Kind="EmptyStateKind.Error">
+                    <ChildContent>@Window.Title stopped. Nothing you typed elsewhere is lost.</ChildContent>
+                    <Action>
+                        <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Refresh"
+                                    OnClick="Recover">Try again</DeskButton>
+                    </Action>
+                </EmptyState>
+            </ErrorContent>
+        </ErrorBoundary>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public WindowInstance Window { get; set; } = default!;
+    [Parameter] public bool IsFocused { get; set; }
+
+    /// <summary>
+    /// Another column holds the row (maximised), so this window is kept but not in view: hidden,
+    /// inert and out of the tree as a tab behind is, with no bar. It used to be left out of the
+    /// page, and every window outside the maximised column lost its panel and its input.
+    /// </summary>
+    [Parameter] public bool Concealed { get; set; }
+
+    private string ElementId => $"win-{Window.Id}";
+
+    private string FullTitle => string.IsNullOrEmpty(Window.StatusText)
+        ? Window.Title
+        : $"{Window.Title} — {Window.StatusText}";
+
+    private WindowInstance? _drawnWindow;
+    private int _drawnVersion;
+    private bool _drawnFocused;
+    private bool _drawnConcealed;
+    private string _drawnTabs = string.Empty;
+    private bool _behind;
+    private ElementReference _root;
+
+    protected override void OnInitialized() => Manager.WindowChanged += OnWindowChanged;
+
+    // Every window hears every window's status; only the one it names redraws — and the window
+    // whose tab key carries that one in its menu, since the menu says what its window reports.
+    private void OnWindowChanged(string id)
+    {
+        if (id == Window.Id)
+        {
+            InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (!_behind && Manager.ColumnOf(Window.Id) is { IsGroup: true } column && column.Tabs.Any(t => t.Id == id))
+            InvokeAsync(StateHasChanged);
+    }
+
+    protected override bool ShouldRender()
+        => !ReferenceEquals(Window, _drawnWindow)
+           || Window.Version != _drawnVersion
+           || IsFocused != _drawnFocused
+           || Concealed != _drawnConcealed
+           || Signature(Manager.ColumnOf(Window.Id)) != _drawnTabs;
+
+    /// <summary>
+    /// What the tab key and its menu draw, as one string: every tab in the column, in order, at its version. A
+    /// tab's status moving, a tab coming forward or one leaving all change it.
+    /// </summary>
+    private static string Signature(WindowColumn? column)
+        => column is null || !column.IsGroup
+            ? string.Empty
+            : string.Join(",", column.Tabs.Select(t => $"{t.Id}:{t.Version}"));
+
+    private int MinWidth(WindowColumn? column) => column?.MinWidth ?? Window.Definition.MinWidth;
+
+    /// <summary>The window's name, and in a group how many windows share its column.</summary>
+    private string RegionLabel(WindowColumn? column)
+        => column is { IsGroup: true }
+            ? $"{Window.Title}, one of {column.Tabs.Count} tabs"
+            : Window.Title;
+
+    /// <summary>
+    /// A tab closed from the keyboard left this window alone in its column, so there is no tab key to
+    /// put focus on: it goes to the window itself, which the reader then Tabs into.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_behind || Manager.ColumnOf(Window.Id) is not { IsGroup: false })
+            return;
+
+        if (!Manager.TakeTabFocus(Window.Id))
+            return;
+
+        try
+        {
+            await _root.FocusAsync();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    public void Dispose() => Manager.WindowChanged -= OnWindowChanged;
+
+    // The tooltip names where the key goes and its chord; a dimmed key says why it is dimmed.
+    private string BackTitle => Window.BackTitle is { } back
+        ? $"Back to {back} (Ctrl+[)"
+        : Window.FollowsInPlace ? "Nothing earlier in this window" : "This window opens its links beside it";
+
+    private string ForwardTitle => Window.ForwardTitle is { } forward
+        ? $"Forward to {forward} (Ctrl+])"
+        : "Nothing later in this window";
+
+    private string PulseClass => Window.Pulse switch
+    {
+        PulseState.Healthy => "pulse--healthy",
+        PulseState.Warn => "pulse--warn",
+        PulseState.Critical => "pulse--critical",
+        PulseState.Active => "pulse--active",
+        _ => "pulse--idle"
+    };
+
+    private static string Px(double value)
+        => $"{value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}px";
+
+    // Pointer-down anywhere makes this the window the operator is in — the column the next window
+    // will not be tabbed into. Pointerdown rather than click, so the bookkeeping happens before a
+    // drag even starts. A tab behind takes no pointer, but the guard says so in code too.
+    private void OnPointerDown()
+    {
+        if (!_behind)
+            Manager.Focus(Window.Id);
+    }
+
+    // A collapsed tab has no controls to click — the whole bar is "expand".
+    private void OnBarClick()
+    {
+        if (Window.Minimised)
+            Manager.Focus(Window.Id);
+    }
+
+    private void OnBarDoubleClick()
+    {
+        if (!Window.Minimised)
+            Maximise();
+    }
+
+    private void PageBack() => Manager.PageBack(Window.Id);
+    private void PageForward() => Manager.PageForward(Window.Id);
+    private void Minimise() => Manager.ToggleMinimise(Window.Id);
+    private void Maximise() => Manager.ToggleMaximise(Window.Id);
+
+    // Try again clears the fault and renders the panel once more as a new component, so it
+    // loads from the start rather than resuming whatever state it threw in.
+    private ErrorBoundary? _boundary;
+    private void Recover() => _boundary?.Recover();
+
+    private bool _asking;
+
+    // A window holding unsaved input asks before it goes (WindowClosing). One question at a time —
+    // a second click on the key while the alert is up does not stack another.
+    private async Task Close()
+    {
+        if (_asking)
+            return;
+
+        _asking = true;
+
+        try
+        {
+            await WindowClosing.CloseAsync(Manager, Alerts, Window);
+        }
+        finally
+        {
+            _asking = false;
+        }
+    }
+}

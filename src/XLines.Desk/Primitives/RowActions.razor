@@ -1,0 +1,218 @@
+@namespace XLines.Desk.Primitives
+@using XLines.Desk.Windowing
+@implements IAsyncDisposable
+
+@*
+    The action strip on an open row, and the snippet it reveals.
+
+    Two-stage disclosure: opening a row shows what you can do with it, and pressing one of
+    those answers the question in place. Only if the answer is not enough does a window get
+    spent. The strip started life inside one list window, which meant that list was the only surface
+    where a row led anywhere; it is a control so a list, a detail window and a subject window
+    behave identically — one interaction to learn, and it holds all the way down.
+
+    One snippet at a time. Selecting another swaps it, rather than stacking, for the same reason
+    a list only opens one row: a row that grows without bound pushes the rest of the list off
+    screen and the snippet stops reading as attached to its row.
+
+    Which snippet is open is this control's own business, not the host panel's. It was a bound
+    parameter first, and the round trip through the parent was both pointless — no panel does
+    anything with the answer — and fragile, because the strip lives inside a data grid's cell
+    template and depended on that grid choosing to re-render it. Callers give it a @key of
+    whatever the row is about, so moving to another row is a new strip with nothing open.
+*@
+
+@* Escape returns the row to its keys. A snippet is a thing you opened, and every other thing
+   you can open on this desk closes the same way.
+
+   Clicks stop here too. The strip lives inside a grid row whose own click opens and closes
+   that row, so a press on a key reached the row as well: the snippet opened and the same click
+   closed the row around it, and the key appeared to do nothing. A press inside the strip, or
+   inside the snippet it opens, belongs to the strip. A list goes further and draws the strip in
+   the row it opens under the open one (DeskGrid's child row), which stops every press inside it,
+   so a near miss between keys is not a press on the row either. *@
+<div class="rowacts" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true"
+     @onclick:stopPropagation="true">
+    @* Selection first, then commands, never mixed in one control (HIG: a segmented control does
+       not mix selection and action segments). Which snippet is showing is one choice among a
+       few, so the views are one segmented control; a key that opens a window is a command and
+       follows as an ordinary key. *@
+    <div class="rowacts__keys">
+        @if (_views.Count > 1)
+        {
+            @* No position is chosen until one is pressed: DeskSwitch shows no cap for a value that
+               matches none, so "nothing open" needs no segment of its own. Pressing the open
+               view's segment again closes it (Deselectable), so the pointer can put away what it
+               opened; Escape does the same from the keyboard. *@
+            <DeskSwitch TValue="string"
+                        Options="_viewOptions"
+                        Label="Inline view"
+                        Size="DeskKeySize.Small"
+                        Deselectable="true"
+                        Value="_open"
+                        ValueChanged="@((string key) => ChooseAsync(key))"
+                        aria-controls="@(_open is null ? null : SnippetId)" />
+        }
+        else if (_views.Count == 1)
+        {
+            var view = _views[0];
+            var isOpen = view.Key == _open;
+
+            @* A lone view is a disclosure, not a choice — a one-segment control has nothing to
+               choose between, and DeskSwitch draws nothing for one — so it is a toggle key that
+               reports pressed and expanded state, and pressing it again closes it. *@
+            <DeskButton Size="DeskKeySize.Small"
+                        Emphasis="@view.Emphasis"
+                        Role="@view.Role"
+                        Icon="@view.Icon"
+                        Class="@(isOpen ? "desk-btn--on" : null)"
+                        OnClick="@(() => ChooseAsync(isOpen ? null : view.Key))"
+                        aria-pressed="@(isOpen ? "true" : "false")"
+                        aria-expanded="@(isOpen ? "true" : "false")"
+                        aria-controls="@SnippetId">
+                @view.Label
+            </DeskButton>
+        }
+
+        @if (_views.Count > 0 && _commands.Count > 0)
+        {
+            <span class="rowacts__gap" aria-hidden="true"></span>
+        }
+
+        @* A key that opens a window is an ordinary command and must not claim to be a toggle, or
+           a screen reader announces a pressed state that never changes. Its weight and role are
+           the action's own: a strip's leading key may be Tinted on purpose. *@
+        @foreach (var command in _commands)
+        {
+            <DeskButton Size="DeskKeySize.Small"
+                        Emphasis="@command.Emphasis"
+                        Role="@command.Role"
+                        Icon="@command.Icon"
+                        Busy="@command.Busy"
+                        OnClick="@(() => OpenAsync(command))">
+                @command.Label
+            </DeskButton>
+        }
+    </div>
+
+    @if (!SnippetHost.HasDelegate)
+    {
+        @OpenSnippet
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<RowAction> Actions { get; set; } = [];
+
+    /// <summary>
+    /// Where the open snippet is drawn, when not in the strip. Given, the strip draws only its
+    /// keys and hands the snippet to the host each time it changes — null when it closes — and
+    /// the host draws it where it reads best: a list, in a row of its own under the open one, so
+    /// a list spans the row rather than wrapping inside one narrow column. Not given (a detail
+    /// window's rows), the snippet opens under the keys as before.
+    /// </summary>
+    [Parameter] public EventCallback<RenderFragment?> SnippetHost { get; set; }
+
+    /// <summary>The action showing its snippet, or null when only the keys are up.</summary>
+    private string? _open;
+
+    /// <summary>
+    /// Ties the key to the region it controls. Per instance, because several strips can be on
+    /// one page — a detail window can hold a stack of them — and a duplicated id would point every
+    /// key at the first snippet on the page.
+    /// </summary>
+    private readonly string SnippetId = $"snip-{Guid.NewGuid():N}";
+
+    /// <summary>The actions that answer on the row: the views.</summary>
+    private List<RowAction> _views = [];
+
+    /// <summary>The actions that only open a window: the commands.</summary>
+    private List<RowAction> _commands = [];
+
+    private List<DeskSwitchOption<string>> _viewOptions = [];
+
+    private RowAction? Selected => _views.FirstOrDefault(a => a.Key == _open);
+
+    protected override void OnParametersSet()
+    {
+        _views = Actions.Where(a => a.Snippet is not null).ToList();
+        _commands = Actions.Where(a => a.Snippet is null).ToList();
+        _viewOptions = _views.Select(a => new DeskSwitchOption<string>(a.Key, a.Label)).ToList();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && _open is not null)
+            await ChooseAsync(null);
+    }
+
+    /// <summary>Shows a view's snippet, or none, and tells a host that draws it.</summary>
+    private async Task ChooseAsync(string? key)
+    {
+        _open = key;
+
+        if (!SnippetHost.HasDelegate)
+            return;
+
+        _hosting = Selected is { Snippet: not null };
+        await SnippetHost.InvokeAsync(_hosting ? HostedSnippet : null);
+    }
+
+    /// <summary>Whether the host is drawing a snippet this strip handed it.</summary>
+    private bool _hosting;
+
+    /// <summary>
+    /// A strip can go while its snippet is still out: the list's filter drops the open row, a
+    /// reload replaces it. The snippet in the host's row is this strip's, and nothing else can
+    /// close it, so the strip takes it back. Only one it handed out and has not taken back since:
+    /// a strip with nothing out says nothing, so it cannot clear a snippet a newer strip owns.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (!_hosting || !SnippetHost.HasDelegate)
+            return;
+
+        _hosting = false;
+
+        try
+        {
+            await SnippetHost.InvokeAsync(null);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The host went first, as when the whole window closes; there is nothing to clear.
+        }
+    }
+
+    private RenderFragment OpenSnippet => __builder =>
+    {
+        if (Selected is { Snippet: not null } open)
+        {
+            <SnippetShell Id="@SnippetId"
+                          Title="@open.Label"
+                          Icon="@open.Icon"
+                          OpenLabel="@open.OpenLabel"
+                          OnOpen="@open.OpenWindow"
+                          Cards="@open.SnippetCards">
+                @open.Snippet
+            </SnippetShell>
+        }
+    };
+
+    // Drawn by the host, outside the strip, so it carries the strip's own handling with it:
+    // Escape still closes it, and a press inside it still stops short of the grid row's click.
+    private RenderFragment HostedSnippet => __builder =>
+    {
+        <div class="rowacts__snippet" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true"
+             @onclick:stopPropagation="true">
+            @OpenSnippet
+        </div>
+    };
+
+    /// <summary>A window-only action just goes — and its host is drawn after it, as the callback's owner.</summary>
+    private static async Task OpenAsync(RowAction action)
+    {
+        if (action.OpenWindow.HasDelegate)
+            await action.OpenWindow.InvokeAsync();
+    }
+}

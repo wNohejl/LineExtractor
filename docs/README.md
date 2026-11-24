@@ -1,6 +1,6 @@
 # The documents, and which ones are true now
 
-XLines is the product; LineOps is the platform and the name in every path
+XLines is the product; XLines is the platform and the name in every path
 ([ADR 0031](adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md)). This page says
 which document answers which question, and which are kept only as the record of how something
 was decided. As of 2026-11-23.
@@ -9,14 +9,14 @@ was decided. As of 2026-11-23.
 
 | Question | Read |
 |---|---|
-| What is it, and how do I run it? | [README](../README.md); for an agent, [`lineops-setup`](../.claude/skills/lineops-setup/SKILL.md) |
+| What is it, and how do I run it? | [README](../README.md); for an agent, [`xlines-setup`](../.claude/skills/xlines-setup/SKILL.md) |
 | What runs, where, and on what? | [INFRASTRUCTURE.md](INFRASTRUCTURE.md) |
 | Why is it built this way, and what changed during the build? | [DESIGN.md](DESIGN.md) (§11 for the divergences) |
 | An alert fired. What now? | [runbook.md](runbook.md) |
 | Where is it going: the name, the repository, the site, hosting? | [ADR 0031](adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md) |
 | How is it hosted, if it is? | [deploy/README.md](../deploy/README.md), [ADR 0019](adr/0019-one-vm-caddy-in-front-the-worker-schedules.md) |
 | How does an agent or a contributor work in this repository? | [CLAUDE.md](../CLAUDE.md) |
-| How is the Desk package used on its own? | `src/LineOps.Desk*/README.md` |
+| How is the Desk package used on its own? | `src/XLines.Desk*/README.md` |
 
 ## Decisions: `adr/`
 

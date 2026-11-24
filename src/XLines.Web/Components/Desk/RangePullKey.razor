@@ -1,0 +1,144 @@
+@using XLines.Ingestion.Services
+@using XLines.Web.Services
+@inject IDeskAccess Access
+@inject DeskJobRunner Runner
+
+@*
+    The Board toolbar's Date range key: a Tinted key with the calendar symbol, opening the
+    date-range popover anchored to it (RangePullPopover), and the key the pull then runs on.
+
+    Its own key because it is its own task (plan 2026-11-14): a few answers, then a pull. It used to
+    be "Pull a date range…" at the foot of the Pull data menu, opening a sheet. Pressing Pull closes
+    the popover and runs the range exactly as the menu runs an entry — DeskJobRunner, so the toast
+    reads as the menu's — with this key busy and carrying the day it has reached ("NFL Sep 8 · 3 of
+    4"), then the owner reloads.
+
+    A visitor spends nothing, so a visitor has no key (ADR 0018), as Pull data has none.
+
+    In the narrowest toolbar (a Board beside two others) the word folds away and the symbol stays,
+    with the name as the key's title and accessible name: xlines.css, "Date range key".
+*@
+
+@if (Access.CanOperate)
+{
+    <DeskPopover Open="_open" OpenChanged="SetOpen" Align="DeskPopoverAlign.End" Class="range-key">
+        <Anchor>
+            <DeskButton Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.DateRange"
+                        Busy="@(_phrase is not null)"
+                        Title="@Name"
+                        aria-haspopup="dialog"
+                        aria-expanded="@(_open ? "true" : "false")"
+                        data-popover-return="true"
+                        OnClick="ToggleAsync">
+                @* The key keeps its name while it runs — "Date range · NFL Sep 8 · 3 of 4" — so a
+                   reader hears what the key is and how far the pull has got, and the words on it
+                   are in its name. The word is a polite live region, kept in the page when the
+                   narrow fold takes it off the screen. *@
+                @if (_phrase is not null)
+                {
+                    <span class="sr-only">Date range · </span>
+                }
+                <span class="range-key__word" aria-live="polite">@Name</span>
+            </DeskButton>
+        </Anchor>
+        <ChildContent>
+            @if (_leagues is not null)
+            {
+                <RangePullPopover Leagues="_leagues"
+                                  InitialLeague="@InitialLeague"
+                                  Today="Today"
+                                  OnPull="PullAsync"
+                                  OnCancel="@(() => SetOpen(false))" />
+            }
+        </ChildContent>
+    </DeskPopover>
+}
+
+@code {
+    /// <summary>The leagues a range can be pulled for: RangePull.LeaguesAsync on the host.</summary>
+    [Parameter, EditorRequired]
+    public Func<CancellationToken, Task<IReadOnlyList<RangeLeague>>> Leagues { get; set; } = null!;
+
+    /// <summary>The pull itself: RangePull.RunAsync on the host.</summary>
+    [Parameter, EditorRequired]
+    public Func<RangePullRequest, IProgress<RangePullProgress>, CancellationToken, Task<RangePullSummary>> Pull { get; set; } = null!;
+
+    /// <summary>The league the popover starts on — the Board's sport filter, when it names one.</summary>
+    [Parameter] public string? InitialLeague { get; set; }
+
+    /// <summary>Today, as the league counts it; for a test standing on a known day.</summary>
+    [Parameter] public DateOnly? Today { get; set; }
+
+    /// <summary>Raised after a pull that ran, so the owner reloads what it shows.</summary>
+    [Parameter] public EventCallback OnRan { get; set; }
+
+    /// <summary>Lets the owner drive its pulse from the pull, as Pull data's menu does.</summary>
+    [Parameter] public EventCallback<bool> OnBusyChanged { get; set; }
+
+    private bool _open;
+    private IReadOnlyList<RangeLeague>? _leagues;
+
+    // While a pull runs: the day it has reached, or "Starting" before the first day is told.
+    private string? _phrase;
+
+    private string Name => _phrase ?? "Date range";
+
+    private async Task ToggleAsync()
+    {
+        if (_open)
+        {
+            SetOpen(false);
+            return;
+        }
+
+        // Read on every open, as the menu re-reads its runs: a league enabled since is offered.
+        try
+        {
+            _leagues = await Leagues(CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // No league to offer is said by the popover itself: "Name a league." on the key row.
+            _leagues = [];
+        }
+
+        _open = true;
+    }
+
+    private void SetOpen(bool open) => _open = open;
+
+    private async Task PullAsync(RangePullRequest request)
+    {
+        if (_phrase is not null)
+            return;
+
+        _open = false;
+        _phrase = "Starting";
+        await OnBusyChanged.InvokeAsync(true);
+
+        try
+        {
+            var run = IngestionDeskJobs.RangeRun(Pull, request);
+
+            if (await Runner.RunAsync(IngestionDeskJobs.RangeJob, run, new Progress<string>(OnProgress)))
+                await OnRan.InvokeAsync();
+        }
+        finally
+        {
+            _phrase = null;
+            await OnBusyChanged.InvokeAsync(false);
+        }
+    }
+
+    /// <summary>A long pull's progress, on the key where the press was made.</summary>
+    private void OnProgress(string phrase)
+        => _ = InvokeAsync(() =>
+        {
+            if (_phrase is null)
+                return;
+
+            _phrase = phrase;
+            StateHasChanged();
+        });
+}

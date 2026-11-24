@@ -71,7 +71,7 @@ Two more findings from the study drive the scope:
 
 ### 3.1 `WagerSlip` — the class
 
-`src/LineOps.Web/Services/WagerSlip.cs`, registered `AddScoped` beside `IDeskSearch` in
+`src/XLines.Web/Services/WagerSlip.cs`, registered `AddScoped` beside `IDeskSearch` in
 `Program.cs:61`. Scoped is circuit-scoped under Interactive Server, which is the lifetime the
 wizard's queue has and the one the slip wants: one slip per operator session, shared by every
 window on that desk, gone with the circuit.
@@ -160,7 +160,7 @@ Layout, top to bottom, as drawn on the study's third artboard:
    slip can be logged as it stands* / *A parlay needs two legs the market still offers* /
    *Needs a stake above zero.*
 6. The scope sentence from the Journal, once: *A logged wager becomes a journal row and leaves
-   the slip. LineOps records bets placed elsewhere; nothing here reaches a sportsbook.*
+   the slip. XLines records bets placed elsewhere; nothing here reaches a sportsbook.*
 
 Empty state: `EmptyState Kind="New"` — *Nothing on the slip. Add to slip from any Place wager
 window banks the wager here.*
@@ -177,7 +177,7 @@ but Log on the window still needs one.
 
 ### 3.4 Logging the slip
 
-`SlipPanel.LogAsync` opens one `LineOpsDbContext`, and in one transaction:
+`SlipPanel.LogAsync` opens one `XLinesDbContext`, and in one transaction:
 
 - **Straight mode:** one `JournalEntry` per loggable item, exactly as `BoardWager.PlaceAsync`
   writes one today (`BoardWager.razor:196-214`), `Result = Pending`, `PlacedAt = now`.
@@ -337,14 +337,14 @@ enforced the way `GridConventionTests` enforces grid rules today.
 - A disabled key says what it is waiting for, under the key, in warning text.
 - Check sentences state a fact and, where there is one, the consequence: *Logging again records
   a second bet.* They never instruct.
-- The scope sentence (LineOps records bets placed elsewhere) appears once per window, at the
+- The scope sentence (XLines records bets placed elsewhere) appears once per window, at the
   bottom, as the Journal does it.
 
 ---
 
 ## 9. Tests
 
-`tests/LineOps.Tests`:
+`tests/XLines.Tests`:
 
 - `WagerSlipTests` — add/remove/clear raise `Changed` once each; `Remove` of an unknown id is a
   no-op; `CanLog` false on a closing item; `Legs` excludes it; combined price for two known legs
@@ -353,7 +353,7 @@ enforced the way `GridConventionTests` enforces grid rules today.
   an offer, a clock and a duplicate result: the four rows and their states at the threshold
   boundaries (29 vs 30 minutes; null fair; closing).
 
-`tests/LineOps.Web.Tests` (bUnit, on `DeskTestContext`):
+`tests/XLines.Web.Tests` (bUnit, on `DeskTestContext`):
 
 - `BoardWagerTests` — lands on the most-value side with `GameId` alone; lands on the given side
   with `Market`+`Outcome`; shows the rung's price with `Book`; Log disabled at zero stake with
@@ -366,7 +366,7 @@ enforced the way `GridConventionTests` enforces grid rules today.
 - `JournalPanelTests` — Log parlay is gone; Open slip opens the Slip window.
 - `SelectionGuardTests` — the §7 guard.
 
-`tests/LineOps.Tests` (Testcontainers):
+`tests/XLines.Tests` (Testcontainers):
 
 - `SlipLoggingIntegrationTests` — straight mode writes N entries; parlay mode writes one
   `Parlay` and N legs with zero stake and the group id; a failed save leaves the slip intact.

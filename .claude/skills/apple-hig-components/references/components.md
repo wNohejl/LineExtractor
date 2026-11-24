@@ -16,7 +16,7 @@ decide its shape. Source: the HIG component pages, read October 2026.
 - **Text labels**: a few words, verb first, title-style capitalization ("Add to Cart").
   Append "…" when the button opens another window or view. Symbols only for familiar
   actions. Tooltip = a brief phrase on hover (macOS).
-  **House rule (LineOps Desk, November 2026): control labels are sentence case** — "Pull
+  **House rule (XLines Desk, November 2026): control labels are sentence case** — "Pull
   data", "Date range", "Catch up", "7 days" — because the Desk's keys, menus, tabs and
   segments have been written that way since the first window, and a lone title-style label
   reads as a different system. Wherever this file or `forms.md` says title-style for a

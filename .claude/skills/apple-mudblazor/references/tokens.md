@@ -4,7 +4,7 @@ Every token names a **role**, never a colour. That is the whole reason a second
 theme can be a second `:root` block instead of a component rewrite. If you find
 yourself writing `--blue-500`, stop: the name has to survive being re-themed.
 
-The values live in the first token block of `desk.css` and the theme blocks of `themes.css` — in the package folder's `staticwebassets/css/`, or `src/LineOps.Desk/wwwroot/css/` in the Desk's repository (see the SKILL's "Where the system lives"). This file is the *why*.
+The values live in the first token block of `desk.css` and the theme blocks of `themes.css` — in the package folder's `staticwebassets/css/`, or `src/XLines.Desk/wwwroot/css/` in the Desk's repository (see the SKILL's "Where the system lives"). This file is the *why*.
 
 ---
 

@@ -5,15 +5,15 @@ Spec: `docs/specs/2026-10-26-ufc-fights-design.md`. Work lands on
 
 ## Task 1 — Core: fights as games
 
-- `src/LineOps.Core/Entities/Fights.cs`: `Bout`, `BoutOutcome`, `FighterProfile`.
-- `src/LineOps.Core/Analytics/FightSports.cs`: `IsFight`, `ElapsedRounds`, method short forms,
+- `src/XLines.Core/Entities/Fights.cs`: `Bout`, `BoutOutcome`, `FighterProfile`.
+- `src/XLines.Core/Analytics/FightSports.cs`: `IsFight`, `ElapsedRounds`, method short forms,
   result sentence, `FighterNames.Same` (accent-folded, surname + initial fallback).
 - `Grading`: `GradeFight` — moneyline win/loss/push, NC void, rounds total.
 - Tests: `FightGradingTests`, `FighterNamesTests`.
 
 ## Task 2 — Schema
 
-- `LineOpsDbContext`: `Bouts` (PK `GameId`, FK cascade), `FighterProfiles` (PK `TeamId`).
+- `XLinesDbContext`: `Bouts` (PK `GameId`, FK cascade), `FighterProfiles` (PK `TeamId`).
 - Migration `UfcFights`. `DatabaseInitializer` seeds `ufc`.
 
 ## Task 3 — ESPN adapter

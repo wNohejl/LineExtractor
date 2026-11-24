@@ -91,7 +91,7 @@ whole improvement looked like it had not shipped. Resolution now never downgrade
 always wins, a name only fills a gap.
 
 **`dotnet test` does not rebuild the web project's output.** It builds the test project and its
-references, leaving `src/LineOps.Web/bin` stale, so the app under verification was an older
+references, leaving `src/XLines.Web/bin` stale, so the app under verification was an older
 binary than the one that had just passed its tests. Combined with the content-root trap from
 [ADR 0010](0010-odds-are-scans-until-first-pitch-then-one-closing-line.md), the rule is that
 verifying a running app means building *that app* and checking what it actually loaded — twice

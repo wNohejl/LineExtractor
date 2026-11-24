@@ -1,0 +1,319 @@
+@using XLines.Data
+@using XLines.Data.CrossReference
+@using XLines.Ingestion.Services
+@using XLines.Ingestion.Configuration
+@using XLines.Desk.Windowing
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@inherits PanelBase
+@inject IDbContextFactory<XLinesDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+@inject IOptions<IngestionOptions> IngestionOptions
+@inject XLines.Core.Contracts.IDataTier Tier
+
+@*
+    The roster finder. It used to keep a game log of its own, a second and lesser copy of the
+    Player window; a player's name now opens that window, and a team's name the Team window —
+    this list finds people, and the windows it opens say how they have been going.
+*@
+@* The sport is the picker that folds and the search the field that follows it, in the slots the
+   toolbar folds from: a narrow Players window kept both on the row, which cannot fold content it
+   was not told may leave, and pushed Sync stats past the window's edge (HIG audit, 17 November). *@
+<PanelToolbar Actions="@(Manager.Access.CanOperate ? SyncKey : null)">
+    <Overflow>
+        @* All and the enabled leagues: a fixed set, so a segment, as in the Journal. *@
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Sport</span>
+            <DeskSwitch Options="SportOptions" Label="Sport"
+                        Value="_sport" ValueChanged="@((string s) => OnSportChanged(s))" />
+        </div>
+    </Overflow>
+    <Search>
+        @* Filters as you type, after a pause: two queries per keystroke was a query storm for
+           anyone typing a whole name. A player's team works too — "judge nyy" — which the field's
+           accessible name says, since a placeholder is too short to.
+
+           Value takes the field as @_search: DeskSearch's Value is a plain string parameter, so
+           Value="_search" handed it the literal text "_search", and the empty field showed it. *@
+        <DeskSearch Placeholder="Search players" Label="Search players by name or team"
+                    Value="@_search" ValueChanged="OnSearchChanged" />
+    </Search>
+</PanelToolbar>
+
+@if (_syncError is not null)
+{
+    <Note State="DeskState.Warning">@_syncError</Note>
+}
+
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        <DeskGrid T="Row" Items="_rows" Loading="true" LoadingLabel="Fetching players" />
+    }
+}
+else if (_rows.Count == 0)
+{
+    @if (string.IsNullOrWhiteSpace(_search) && string.IsNullOrEmpty(_sport))
+    {
+        <EmptyState Kind="EmptyStateKind.New">
+            No players yet. <strong>Sync stats</strong> pulls rosters and box scores — ESPN
+            needs no key, so this works at no cost.
+        </EmptyState>
+    }
+    else
+    {
+        <EmptyState Kind="EmptyStateKind.Filtered">No players match this filter.</EmptyState>
+    }
+}
+else
+{
+    <DeskGrid T="Row" Items="_rows" Class="deskgrid--clickable"
+              OnRowClick="@(e => Manager.OpenPlayer(e.Item.Player.Id, e.Item.Player.FullName))"
+              EmptyText="No players match this filter.">
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.FullName" Title="Player"
+                        InitialDirection="SortDirection.Ascending">
+            <CellTemplate>
+                <DeskLink Destination="player"
+                          OnClick="() => Manager.OpenPlayer(context.Item.Player.Id, context.Item.Player.FullName)">
+                    @context.Item.Player.FullName
+                </DeskLink>
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Sport!.Name" Title="Sport" HeaderClass="col--wide" CellClass="col--wide">
+            <CellTemplate><Tag>@context.Item.Player.Sport?.Name</Tag></CellTemplate>
+        </PropertyColumn>
+
+        @* ESPN's NFL box scores name no position, so the column read "—" on every NFL row and told
+           the reader nothing. It shows only while a row on screen has a position — an NFL list has
+           no Pos column — and a row without one leaves its cell empty rather than drawing a dash. *@
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Position!" Title="Pos" Hidden="@(!_anyPosition)">
+            <CellTemplate><span class="dim">@context.Item.Player.Position</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Team!.Name" Title="Team">
+            <CellTemplate>
+                @if (context.Item.Player.Team is { } team)
+                {
+                    <span class="playerteam">
+                        <TeamMark Sport="@context.Item.Player.Sport?.Key" Abbrev="@team.Abbrev" />
+                        <DeskLink Destination="team" OnClick="() => Manager.OpenTeam(team.Id, team.Name)">@team.Name</DeskLink>
+                    </span>
+                }
+                else
+                {
+                    <span class="dim">—</span>
+                }
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Row" TProperty="int" Property="r => r.Games" Title="Games" Align="Align.Right" />
+    </DeskGrid>
+
+    @if (_capped)
+    {
+        @* The list stops at a limit; it says so, rather than letting the last row read as the
+           last player there is. *@
+        <Note>Showing the first @Limit by name. Narrow the search, or pick a sport, to see the rest.</Note>
+    }
+}
+
+@code {
+    /// <summary>
+    /// The one thing this window does rather than shows, so it carries the panel's weight — on
+    /// the operator's desk. A visitor only reads (ADR 0018), and the toolbar's actions slot is
+    /// not drawn at all.
+    /// </summary>
+    private RenderFragment SyncKey => @<DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync"
+                                                  OnClick="SyncAsync" Busy="@_busy">Sync stats</DeskButton>;
+
+    private const int Limit = 150;
+
+    private record Row(Player Player, int Games);
+
+    private List<Row> _rows = [];
+    private List<Sport> _sports = [];
+    private bool _sportsRead;
+    private string _sport = string.Empty;
+    private string _search = string.Empty;
+    private bool _capped;
+
+    /// <summary>Whether any row on screen names a position; the Pos column shows only then.</summary>
+    private bool _anyPosition;
+    private bool _busy;
+    private CancellationTokenSource? _pending;
+
+    private string? _syncError;
+
+    /// <summary>"All", then each enabled league by id — the query filters on SportId — engraved with its key.</summary>
+    private IReadOnlyList<DeskSwitchOption<string>> SportOptions =>
+        [new("", "All", "Every sport"),
+         .. _sports.Select(s => new DeskSwitchOption<string>(s.Id.ToString(), s.Key.ToUpperInvariant(), s.Name))];
+
+    protected override string LoadSubject => "The players";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task OnSportChanged(string value)
+    {
+        _sport = value ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _search = value ?? string.Empty;
+
+        _pending?.Cancel();
+        _pending = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(250, _pending.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private Task LoadAsync() => WithActivityAsync(ReadPlayersAsync, PlayersPulse, PlayersStatus);
+
+    private PulseState PlayersPulse() => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy;
+
+    private string? PlayersStatus() => _rows.Count == 0 ? null : $"{_rows.Count}{(_capped ? "+" : "")} players";
+
+    /// <summary>
+    /// The load in flight, cancelled by the next. The base class's generation check kept a
+    /// superseded load from saying how the window stood, but not from handing over its rows, so a
+    /// slower read of the last search could land last and paint it under the new one.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    /// <summary>
+    /// Everything is read into locals and handed over at once, and only by the latest load. The
+    /// reads share one context, so they stay one after another. The token is taken here, inside
+    /// the work, so Try again, which repeats it, starts a read of its own.
+    /// </summary>
+    private async Task ReadPlayersAsync()
+    {
+        var ct = _reads.Next();
+
+        await LatestRead.HandOverAsync(ct, () => ReadAsync(ct), read =>
+        {
+            // With the first load that succeeds, so a failed first read still gets its picker later.
+            if (read.Sports is not null)
+            {
+                _sports = read.Sports;
+                _sportsRead = true;
+            }
+
+            _capped = read.Capped;
+            _rows = read.Rows;
+            _anyPosition = _rows.Any(r => !string.IsNullOrWhiteSpace(r.Player.Position));
+        });
+    }
+
+    private async Task<(List<Sport>? Sports, List<Row> Rows, bool Capped)> ReadAsync(CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+
+        var sports = _sportsRead
+            ? null
+            : await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync(ct);
+
+        var query = db.Players.AsNoTracking()
+            .Include(p => p.Sport).Include(p => p.Team)
+            .Where(p => p.Sport!.Enabled);
+
+        if (int.TryParse(_sport, out var sportId))
+            query = query.Where(p => p.SportId == sportId);
+
+        // Every word must match the name or the team, with LIKE's own characters escaped, the
+        // same rule the command palette uses.
+        foreach (var pattern in SearchService.Patterns(_search))
+        {
+            query = query.Where(p => EF.Functions.ILike(p.FullName, pattern, @"\")
+                                     || (p.Team != null && (EF.Functions.ILike(p.Team.Name, pattern, @"\")
+                                                            || EF.Functions.ILike(p.Team.Abbrev, pattern, @"\"))));
+        }
+
+        var players = await query.OrderBy(p => p.FullName).Take(Limit + 1).ToListAsync(ct);
+        var capped = players.Count > Limit;
+        players = players.Take(Limit).ToList();
+
+        var ids = players.Select(p => p.Id).ToList();
+
+        // The lines this reader may see (ADR 0024): a visitor counts a displayable source's alone.
+        var counts = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
+            .Where(s => ids.Contains(s.PlayerId))
+            .GroupBy(s => s.PlayerId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
+        return (sports, players.Select(p => new Row(p, counts.GetValueOrDefault(p.Id, 0))).ToList(), capped);
+    }
+
+    private async Task SyncAsync()
+    {
+        _busy = true;
+        _syncError = null;
+        Report(PulseState.Active, "syncing");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+            var stats = scope.ServiceProvider.GetRequiredService<StatsIngestionService>();
+
+            var yesterday = LeagueClock.Today().AddDays(-1);
+            var rows = 0;
+
+            // Box scores are ESPN's: the default source (ADR 0026) has none, and asking it would only
+            // write an empty run under a metered row. With ESPN on this is every stats source, as before.
+            foreach (var source in registry.StatsSources.Where(s => s is not XLines.Core.Contracts.IScoreSource))
+            {
+                foreach (var sport in IngestionOptions.Value.EffectiveSports)
+                {
+                    var outcome = await stats.IngestAsync(
+                        source, sport, "stats:manual", yesterday, CancellationToken.None);
+                    rows += outcome.RowsIngested;
+                }
+            }
+
+            await LoadAsync();
+
+            // A reload that failed has already said so; the sync's count would paper over it.
+            if (!Failed)
+                Report(PulseState.Healthy, $"+{rows:N0} rows");
+        }
+        catch (Exception ex)
+        {
+            // The type name was what the pulse used to say; it belongs in the log.
+            Log.LogError(ex, "Player stats sync failed");
+            Report(PulseState.Critical, "sync failed");
+            _syncError = "Player stats did not sync. Try again.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    protected override void OnDispose()
+    {
+        _pending?.Cancel();
+        _reads.Cancel();
+    }
+}

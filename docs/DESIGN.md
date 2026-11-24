@@ -1,6 +1,6 @@
-# LineOps — Sports-Data Ingestion & Analytics Operations Platform
+# XLines — Sports-Data Ingestion & Analytics Operations Platform
 
-> **Read first (2026-11-22).** The product is now named **XLines**; LineOps is the platform
+> **Read first (2026-11-22).** The product is now named **XLines**; XLines is the platform
 > underneath and the name this document uses throughout (ADR 0031). Two things below are
 > described as they were designed rather than as a fresh clone now behaves: since 2026-11-20
 > ESPN is opt-in and **the default stats source is The Odds API on the user's own key**
@@ -13,7 +13,7 @@
 **Stack:** .NET 10 · Blazor Web App (Interactive Server) · MudBlazor 9.7 · PostgreSQL 17 · Docker
 **Cost:** $0 for the v1 scope (see §0) — all sources on permanent free tiers, hosted locally.
 **Scope:** Games, players, and stats for **MLB, NBA (this season, from 2026-10-20), NFL and UFC**, named in `Ingestion:Sports` — the seeded NHL row is switched off at startup by `ReferenceReconciler`, which hides it from the desk's pickers; mainstream markets only (moneyline, spread, totals). Player props and exotic markets are the designed extension path, not v1.
-**Repository:** `C:\Deploy\LineOps` — see §8 for build and run steps.
+**Repository:** `C:\Deploy\XLines` — see §8 for build and run steps.
 
 **Purpose (public):** An operations platform that ingests sports statistics and market line data daily from multiple external sources, stores line-movement history as time-series, computes performance analytics (closing-line value, ROI, bankroll), and monitors its own ingestion health with KPIs, alerting, and an incident log.
 
@@ -54,9 +54,9 @@
 The public identity of this project is a **data-ingestion and analytics operations platform**. It is never described as a betting tool.
 
 **Naming & language rules:**
-- Repo name/tagline: "LineOps — multi-source sports data ingestion & analytics operations platform." Never "betting app," "wagering," "picks," or "gambling."
+- Repo name/tagline: "XLines — multi-source sports data ingestion & analytics operations platform." Never "betting app," "wagering," "picks," or "gambling."
 - The journal feature is a **bet journal**: it *records* wagers the user placed elsewhere (stake, book, line, result) for performance analytics. The app has zero integration with any sportsbook's wagering flow, no deposit/withdrawal concepts, no "place bet" button anywhere in the UI or code. UI verbs: "Log entry," "Record result" — never "Place bet."
-- README carries one plain sentence: *"XLines does not place wagers and does not integrate with any wagering system."* (it read "LineOps" until the product was named, ADR 0031) That sentence is the conflict-of-interest firewall — it makes the non-wagering scope explicit to any employer (including a regulated-gaming employer like Aristocrat) reading the repo. **As built:** it appears in the README *and* as a standing note at the top of the Journal window, so the scope is stated in the product, not just the docs.
+- README carries one plain sentence: *"XLines does not place wagers and does not integrate with any wagering system."* (it read "XLines" until the product was named, ADR 0031) That sentence is the conflict-of-interest firewall — it makes the non-wagering scope explicit to any employer (including a regulated-gaming employer like Aristocrat) reading the repo. **As built:** it appears in the README *and* as a standing note at the top of the Journal window, so the scope is stated in the product, not just the docs.
 - Interview/resume framing leads with the *operations* story: multi-source ingestion, time-series modeling, KPIs/SLOs, alerting, incidents/RCAs. The analytics (CLV, ROI) are the domain payload — and they're the stronger engineering story anyway: CLV requires storing full line history and joining a journal entry to the market state at two points in time, which is a real data problem; a "place bet" button would just be a POST.
 - The `JournalEntry` entity's own XML doc says it: *"this entity is a ledger row, never an instruction."* Framing enforced in code, not just prose.
 
@@ -72,9 +72,9 @@ The public identity of this project is a **data-ingestion and analytics operatio
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ LineOps.slnx                                                     │
+│ XLines.slnx                                                     │
 │                                                                  │
-│  LineOps.Web          Blazor Web App, global Interactive Server  │
+│  XLines.Web          Blazor Web App, global Interactive Server  │
 │    ├─ Windowing/  WindowCatalog — every window, and workspaces   │
 │    ├─ Panels/     Board · Every book · Place wager · Recent form │
 │    │              Game · Team · Player · Head to head            │
@@ -84,7 +84,7 @@ The public identity of this project is a **data-ingestion and analytics operatio
 │    │              (ordinary components; know nothing of windows) │
 │    └─ Services/   DataChangeListener (Postgres LISTEN → signals) │
 │                                                                  │
-│  LineOps.Desk         Razor library — the desk, no domain types  │
+│  XLines.Desk         Razor library — the desk, no domain types  │
 │    ├─ Windowing/  WindowManager · Desk · AppWindow · DeskHeader  │
 │    │              WindowBar · CommandPalette (Ctrl+K)            │
 │    │              DeskSignals · DeskLayout (kept in localStorage)│
@@ -93,10 +93,10 @@ The public identity of this project is a **data-ingestion and analytics operatio
 │    │              PanelForm — the one anatomy (ADR 0020)        │
 │    └─ wwwroot/js/windowing.js — reorder/resize in-browser (§6)   │
 │                                                                  │
-│  LineOps.Worker       Worker-SDK host (OPTIONAL, own container)  │
+│  XLines.Worker       Worker-SDK host (OPTIONAL, own container)  │
 │    └─ Program.cs + appsettings only; composes the libraries below│
 │                                                                  │
-│  LineOps.Ingestion    LIBRARY — adapters, scheduler, settlement  │
+│  XLines.Ingestion    LIBRARY — adapters, scheduler, settlement  │
 │    ├─ IngestionScheduler   (BackgroundService, state-triggered)  │
 │    ├─ IngestionJobs        (named pulls; the Pull data menu too) │
 │    ├─ LinePollPlanner      (line cadence from what is left)      │
@@ -111,18 +111,18 @@ The public identity of this project is a **data-ingestion and analytics operatio
 │         TheOddsApiAdapter · OddsApiIoAdapter                     │
 │         EspnStatsAdapter  · MlbStatsApiAdapter (spine, own seam) │
 │                                                                  │
-│  LineOps.Reliability  Shared reliability library (§5)            │
+│  XLines.Reliability  Shared reliability library (§5)            │
 │    ├─ KpiCalculator · AlertEngine · IncidentService · DataQuality│
 │    └─ ReliabilityEvaluator (BackgroundService)                   │
 │                                                                  │
-│  LineOps.Observability  OpenTelemetry wiring · KPI gauges ·      │
+│  XLines.Observability  OpenTelemetry wiring · KPI gauges ·      │
 │                         /ready health check                      │
 │                                                                  │
-│  LineOps.Core         Domain entities · OddsMath · FairValue ·   │
+│  XLines.Core         Domain entities · OddsMath · FairValue ·   │
 │                       Grading · PerformanceAnalytics ·           │
 │                       SeasonCalendar  (no dependencies)          │
 │                                                                  │
-│  LineOps.Data         EF Core 10 + Npgsql · migrations ·         │
+│  XLines.Data         EF Core 10 + Npgsql · migrations ·         │
 │                       partition maintenance · seeding ·          │
 │                       BoardService and the cross-reference reads │
 │                                                                  │
@@ -133,9 +133,9 @@ The public identity of this project is a **data-ingestion and analytics operatio
 **Key decisions and their rationale (these are interview talking points):**
 
 - **Blazor Web App with global Interactive Server render mode** — MudBlazor doesn't support static SSR and doesn't officially target .NET 10 yet; global interactivity is the known-good configuration. Knowing a framework's rendering-model constraints is exactly the "advanced platform experience" bullet. → [ADR 0004]
-- **`LineOps.Ingestion` is a library; `LineOps.Worker` is the host.** Originally one Worker-SDK project. Containerising it produced `NETSDK1152` — two executables in one publish output, each with its own `appsettings.json`. The error was the symptom; the real problem was that a web app referencing another app's *executable* project is a layering smell, and whichever config file won would have been nondeterministic. Splitting by role fixed both. → [ADR 0005]
-- **Web and Worker are separate processes** sharing Core/Data/Reliability/Ingestion/Observability. The UI never blocks on ingestion; ingestion failures degrade freshness, not availability. Topology is a compose profile and a startup registration, not a code change — both hosts call the same `AddLineOpsIngestionScheduler()`, and the web host skips it when `Ingestion:HostScheduler` is false.
-- **The desk is its own library.** `LineOps.Desk` references no other LineOps project: it knows windows, keys, topics and a clock, never games or odds. The application hands it an `IWindowCatalog` (`AppWindowCatalog` over `WindowCatalog`), an `IDeskSearch` for the command palette, and publishes data-change topics into `DeskSignals` — from `DataChangeListener`, which holds one Postgres `LISTEN` connection for the host and falls back to a once-a-minute refresh while it is down. Keeping domain types out is what keeps the window manager a window manager.
+- **`XLines.Ingestion` is a library; `XLines.Worker` is the host.** Originally one Worker-SDK project. Containerising it produced `NETSDK1152` — two executables in one publish output, each with its own `appsettings.json`. The error was the symptom; the real problem was that a web app referencing another app's *executable* project is a layering smell, and whichever config file won would have been nondeterministic. Splitting by role fixed both. → [ADR 0005]
+- **Web and Worker are separate processes** sharing Core/Data/Reliability/Ingestion/Observability. The UI never blocks on ingestion; ingestion failures degrade freshness, not availability. Topology is a compose profile and a startup registration, not a code change — both hosts call the same `AddXLinesIngestionScheduler()`, and the web host skips it when `Ingestion:HostScheduler` is false.
+- **The desk is its own library.** `XLines.Desk` references no other XLines project: it knows windows, keys, topics and a clock, never games or odds. The application hands it an `IWindowCatalog` (`AppWindowCatalog` over `WindowCatalog`), an `IDeskSearch` for the command palette, and publishes data-change topics into `DeskSignals` — from `DataChangeListener`, which holds one Postgres `LISTEN` connection for the host and falls back to a once-a-minute refresh while it is down. Keeping domain types out is what keeps the window manager a window manager.
 - **Adapter pattern per external source** behind `IOddsSource`/`IStatsSource`. Sources differ in auth, rate limits, schemas, and billing (The Odds API bills credits = markets × regions, not per request — a genuine reconciliation problem). Normalisation to canonical records happens at the adapter boundary, so nothing above it knows a provider's shape.
 - **Defensive parsing by design.** Adapters read every field through alias fallbacks (`id`/`eventId`/`_id`, prices as number *or* string, teams as string *or* nested `{name}`) and return zero rows on an unrecognised shape rather than throwing. Schema drift therefore surfaces as a *volume anomaly* in the KPIs — a warn — instead of a crash. → §5, [ADR 0003]
 - **Three integration styles, deliberately:** synchronous REST pulls (adapters), scheduled bulk slate ingest (batched `/odds/multi`, one call per sport regardless of game count), and post-final settlement processing that joins the journal against the time-series. Matches the sync/async/bulk transport bullet in the Senior JD. *(The original design proposed `System.Threading.Channels` between fetch and persist; see §11 for why that was dropped.)*
@@ -255,7 +255,7 @@ incident(id, title, severity, status,          -- Open|Mitigated|Resolved
 
 ## 4. Ingestion (as built)
 
-`IngestionScheduler` is a `BackgroundService` in the `LineOps.Ingestion` library, hosted by the web app by default or by `LineOps.Worker` in its own container.
+`IngestionScheduler` is a `BackgroundService` in the `XLines.Ingestion` library, hosted by the web app by default or by `XLines.Worker` in its own container.
 
 **Schedule — named jobs, triggered by state rather than the clock.** → [ADR 0012]
 
@@ -296,7 +296,7 @@ Stats ingestion is a **results pass**: post-final box scores into `player_game_s
 
 ## 5. Reliability layer — the reason this project exists
 
-`LineOps.Reliability`, referenced by both hosts. **Framing:** "I extracted the reliability concerns into a shared library" — the Senior JD's "improve patterns/standards/shared libraries" bullet, verbatim.
+`XLines.Reliability`, referenced by both hosts. **Framing:** "I extracted the reliability concerns into a shared library" — the Senior JD's "improve patterns/standards/shared libraries" bullet, verbatim.
 
 **KPIs** (computed live from `ingestion_run` by `KpiCalculator`, shown in the Ops window and published as gauges). `ReliabilityEvaluator` — and the Ops drill — also roll them up per source per day into `kpi_daily` (`RollupDailyAsync`), but nothing reads that table yet: every surface, alert and gauge computes from the run history directly.
 - **Freshness** — minutes since the last *successful* run. A later failure does not reset it. SLO < 26 h.
@@ -323,9 +323,9 @@ Stats ingestion is a **results pass**: post-final box scores into `player_game_s
 
 **Ops window:** headline metrics (sources in SLO, open alerts, rows today, open incidents), odds-feed readiness — each provider's state and why it is not running, and the line cadence in force — per-source health, the open-alert feed with one-click incident promotion, and the on-call drill. Incidents (timeline and RCA editor) and Runs (every ingestion run) are windows of their own.
 
-**The runbook is in the tool, not beside it.** `docs/runbook.md` is embedded in `LineOps.Reliability` and rendered inside the incident that raised the rule, so triage steps are in front of whoever is working it. And the relationship is a **test**: `RunbookCoverageTests` asserts a bijection between the `AlertRules` constants and the runbook's rule headings, in both directions. This came from a real failure — `budget_pressure` shipped documented, configured, and unreachable, because the budget data lived in `LineOps.Ingestion` and the reference direction is `Ingestion → Reliability`, so the alert engine structurally could not see it. The fix split *measuring* consumption (`BudgetCalculator`, in the reliability layer) from *enforcing* it (`CreditBudgetGuard`, still in ingestion), and made the drift a red build rather than a thing to remember.
+**The runbook is in the tool, not beside it.** `docs/runbook.md` is embedded in `XLines.Reliability` and rendered inside the incident that raised the rule, so triage steps are in front of whoever is working it. And the relationship is a **test**: `RunbookCoverageTests` asserts a bijection between the `AlertRules` constants and the runbook's rule headings, in both directions. This came from a real failure — `budget_pressure` shipped documented, configured, and unreachable, because the budget data lived in `XLines.Ingestion` and the reference direction is `Ingestion → Reliability`, so the alert engine structurally could not see it. The fix split *measuring* consumption (`BudgetCalculator`, in the reliability layer) from *enforcing* it (`CreditBudgetGuard`, still in ingestion), and made the drift a red build rather than a thing to remember.
 
-**Standard telemetry beside the bespoke layer** → [ADR 0015]. OpenTelemetry carries signals to whatever the operator already runs; the reliability layer keeps the domain judgments no generic exporter can make (two kinds of zero, unconfigured-is-not-an-outage, a median needs three days, unmetered is not zero). Instrumentation is BCL only — `ActivitySource` and `Meter` names live in `LineOps.Core.Diagnostics`, so the working libraries emit with no vendor dependency and `LineOps.Observability` is the single project that references OTel. The observable gauges publish the project's *own* KPIs (`lineops.source.freshness_minutes`, `lineops.budget.utilisation`, `lineops.incidents.awaiting_rca`), computed by the same `KpiCalculator` the Ops window uses rather than reimplemented — which is what makes the bespoke layer legible to standard tooling without becoming a second source of truth. Gauges read a cached snapshot, never the database: a metrics callback runs on the collection path, and blocking it on I/O is how a monitoring system becomes the outage.
+**Standard telemetry beside the bespoke layer** → [ADR 0015]. OpenTelemetry carries signals to whatever the operator already runs; the reliability layer keeps the domain judgments no generic exporter can make (two kinds of zero, unconfigured-is-not-an-outage, a median needs three days, unmetered is not zero). Instrumentation is BCL only — `ActivitySource` and `Meter` names live in `XLines.Core.Diagnostics`, so the working libraries emit with no vendor dependency and `XLines.Observability` is the single project that references OTel. The observable gauges publish the project's *own* KPIs (`xlines.source.freshness_minutes`, `xlines.budget.utilisation`, `xlines.incidents.awaiting_rca`), computed by the same `KpiCalculator` the Ops window uses rather than reimplemented — which is what makes the bespoke layer legible to standard tooling without becoming a second source of truth. Gauges read a cached snapshot, never the database: a metrics callback runs on the collection path, and blocking it on I/O is how a monitoring system becomes the outage.
 
 **Liveness and readiness are different questions.** `/health` depends on nothing, so a database outage cannot get a container killed and restarted into the same outage. `/ready` reports Postgres reachable *and* schema at the expected version — a process pointed at a database with pending migrations starts, accepts traffic, and fails every request, and no restart fixes that. Verified by stopping Postgres: `/health` stayed 200, `/ready` returned 503, and it recovered on its own.
 
@@ -333,7 +333,7 @@ Stats ingestion is a **results pass**: post-final box scores into `player_game_s
 
 ## 6. Interface — a desk, not a set of pages
 
-The UI is a **window manager**, built as its own library (`LineOps.Desk`, §2). One route hosts
+The UI is a **window manager**, built as its own library (`XLines.Desk`, §2). One route hosts
 a fixed header and footer, and between them a single **row of full-height tab windows**: each
 new window takes its place at the end of the row and the others give up the space. Windows are
 not freely placed — arbitrary placement is what dialogs and popovers above the desk are for —
@@ -406,9 +406,9 @@ Titles as `WindowCatalog` gives them.
 - **History** — starts and watches the backfill (§4) and reports, per league and season part, how much of each season the data holds: games held against what the league schedules (`SeasonCalendar.ExpectedGames` — 2,430 for an MLB regular season, 272 for an NFL one since 2021; none for an MLB postseason, whose length is not fixed), finals, finals still missing a box score, and finals with a close. The table is `DataQuality.SeasonsAsync`, so "we have the 2025 NFL season" is a number rather than a belief.
 - **Window manager** (ceiling, primary window and its share, resolution) and **Parts bin** (every desk primitive, live, for building panels against).
 
-**Fair value — what a price is worth, not only what it pays.** The best of four prices can still be a bad price, so the board holds each one against a fair price: the market's probability with the book's margin taken out (`LineOps.Core/Analytics/FairValue.cs`). `FairMarket` pairs each book's two sides *on the same number* — the two teams on a moneyline, over and under on one total, home −1.5 with away +1.5 on a handicap. The fair price is Pinnacle's de-margined pair where Pinnacle quotes that number, otherwise the average of the de-margined pairs of at least two books; one book judged against itself is always exactly its own margin short, which says nothing. A number the reference did not price gets **no** fair price and no expected value — Pinnacle's −1.5 says nothing about −2.5 without a model of how often games land on 2, and a guessed one would be a fabricated reading. `BoardService` attaches the fair price and EV to each side's `BestOffer`, and EV and hold to each book's `BookPrice`; the +EV filter and "best value" (not always the best price) read from those. At settlement, `SettlementService` stores the closing market's fair probability at the entry's number and its basis (`closing_fair_probability`, `closing_fair_basis` — "pinnacle" or "consensus"), read only from a book market that closed within three hours of the start (`FreshCloseWithin`) — a market "close" from a pull days earlier is not a close, so such a game is priced against ESPN's first-pitch reference and has no fair close (ADR 0011 amendment). `ClvResult.EvAtClose` then values the price *taken* at that fair close — unlike price-against-price CLV, it neither flatters nor punishes the book's cut — and Performance shows it stake-weighted as **Value at close**: expected dollars over dollars staked, beside ROI as "what it was worth" against "what it made".
+**Fair value — what a price is worth, not only what it pays.** The best of four prices can still be a bad price, so the board holds each one against a fair price: the market's probability with the book's margin taken out (`XLines.Core/Analytics/FairValue.cs`). `FairMarket` pairs each book's two sides *on the same number* — the two teams on a moneyline, over and under on one total, home −1.5 with away +1.5 on a handicap. The fair price is Pinnacle's de-margined pair where Pinnacle quotes that number, otherwise the average of the de-margined pairs of at least two books; one book judged against itself is always exactly its own margin short, which says nothing. A number the reference did not price gets **no** fair price and no expected value — Pinnacle's −1.5 says nothing about −2.5 without a model of how often games land on 2, and a guessed one would be a fabricated reading. `BoardService` attaches the fair price and EV to each side's `BestOffer`, and EV and hold to each book's `BookPrice`; the +EV filter and "best value" (not always the best price) read from those. At settlement, `SettlementService` stores the closing market's fair probability at the entry's number and its basis (`closing_fair_probability`, `closing_fair_basis` — "pinnacle" or "consensus"), read only from a book market that closed within three hours of the start (`FreshCloseWithin`) — a market "close" from a pull days earlier is not a close, so such a game is priced against ESPN's first-pitch reference and has no fair close (ADR 0011 amendment). `ClvResult.EvAtClose` then values the price *taken* at that fair close — unlike price-against-price CLV, it neither flatters nor punishes the book's cut — and Performance shows it stake-weighted as **Value at close**: expected dollars over dollars staked, beside ROI as "what it was worth" against "what it made".
 
-Charts via MudBlazor, behind the desk's own `DeskChart`. All maths lives in `LineOps.Core` as pure functions — `OddsMath` (American ↔ decimal ↔ implied probability, no-vig, break-even rate), `FairValue`, `Grading`, `PerformanceAnalytics`, `SeasonCalendar` — and is unit-tested against hand-checked values rather than against its own output.
+Charts via MudBlazor, behind the desk's own `DeskChart`. All maths lives in `XLines.Core` as pure functions — `OddsMath` (American ↔ decimal ↔ implied probability, no-vig, break-even rate), `FairValue`, `Grading`, `PerformanceAnalytics`, `SeasonCalendar` — and is unit-tested against hand-checked values rather than against its own output.
 
 ---
 
@@ -422,7 +422,7 @@ Deliberate choices, not defaults. → [ADR 0006]
 | **`127.0.0.1:9443:9443`** | Loopback only. Docker's short syntax binds `0.0.0.0` and would expose the app to the whole LAN — and Docker writes its own iptables rules, so a host firewall doesn't reliably save you. |
 | **Postgres not published** | The app reaches it over the compose network; no host port needed. Opt in via `compose/dev.yml` for `psql`. |
 | **Cert volume-mounted read-only** | Never `COPY`ed into the image — that breaks dev/prod parity and risks shipping a private key in a layer. |
-| **No credentials in the repo** | Passwords in `.env` (gitignored); `.env.example` committed. `*.pfx`/`*.p12`/`*.key`/`*.pem` ignored globally. `AddLineOpsData` **throws** rather than falling back to a hardcoded password — a fallback credential is one that eventually reaches production. |
+| **No credentials in the repo** | Passwords in `.env` (gitignored); `.env.example` committed. `*.pfx`/`*.p12`/`*.key`/`*.pem` ignored globally. `AddXLinesData` **throws** rather than falling back to a hardcoded password — a fallback credential is one that eventually reaches production. |
 | **Non-root · read-only rootfs · `cap_drop: ALL` · `no-new-privileges`** | The app writes only to `/keys` and `/tmp`, so everything else is immutable. Verified by probe, not assumed. |
 | **SCRAM-SHA-256 at initdb** | Password auth can never negotiate down to md5 or trust. |
 | **Memory limits** | A runaway query degrades one container, not the host. |
@@ -441,16 +441,16 @@ Deliberate choices, not defaults. → [ADR 0006]
 | .NET SDK | 10.0.204 | Only for host-side development and tests |
 | PowerShell | 7+ | The setup script |
 
-Docker alone is enough to *run* LineOps. The SDK is only needed to develop or run tests.
+Docker alone is enough to *run* XLines. The SDK is only needed to develop or run tests.
 
 ### 8.1 First-time setup
 
 ```powershell
-cd C:\Deploy\LineOps
+cd C:\Deploy\XLines
 
 # Generates .env with strong random secrets and exports the HTTPS dev certificate
 # to %USERPROFILE%\.aspnet\https\LineOps.Web.pfx, then writes the connection string to
-# LineOps.Web's and LineOps.Worker's user-secrets (§8.5). Safe to re-run; -Force regenerates.
+# XLines.Web's and XLines.Worker's user-secrets (§8.5). Safe to re-run; -Force regenerates.
 ./scripts/setup.ps1
 
 # Optional but recommended — removes browser warnings.
@@ -503,11 +503,11 @@ Set `Ingestion__HostScheduler=false` and `Reliability__HostEvaluator=false` on t
 ```powershell
 .\scripts\setup.ps1                   # .env, and the connection string in both hosts' user-secrets
 .\scripts\restore-data.ps1            # starts Postgres (compose/dev.yml) and loads the snapshot
-dotnet run --project src/LineOps.Web --launch-profile http   # http://localhost:5263
-dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
+dotnet run --project src/XLines.Web --launch-profile http   # http://localhost:5263
+dotnet run --project src/XLines.Worker   # optional: ingestion on its own host
 ```
 
-Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which `setup.ps1` writes for both `LineOps.Web` and `LineOps.Worker` from the password in `.env`; compose reads `.env` itself. The credential is deliberately not in `appsettings.json`. Both hosts' launch profiles run as Development, which is the environment user-secrets load in. Running the worker beside a web host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` and `Reliability:HostEvaluator` to false on the web host, as in §8.4.
+Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which `setup.ps1` writes for both `XLines.Web` and `XLines.Worker` from the password in `.env`; compose reads `.env` itself. The credential is deliberately not in `appsettings.json`. Both hosts' launch profiles run as Development, which is the environment user-secrets load in. Running the worker beside a web host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` and `Reliability:HostEvaluator` to false on the web host, as in §8.4.
 
 `compose/dev.yml` is what publishes Postgres on `127.0.0.1:5433` — a separate overlay, so an exposed database is opted into, not forgotten. `restore-data.ps1` loads the committed snapshot (`data/snapshots/lineops.dump`) so a second machine develops against the same games, stats and closing lines; it refuses to overwrite a database that already holds games unless given `-Force`.
 
@@ -530,11 +530,11 @@ Integration tests start their own throwaway PostgreSQL via Testcontainers, so Do
 dotnet tool install --global dotnet-ef    # once
 
 # Point at whichever database you mean; no credential is embedded in the factory
-$env:LINEOPS_CONNECTION = "Host=localhost;Port=5433;Database=lineops;Username=lineops;Password=<pw>"
+$env:XLINES_CONNECTION = "Host=localhost;Port=5433;Database=lineops;Username=lineops;Password=<pw>"
 
-dotnet ef migrations add <Name> -p src/LineOps.Data -o Migrations
-dotnet ef database update -p src/LineOps.Data
-dotnet ef migrations has-pending-model-changes -p src/LineOps.Data   # CI runs this
+dotnet ef migrations add <Name> -p src/XLines.Data -o Migrations
+dotnet ef database update -p src/XLines.Data
+dotnet ef migrations has-pending-model-changes -p src/XLines.Data   # CI runs this
 ```
 
 The app migrates itself on startup, so this is only needed when *authoring* a schema change.
@@ -545,9 +545,9 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `28P01 password authentication failed` | `POSTGRES_PASSWORD` only applies at **initdb**; an existing volume keeps its original password | `docker exec lineops-postgres psql -U lineops -d lineops -c "ALTER ROLE lineops WITH PASSWORD '<new>';"` — rotate rather than `down -v`, which discards data |
+| `28P01 password authentication failed` | `POSTGRES_PASSWORD` only applies at **initdb**; an existing volume keeps its original password | `docker exec xlines-postgres psql -U lineops -d lineops -c "ALTER ROLE xlines WITH PASSWORD '<new>';"` — rotate rather than `down -v`, which discards data |
 | Cert fails to load silently | PFX password mismatch, or `CERT_PATH` doesn't resolve | Verify the path mounts, and that `-p` matched `CERT_PASSWORD` |
-| `MSB3027 … file is locked by LineOps.Web` | A running host instance holds the DLLs | Stop `dotnet run` before `dotnet build` |
+| `MSB3027 … file is locked by XLines.Web` | A running host instance holds the DLLs | Stop `dotnet run` before `dotnet build` |
 | `NETSDK1152` duplicate publish files | Two executable projects in one publish graph | Already fixed by the library/host split — don't re-merge them ([ADR 0005]) |
 | Browser warns on the certificate | Dev cert not trusted | `dotnet dev-certs https --trust`, then restart the browser |
 
@@ -609,7 +609,7 @@ Every one came from hitting a real constraint. These are the strongest interview
 
 | Original design | As built | Why |
 |---|---|---|
-| One `LineOps.Ingestion` Worker project | Library + separate `LineOps.Worker` host | Containerising produced `NETSDK1152`; the real problem was a web app referencing another app's executable. Suppressing the error would have hidden a nondeterministic config win. → [ADR 0005] |
+| One `XLines.Ingestion` Worker project | Library + separate `XLines.Worker` host | Containerising produced `NETSDK1152`; the real problem was a web app referencing another app's executable. Suppressing the error would have hidden a nondeterministic config win. → [ADR 0005] |
 | `System.Threading.Channels` between fetch and persist | Direct batched persist | The channel would have been ceremony: a slate is a few hundred rows arriving in one response, so there is nothing to decouple. Claiming an async pipeline that buys nothing is worse than not having one. |
 | One row per poll, dedupe by natural key | **Store-on-change** | Unchanged prices carry no information. This made re-runs idempotent *by construction*, cut storage ~10×, and made every stored row a real line move. |
 | `RowsIngested == 0` means trouble | Status from what the *provider* returned | Store-on-change made "0 rows" ambiguous — quiet market vs. silent outage. Conflating them means alert fatigue or blindness. → [ADR 0003] |
@@ -632,7 +632,7 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 | Build artifact | JD language it evidences |
 |---|---|
 | Scheduled bulk ingest + batched REST adapters + settlement pass | "integration and data transport patterns (synchronous/asynchronous, bulk, loosely coupled)" |
-| `LineOps.Reliability` shared library | "improve patterns/standards/**shared libraries** to reduce technical debt" |
+| `XLines.Reliability` shared library | "improve patterns/standards/**shared libraries** to reduce technical debt" |
 | Live KPIs + Ops window | "**report operational KPIs**" |
 | Alert engine + on-call drills | "participate in **on-call support**, troubleshoot and remediate incidents" |
 | Incident log + enforced RCAs + corrective-action commits | "lead **root-cause analysis**" |
@@ -665,5 +665,5 @@ None of these change the core tables. `market` as text, nullable `player_id`, an
 
 **Resume bullet for the PROJECTS section:**
 
-> **LineOps — Sports-Data Ingestion & Analytics Operations Platform** — .NET 10 / Blazor / MudBlazor / PostgreSQL / Docker
+> **XLines — Sports-Data Ingestion & Analytics Operations Platform** — .NET 10 / Blazor / MudBlazor / PostgreSQL / Docker
 > Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 2,000+ unit, fixture and Testcontainers integration tests in GitHub Actions CI.

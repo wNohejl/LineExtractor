@@ -1,0 +1,1408 @@
+@using XLines.Data
+@using XLines.Data.CrossReference
+@using XLines.Web.Components.Snippets
+@using XLines.Desk.Windowing
+@using XLines.Web.Services
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<XLinesDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+@inject XLines.Core.Contracts.IDataTier Tier
+@inject IServiceProvider Provider
+@inject Microsoft.Extensions.Options.IOptions<XLines.Ingestion.Configuration.IngestionOptions> IngestionOptions
+
+@*
+    Line movement: how one side of a market moved at each book, a row per book.
+
+    It used to be a chart of every book and both sides at once — eight lines for two books
+    and a moneyline, each side the mirror of the other in probability, told apart by a palette
+    and a legend that drew itself over the table beneath — and then that table again, with
+    the latest prices the chart had just drawn. Apple's charting guidance is to keep a chart
+    simple and let people choose the detail, to use a small chart for glanceable information
+    about one item, and to put data in a table where nobody is being asked to analyse it. So
+    the window shows one side at a time, because the other side is its mirror, and the rows
+    are the representation: each book's open, where it is now, the move between them, when it
+    last moved, and a sparkline of the path, on one time axis shared down the column so a move
+    that hit every book in the same hour lines up.
+*@
+
+<PanelToolbar>
+    <ChildContent>
+    @* The games with moves on record — the ones this window can show. Scans are kept until
+       first pitch and then folded into one closing line (ADR 0010), so every game ahead of
+       us with a price on file is in this list. It is the only game control: the search that
+       sat beside it named the same game a second time, cut off at the window's edge. A game
+       opened from elsewhere and not in the list is added to it, so the select always names
+       the game the rows are about.
+
+       Each option leads with its day (GameOption). Capped at 280px, the select cut
+       "Dallas Cowboys at Philadelphia Eagles — Oct 26" after the dash, so the picker read as a
+       matchup trailing a stray dash and never showed the date that tells a series apart. It
+       now takes the width its longest option asks, up to the toolbar's; a window narrower than
+       that still clips, but at the end of the home club's name rather than mid-separator. *@
+    <DeskSelect TValue="int?" aria-label="Game" Class="odds-game"
+                disabled="@(_games.Count == 0 && _picked is null)"
+                Value="@(Listed(_gameId) ? _gameId : null)" ValueChanged="OnGameChanged">
+        <option value="">@(_games.Count == 0 ? "No game has moves on record" : "Games with moves…")</option>
+        @if (_picked is { } picked && !_games.Any(g => g.Id == picked.Id))
+        {
+            <option value="@picked.Id">@GameOption(picked)</option>
+        }
+        @foreach (var g in _games)
+        {
+            <option value="@g.Id">@GameOption(g)</option>
+        }
+    </DeskSelect>
+    </ChildContent>
+
+    @* The view's own switches, on the toolbar's row beside the game, as the Board's scope
+       pickers are. They had a row of their own: before the toolbar could fold, a window beside
+       the Board ran out of row, the game was cut off and the side switch fell past the edge. Now
+       they are the row's Overflow, so a narrow window folds them into More, each with its label,
+       and the game stays on the row. *@
+    <Overflow>
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Market</span>
+            <DeskSwitch Options="_marketOptions" Label="Market"
+                        Value="_market" ValueChanged="@((string market) => SetMarketAsync(market))" />
+        </div>
+
+        @* The market's two outcomes, away first as the matchup reads, Over before Under. One at a
+           time: a price that shortens on one side drifts on the other, so showing both doubles
+           the rows and says nothing the first half did not. Built from the stored outcomes, so a
+           market priced on one side offers no switch, and More no label with nothing beside it. *@
+        @if (_sideOptions.Count > 1)
+        {
+            <div class="ptoolbar__item">
+                <span class="ptoolbar__label" aria-hidden="true">Side</span>
+                <DeskSwitch TValue="string" Options="_sideOptions" Label="Side"
+                            Value="_side" ValueChanged="@((string side) => SetSide(side))" />
+            </div>
+        }
+    </Overflow>
+
+    @* The Board's pull menu, here too: a price moves only when lines are pulled (polling is
+       Manual by default), so the window that shows prices standing still offers what would move
+       them — every entry with its cost, and a metered one asking first. The standing view's Pull
+       key presses this menu rather than running anything itself. Drawn once the window has
+       loaded, as the rest of its body is. *@
+    <Actions>
+        @if (Loaded)
+        {
+            <DeskJobMenu @ref="_pull" Label="Pull data" Icon="@Icons.Material.Filled.CloudDownload" OnRan="LoadAsync" />
+        }
+    </Actions>
+</PanelToolbar>
+
+@* The failure line sits above whatever the window already holds, as the Board's does: Line
+   movement refreshes on every odds signal, and one refresh that failed must not take the rows
+   the operator was reading. Before the first load the window holds its shape — the headline
+   and the first books' rows, where they will land — because "No stored prices" said there was
+   nothing on record while the window was still asking, and a load that failed said it too. *@
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+else if ((!Loaded && !_movesIn) || _turning)
+{
+    @* Turned to another game (_turning), as before the first load: the last game's rows are
+       not this one's, and "No stored prices" is not known yet. *@
+    <DeskSkeleton Width="40%" />
+    <DeskGrid T="MovementRow" Items="@(Array.Empty<MovementRow>())" Loading="true" SkeletonRows="4"
+              LoadingLabel="Fetching the line's moves" />
+}
+
+@* Line watch (ADR 0029): the window follows what is pressed on the Board, and says what. Before
+   anything is pressed it picks nothing — a game nobody chose, shown as if it were the choice,
+   was the complaint — and shows the slate's overview instead. *@
+@if (Loaded && Overview)
+{
+    <section class="slatewatch" aria-label="The slate today">
+        <p class="slatewatch__prompt">Press a game or a price on the Board to follow it here.</p>
+
+        @if (_slate.Moves.Count > 0)
+        {
+            <h3 class="panel-h slatewatch__title">Biggest moves today</h3>
+            <div class="slatewatch__list">
+                @foreach (var move in _slate.Moves)
+                {
+                    var m = move;
+                    <button type="button" class="slatewatch__row" @onclick="() => FollowAsync(m.Game, m.Market, m.Row.Now.Outcome)"
+                            aria-label="@MoveLabel(m)">
+                        <span class="slatewatch__game">
+                            <span class="slatewatch__matchup">@Matchup(m.Game)</span>
+                            <span class="slatewatch__detail">@SelectionText.MarketWord(m.Market) · @SideLabel(m.Row.Now.Outcome) · @BookNames.Display(m.Row.Book)</span>
+                        </span>
+                        <span class="slatewatch__move num">
+                            <span>@Quote(m.Row.Open) → @Quote(m.Row.Now)</span>
+                            <span class="slatewatch__size">@MoveText(m.Row)</span>
+                        </span>
+                    </button>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="slatewatch__none">Nothing on the slate has moved today.</p>
+
+            @if (_slate.Next.Count > 0)
+            {
+                <h3 class="panel-h slatewatch__title">Next games</h3>
+                <div class="slatewatch__list">
+                    @foreach (var game in _slate.Next)
+                    {
+                        var g = game;
+                        <button type="button" class="slatewatch__row" @onclick="() => FollowAsync(g, null, null)"
+                                aria-label="@($"Follow {Matchup(g)}, {DisplayTime.Stamp(g.StartsAt)}")">
+                            <span class="slatewatch__game">
+                                <span class="slatewatch__matchup">@Matchup(g)</span>
+                                <span class="slatewatch__detail">@g.Sport?.Key.ToUpperInvariant()</span>
+                            </span>
+                            <span class="slatewatch__move num">@DisplayTime.Stamp(g.StartsAt)</span>
+                        </button>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="slatewatch__none">No game starts in the next two days.</p>
+            }
+        }
+    </section>
+}
+else
+{
+@if (Loaded && Watching && _picked is { } followed)
+{
+    @* What is being followed, in words, and the way back to the overview. *@
+    <div class="slatewatch__following" role="status">
+        <span class="slatewatch__following-text">
+            Following <strong>@Matchup(followed)</strong> · @SelectionText.MarketWord(_market)@(_side is { } side ? $" · {SideLabel(side)}" : "")
+        </span>
+        <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ArrowBack" OnClick="ShowOverviewAsync">
+            Overview
+        </DeskButton>
+    </div>
+}
+
+@if (_rows.Count == 0)
+{
+    @* An empty result means "nothing here" only once there has been a result, and only while
+       the last read did not fail. *@
+    @if (Loaded && !Failed && !_turning)
+    {
+        <EmptyState Kind="EmptyStateKind.Filtered">
+            No stored prices for this game and market. Try another market, or open the game: once
+            it starts, its moves are folded into one closing line, which the Game window shows.
+        </EmptyState>
+    }
+}
+else
+{
+    @* The finding first, then the span it was found over (HIG charts: summarise the main
+       message before the detail). The headline is about the side in focus, the same rows
+       the table shows, so the sentence and the rows never disagree about who moved. *@
+    <div class="movement">
+        <div class="movement__cap">
+            @* The side in focus leads with its club's crest when the side is a club: a total's Over
+               and Under name none, and a bout's fighters carry none. *@
+            <p class="movement__headline">
+                @if (_market != Markets.Total && Club(_side) is { } club)
+                {
+                    <TeamMark Sport="@CrestSport" Abbrev="@club.Abbrev" Size="TeamMarkSize.Small" />
+                }
+                @_headline
+            </p>
+            <p class="movement__span">@_span</p>
+        </div>
+
+        @* Where the side stands now — the fair price, each side's best, the last change on record,
+           and what could move it next — read from the board's row for this game. A side nobody
+           has moved shows each book's standing in place of the movement columns, which would be
+           "unmoved" and "seen once" in every row. *@
+        <PriceStanding Rows="_rows" Side="@SideOffer" Other="@OtherOffer"
+                       SideName="@SideName(_side)" OtherName="@SideName(OtherSide)"
+                       ShowBooks="@(!AnyMoves)" Expanded="@_expanded.Contains(_market)" ExpandedChanged="@((bool open) => SetExpanded(open))" Closing="@(_board?.PricesAreClosing == true)"
+                       Scheduled="@(_scheduled == true)"
+                       PullLabel="@PullLabel" PullUnavailable="@PullUnavailable" OnPull="PullAsync" />
+
+        @if (AnyMoves)
+        {
+        @* Ranked on the whole market and capped at the top five, as every book table on the desk is
+           (BookRanking): the books holding the best price on either side lead, then the lowest hold,
+           and the rest are behind the key under the grid. It opened sorted by book name; a heading
+           still sorts the rows showing. *@
+        <div class="oddsbooks" id="@_booksId">
+        <DeskGrid T="MovementRow" Items="BookRanking.Visible(BookRanking.Order(_rows, r => r.Book, SideOffer, OtherOffer), _expanded.Contains(_market))" Resizable="false" EmptyText="No prices on this side.">
+            @* The book by its name, as Every book names it: the feed's key ("draftkings") is
+               for joining rows, not for reading. *@
+            @* Every value here holds one line; the trend takes what is left, so the book's name
+               and its figures never break while the sparkline has room to draw its path. *@
+            <PropertyColumn T="MovementRow" TProperty="string" Property="r => r.Book" Title="Book"
+                            HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                <CellTemplate>@BookNames.Display(context.Item.Book)</CellTemplate>
+            </PropertyColumn>
+
+            @* No colour and no axis: the numbers are in the next cells, and the shape only has
+               to say which way and when. A book seen once draws a dash, not a flat line. *@
+            <TemplateColumn T="MovementRow" Title="Trend" Sortable="false" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+                <CellTemplate>
+                    <DeskSparkline Values="context.Item.Trend" Positions="context.Item.Positions" Step="true"
+                                   Label="@TrendLabel(context.Item)" />
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="MovementRow" Title="Open" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => Rank(r.Open))" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+                <CellTemplate>
+                    @* When the open was seen is a tooltip on a trigger that takes focus, not a title
+                       only a pointer raises (HIG 12). *@
+                    <DeskTooltip Text="@OpenedTooltip(context.Item)">
+                        <span class="dim movement__quote" tabindex="0">@Quote(context.Item.Open)</span>
+                    </DeskTooltip>
+                </CellTemplate>
+            </TemplateColumn>
+
+            @* Sorting on the current number is how you find the best one across books. *@
+            <TemplateColumn T="MovementRow" Title="Now" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => Rank(r.Now))" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                <CellTemplate>
+                    <span class="movement__quote">@Quote(context.Item.Now)</span>
+                </CellTemplate>
+            </TemplateColumn>
+
+            @* The arrow is the direction the number moved as it is written, the same way the
+               sparkline draws it, and nothing more: the ink is neutral because a price moving
+               is not good or bad. The tooltip says it in words — shortened or drifted. *@
+            <TemplateColumn T="MovementRow" Title="Move" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => MoveSize(r))" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                <CellTemplate>
+                    <DeskTooltip Text="@MoveTitle(context.Item, _market)">
+                        <span class="movement__move @(context.Item.Moved ? null : "dim")" tabindex="0">@MoveText(context.Item)</span>
+                    </DeskTooltip>
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="MovementRow" Title="Last moved" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => r.LastMoved ?? DateTimeOffset.MinValue)"
+                            HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+                <CellTemplate>
+                    @if (context.Item.LastMoved is { } at)
+                    {
+                        <DeskTooltip Text="@($"Last moved {DisplayTime.Stamp(at)}")">
+                            <span class="dim" tabindex="0">@Ago(at, DateTimeOffset.UtcNow)</span>
+                        </DeskTooltip>
+                    }
+                    else
+                    {
+                        @* Said in the cell: the dash meant it, but only to a pointer. When it was
+                           seen is the Open cell's tooltip. *@
+                        <span class="dim">seen once</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </DeskGrid>
+        <MoreBooks Total="_rows.Count" Expanded="@_expanded.Contains(_market)" ExpandedChanged="@((bool open) => SetExpanded(open))" Controls="@_booksId" />
+        </div>
+        }
+    </div>
+}
+
+@*
+    The cross-reference. Odds say what the market thinks; these say what actually happened.
+    Read live from the stats history by reference — nothing here is copied onto the odds tier,
+    because form changes daily and a stored copy would go stale without saying so.
+
+    Read in the same load as the moves, so it waits for that load: before the first one lands
+    "Select a game" was the answer to a question the window was still asking.
+*@
+
+@* Only with something to cross-reference. An empty roster read under a line's standing was a
+   second empty state about a different question, and pushed the window's one useful finding
+   — where the price stands — into competition with "no appearances on record". The Form window
+   and the Board row's Form glance answer it, and say how to fill it. *@
+@if (Loaded && _form is { IsEmpty: false })
+{
+<PanelSection Title="Recent form">
+
+@{ var form = _form!;
+
+    <DeskRow>
+        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
+        <span class="meta">
+            @form.LinesRead.ToString("N0") stat @(form.LinesRead == 1 ? "line" : "lines") read by reference
+        </span>
+    </DeskRow>
+
+    @RenderSide(form.Away, form.Game.AwayTeam?.Name ?? "Away", form.Game.AwayTeam)
+    @RenderSide(form.Home, form.Game.HomeTeam?.Name ?? "Home", form.Game.HomeTeam)
+}
+</PanelSection>
+}
+}
+
+@code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Odds };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    protected override string LoadSubject => "Line movement";
+
+    /// <summary>The game to show: a press in Line watch, or a link from elsewhere; otherwise the next game to start.</summary>
+    [Parameter] public int? GameId { get; set; }
+
+    /// <summary>
+    /// The market to show (<c>Markets.*</c>), from a price pressed on the Board in Line watch.
+    /// Null keeps the market the window is on: a row press names only the game.
+    /// </summary>
+    [Parameter] public string? Market { get; set; }
+
+    /// <summary>The side to show, as stored ("Kansas City Chiefs", "Over"). Null keeps the side, or the first.</summary>
+    [Parameter] public string? Outcome { get; set; }
+
+    /// <summary>
+    /// The press that aimed the window: a token Line watch issues for every Board press, and for a
+    /// game followed from the overview (LineWatch.Issue), so a press that names what the window was
+    /// last aimed at still turns it back there after the operator has looked elsewhere in it, and a
+    /// token not issued today (a desk saved on an earlier day) is not taken as today's choice
+    /// (LineWatch.IsCurrent). Object, not string: whatever a saved desk restores, it reads as text.
+    /// </summary>
+    [Parameter] public object? Press { get; set; }
+
+    /// <summary>
+    /// What the window was last aimed at, the press included. Line watch re-aims the window already
+    /// on the desk rather than opening another, so the window follows its parameters after the
+    /// first load, not only at it; a render that hands the same aim back (the window redrawn for
+    /// focus or layout) changes nothing the operator chose here.
+    /// </summary>
+    private (int? Game, string? Market, string? Outcome, string? Press)? _aimedAt;
+
+    /// <summary>The window's reads; the database's unless a test hands it others.</summary>
+    private ILineMovementData Reads => _reads ??= Provider.GetService<ILineMovementData>()
+        ?? new LineMovementData(DbFactory, ScopeFactory, Tier, IngestionOptions);
+
+    private ILineMovementData? _reads;
+
+    /// <summary>The board's row for the game: each side's best, fair price and every book's rung.</summary>
+    private BoardRow? _board;
+
+    /// <summary>This league's lines pull, as the job menu offers it; null before a read or with none.</summary>
+    private XLines.Ingestion.Services.IngestionJob? _linesJob;
+
+    /// <summary>Whether lines are scanned on a schedule; null when the setting could not be read.</summary>
+    private bool? _scheduled;
+
+    private DeskJobMenu? _pull;
+
+    private List<Game> _games = [];
+    private Game? _picked;
+    private int? _gameId;
+    private string _market = Markets.Moneyline;
+
+    /// <summary>Every stored price on the chosen market, both sides. The side switch reads from it without a query.</summary>
+    private List<OddsSnapshot> _snapshots = [];
+
+    /// <summary>
+    /// The outcome in focus, as stored. Kept across a market change when the new market has
+    /// the same outcome — a team's moneyline and its spread — and reset to the first side
+    /// when it does not.
+    /// </summary>
+    private string? _side;
+
+    private IReadOnlyList<DeskSwitchOption<string>> _sideOptions = [];
+    private IReadOnlyList<MovementRow> _rows = [];
+
+    private string _headline = string.Empty;
+    private string _span = string.Empty;
+
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _marketOptions =
+    [
+        new(Markets.Moneyline, "Moneyline"),
+        new(Markets.Spread, "Spread"),
+        new(Markets.Total, "Total")
+    ];
+
+    /// <summary>
+    /// The markets showing every book rather than the top five, by key: the operator's choice per
+    /// market, kept for as long as the window is open — across a side switch, a refresh, another
+    /// game followed — and shared by the movement grid and the standing's books, which are the
+    /// same books.
+    /// </summary>
+    private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
+
+    private void SetExpanded(bool open)
+    {
+        if (open)
+            _expanded.Add(_market);
+        else
+            _expanded.Remove(_market);
+    }
+
+    private readonly string _booksId = "oddsbooks-" + Guid.NewGuid().ToString("N")[..8];
+
+    private MatchupForm? _form;
+    private int _windowDays = 30;
+
+    /// <summary>
+    /// The chosen game's sport, for a crest — null for a bout, whose fighters carry none, and
+    /// before a game is chosen. Read off the game the window already holds with its sport.
+    /// </summary>
+    private string? CrestSport => _picked is { } game && !FightSports.IsFight(game.Sport?.Key) ? game.Sport?.Key : null;
+
+    /// <summary>The chosen game's club by the name an outcome gives it, or null for Over, Under or a bout.</summary>
+    private Team? Club(string? name)
+    {
+        if (CrestSport is null || _picked is not { } game || string.IsNullOrEmpty(name))
+            return null;
+
+        return string.Equals(name, game.AwayTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.AwayTeam
+            : string.Equals(name, game.HomeTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.HomeTeam
+            : null;
+    }
+
+    private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName, Team? team) => @<text>
+        @if (side.Count > 0)
+        {
+            @* Each roster under its club's name and crest. The crest is drawn only where the form
+               is about the game the window holds, which is where its sport is known. *@
+            <PanelSection>
+            <TitleContent>
+                @if (CrestSport is { } sport && _picked?.Id == _form?.Game.Id && team is not null)
+                {
+                    <TeamMark Sport="@sport" Abbrev="@team.Abbrev" Size="TeamMarkSize.Small" />
+                }
+                @teamName
+            </TitleContent>
+            <ChildContent>
+            <XLines.Web.Components.Snippets.RosterTable Side="side" MaxColumns="5" ShowLastPlayed="true" GrowName="true" />
+            </ChildContent>
+            </PanelSection>
+        }
+    </text>;
+
+    /// <summary>
+    /// The games list and the first game's moves, as one load. The list is read inside it rather
+    /// than ahead of it: a database that refused that first read threw out of the lifecycle and
+    /// took the circuit — the whole desk — with it, and Try again has to repeat both.
+    /// </summary>
+    protected override Task OnInitializedAsync()
+        => WithActivityAsync(async () =>
+        {
+            // Only games this reader has moves to see (ADR 0024): an evaluation feed's are the operator's.
+            _games = (await Reads.GamesAsync()).ToList();
+
+            _aimedAt = Aim;
+
+            // In Line watch the window shows what the Board pressed, and nothing until it has: a
+            // game a desk saved in an earlier run is not today's choice (LineWatch.IsCurrent).
+            // Outside it, the window opens on the next game to start, as it always has.
+            _following = !Watching || LineWatch.IsCurrent(Press);
+            _gameId = !_following ? null : GameId ?? NextUp(_games, DateTimeOffset.UtcNow)?.Id;
+
+            // An old aim restored with the desk leaves with it: the title no longer names the old
+            // game over the overview, and the desk saves the overview, not the stale game.
+            if (!_following)
+                Remember([], null);
+            _market = Market ?? _market;
+            _side = Outcome ?? _side;
+
+            await ReadAsync();
+        }, Standing, StatusLine);
+
+    /// <summary>
+    /// The game the window opens on when nothing aimed it: the next to start, or the one that
+    /// started last when none is ahead. It opened on the list's first, which was the oldest game
+    /// on file once closing lines were kept — last April's, on a desk holding a season.
+    /// </summary>
+    public static Game? NextUp(IReadOnlyList<Game> games, DateTimeOffset now)
+        => games.Where(g => g.StartsAt >= now).MinBy(g => g.StartsAt)
+           ?? games.MaxBy(g => g.StartsAt);
+
+    /// <summary>The parameters as one aim, the press as text so a saved desk's number compares.</summary>
+    private (int? Game, string? Market, string? Outcome, string? Press) Aim
+        => (GameId, Market, Outcome, Press?.ToString());
+
+    /// <summary>
+    /// Re-aimed in place (Line watch): the game, market and side a Board press names are shown as
+    /// choosing them here would show them. Only a new aim does this — a press moves the count, so
+    /// pressing the same price again after looking elsewhere here turns the window back to it —
+    /// and a render handing the same aim back leaves what the operator chose here alone.
+    /// </summary>
+    protected override Task OnParametersSetAsync()
+    {
+        var aim = Aim;
+
+        if (_aimedAt is null || _aimedAt == aim)
+            return Task.CompletedTask;
+
+        _aimedAt = aim;
+
+        if (Watching && LineWatch.IsCurrent(Press))
+            _following = true;
+        else if (Overview)
+            return Task.CompletedTask;
+
+        if (Market is not null)
+            _market = Market;
+
+        if (Outcome is not null)
+            _side = Outcome;
+
+        if (GameId is { } id && id != _gameId)
+            return OnGameChanged(id);
+
+        return LoadAsync();
+    }
+
+    /// <summary>Whether the select has an option for this game, so it names it rather than its placeholder.</summary>
+    private bool Listed(int? id)
+        => id is not null && (_games.Any(g => g.Id == id) || _picked?.Id == id);
+
+    private Task OnGameChanged(int? id)
+    {
+        _gameId = id;
+        _following = true;
+
+        return LoadAsync();
+    }
+
+    // ---- Line watch: the overview, and what is followed (ADR 0029) ------------------------
+
+    /// <summary>Line watch is the workspace on the desk, and this window answers the Board.</summary>
+    private bool Watching => LineWatch.Drives(Manager, WindowId);
+
+    /// <summary>
+    /// A game is being followed: pressed on the Board today, chosen from the overview, or picked in
+    /// the window's own select. Outside Line watch the window always follows its game.
+    /// </summary>
+    private bool _following = true;
+
+    /// <summary>Line watch with nothing chosen yet: the slate's overview stands where a game would.</summary>
+    private bool Overview => Watching && !_following;
+
+    private SlateOverview _slate = SlateOverview.Empty;
+
+    /// <summary>A row of the overview pressed: that game, and from a move its market and side, followed here.</summary>
+    private Task FollowAsync(Game game, string? market, string? outcome)
+    {
+        _following = true;
+        _gameId = game.Id;
+
+        if (market is not null)
+            _market = market;
+
+        _side = outcome;
+
+        // Followed as a Board press is: in the window's parameters and title, so the window says
+        // what it shows and a desk saved now comes back on this game, not the last one pressed.
+        var aim = new Dictionary<string, object> { ["GameId"] = game.Id, ["Press"] = LineWatch.Issue() };
+        if (market is not null)
+            aim["Market"] = market;
+        if (outcome is not null)
+            aim["Outcome"] = outcome;
+
+        Remember(aim, Matchup(game));
+        return LoadAsync();
+    }
+
+    /// <summary>Back to the overview: nothing followed until the next press.</summary>
+    private Task ShowOverviewAsync()
+    {
+        _following = false;
+        _gameId = null;
+        _picked = null;
+        Remember([], null);
+        return LoadAsync();
+    }
+
+    /// <summary>
+    /// Writes what the window now follows into its own parameters and title, as LineWatch.Show
+    /// does for a Board press: the title bar names it, and a saved desk keeps it. The aim is
+    /// noted as this window's own, so the parameters coming back on the next render re-read nothing.
+    /// The load that follows redraws the title bar (its pulse moves).
+    /// </summary>
+    private void Remember(Dictionary<string, object> aim, string? title)
+    {
+        _aimedAt = (aim.GetValueOrDefault("GameId") as int?, aim.GetValueOrDefault("Market") as string,
+            aim.GetValueOrDefault("Outcome") as string, aim.GetValueOrDefault("Press")?.ToString());
+
+        if (WindowId is null || Manager.Find(WindowId) is not { } window)
+            return;
+
+        WindowManager.Aim(window.Parameters, aim);
+        window.TitleOverride = title;
+    }
+
+    private async Task ReadSlateAsync(CancellationToken ct)
+    {
+        SlateOverview slate;
+
+        try
+        {
+            slate = await Reads.SlateAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (ct.IsCancellationRequested)
+            return;
+
+        _slate = slate;
+        _rows = [];
+        _snapshots = [];
+        _sideOptions = [];
+        _headline = string.Empty;
+        _span = string.Empty;
+    }
+
+    /// <summary>An overview row read aloud: what it follows, and the move.</summary>
+    private static string MoveLabel(SlateMove move)
+        => $"Follow {Matchup(move.Game)}, {SelectionText.MarketWord(move.Market)}, {SideLabel(move.Row.Now.Outcome)}: "
+           + $"{Quote(move.Row.Open)} to {Quote(move.Row.Now)} at {BookNames.Display(move.Row.Book)}";
+
+    /// <summary>The chosen game with its teams and sport, so the sides can be put in matchup order.</summary>
+    private async Task<Game?> PickedAsync(int? gameId, CancellationToken ct)
+        => gameId is { } id ? await Reads.GameAsync(id, ct) : null;
+
+    private async Task SetMarketAsync(string market)
+    {
+        _market = market;
+        await LoadAsync();
+    }
+
+    /// <summary>The other side of what is already loaded: nothing is read again.</summary>
+    private void SetSide(string side)
+    {
+        _side = side;
+        Focus();
+        Report(Standing(), StatusLine());
+    }
+
+    /// <summary>
+    /// A new lookback is a load like the window's others, through the same rail, so a read that
+    /// fails says so above the rosters already shown instead of ending the circuit. It read the
+    /// form alone, and a full read already in flight could land after it with the old lookback's.
+    /// </summary>
+    private Task SetWindowAsync(int days)
+    {
+        _windowDays = days;
+
+        return LoadAsync();
+    }
+
+    /// <summary>
+    /// The cross-reference read. Separate from the odds read because the two answer different
+    /// questions about the same game and only one of them changes when the market does.
+    /// </summary>
+    private async Task<MatchupForm?> ReadFormAsync(int? gameId, int days, CancellationToken ct)
+    {
+        if (gameId is not { } id)
+            return null;
+
+        return await Reads.FormAsync(id, TimeSpan.FromDays(days), ct);
+    }
+
+    /// <summary>
+    /// The read in flight, cancelled when the next starts. Board presses in Line watch re-aim the
+    /// window faster than its reads come back: the generation guard in the panel base kept an older
+    /// load from saying how the window stood, but not from handing over its rows, so the slower
+    /// read landed last and drew one game's moves under another's name — and every superseded read
+    /// ran to its end for nothing.
+    /// </summary>
+    private readonly LatestRead _latest = new();
+
+    protected override void OnDispose()
+    {
+        _latest.Cancel();
+        base.OnDispose();
+    }
+
+    /// <summary>
+    /// The window's load: the moves on the chosen market and the form beside them, with the
+    /// pulse showing activity and a failure kept to this window (PanelBase).
+    /// </summary>
+    private Task LoadAsync() => WithActivityAsync(ReadAsync, Standing, StatusLine);
+
+    /// <summary>
+    /// How the window stands once a load lands: idle with nothing to show, healthy with rows.
+    /// The side switch asks the same thing without a load, so it is one answer for both.
+    /// </summary>
+    private PulseState Standing() => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy;
+
+    /// <summary>The title bar's line: nothing before a game is chosen, "no moves", or the moves counted.</summary>
+    private string? StatusLine()
+        => _gameId is null ? null
+            : _rows.Count == 0 ? "no moves"
+            : MovesText(_rows.Sum(r => r.Moves));
+
+    /// <summary>
+    /// The window's reads, together, handed over in two steps: the moves (the game, its stored
+    /// prices, the board's row, the polling setting) as soon as all four are in, then the league's
+    /// pull and the form as each lands. They used to run one after another — six reads, the pull
+    /// alone most of the wait — with nothing handed over until the last, so a Board press in Line
+    /// watch renamed the window at once and left the last game's moves and rosters in it.
+    /// Everything is read into locals first so a refresh of the same game that throws leaves the
+    /// rows, the switches and the form as they were, its line above the moves the operator was
+    /// reading rather than in place of them.
+    ///
+    /// <para>
+    /// The game, market and lookback are taken once, as the read starts, and every read is of
+    /// them. A newer aim cancels this read (<see cref="LatestRead.Next"/>); one that comes back anyway —
+    /// a call that does not stop when asked — hands over nothing, so the window only ever shows
+    /// what the latest aim read.
+    /// </para>
+    /// </summary>
+    private async Task ReadAsync()
+    {
+        var ct = _latest.Next();
+
+        if (Overview)
+        {
+            // Back to the overview while a game's moves were still coming: that read was just
+            // cancelled and will not clear the loading shape it put up.
+            _turning = false;
+            await ReadSlateAsync(ct);
+            return;
+        }
+        var gameId = _gameId;
+        var market = _market;
+        var days = _windowDays;
+
+        // Another game than the one held: what is on screen is the last game's, and the title
+        // and the picker already name this one. The body waits in its loading shape until this
+        // game's moves land, rather than showing one game's rows and rosters under another's
+        // name for as long as the reads take — which is what a Board press in Line watch did.
+        var turned = gameId is not null && _picked?.Id != gameId;
+
+        if (turned)
+        {
+            _turning = true;
+            _form = null;
+            _board = null;
+            _snapshots = [];
+            _sideOptions = [];
+            _rows = [];
+            _headline = string.Empty;
+            _span = string.Empty;
+        }
+
+        Game? picked;
+        List<OddsSnapshot> snapshots = [];
+        bool? scheduled = null;
+        BoardRow? board;
+
+        // Every read has a context or a scope of its own, and none needs another's answer, so
+        // they go out together: the wait is the slowest read's, not the sum of six. The form is
+        // the slow one — two rosters' stat lines — and the moves are the window's subject, so
+        // the moves are handed over as soon as they are in and the form when it follows.
+        var formRead = ReadFormAsync(gameId, days, ct);
+        Quiet(formRead);
+
+        try
+        {
+            var pickedRead = _picked is { } held && held.Id == gameId ? Task.FromResult<Game?>(held) : PickedAsync(gameId, ct);
+            var boardRead = ReadBoardAsync(gameId, ct);
+
+            var snapshotsRead = gameId is { } id
+                ? Reads.SnapshotsAsync(id, market, ct)
+                : Task.FromResult<IReadOnlyList<OddsSnapshot>>([]);
+
+            // What could move these numbers next: the operator's polling setting, as Ops sets it.
+            var scheduledRead = gameId is null ? Task.FromResult<bool?>(null) : ScheduledAsync(ct);
+
+            await Task.WhenAll(pickedRead, boardRead, snapshotsRead, scheduledRead);
+
+            picked = await pickedRead;
+            board = await boardRead;
+            snapshots = (await snapshotsRead).ToList();
+            scheduled = await scheduledRead;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Superseded: the newer aim's read hands over, and its load says how the window stands.
+            return;
+        }
+        catch
+        {
+            // This game's moves did not come. The failure line says so; the loading shape under
+            // it would say the window was still asking.
+            if (!ct.IsCancellationRequested)
+                _turning = false;
+
+            throw;
+        }
+
+        if (ct.IsCancellationRequested)
+            return;
+
+        HandOverMoves(picked, snapshots, scheduled, board, market);
+
+        // The league's pull, by the game's own sport (the board's row names it too), and the
+        // form, each drawn as it lands. A newer aim between them takes the window: nothing
+        // older is handed over after it.
+        var jobRead = ReadLinesJobAsync((picked?.Sport ?? board?.Game.Sport)?.Key, ct);
+        Quiet(jobRead);
+
+        StateHasChanged();
+
+        try
+        {
+            var linesJob = await jobRead;
+
+            if (ct.IsCancellationRequested)
+                return;
+
+            if (!Equals(_linesJob, linesJob))
+            {
+                _linesJob = linesJob;
+                StateHasChanged();
+            }
+
+            var form = await formRead;
+
+            if (ct.IsCancellationRequested)
+                return;
+
+            _form = form;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+    }
+
+    /// <summary>
+    /// The window was turned to another game and that game's moves are not in yet: the body holds
+    /// its loading shape, as it does before the first load.
+    /// </summary>
+    private bool _turning;
+
+    /// <summary>
+    /// Moves have been handed over at least once. The window is not Loaded until its whole load
+    /// is back, the form included, so on first open the loading shape stood above the moves it
+    /// was waiting for; it steps aside as soon as there are moves to show.
+    /// </summary>
+    private bool _movesIn;
+
+    /// <summary>
+    /// A read left in flight when a newer aim took the window, or when another read of the same
+    /// load threw first, is never awaited; its fault is looked at here so it is not reported as
+    /// an exception nobody observed.
+    /// </summary>
+    private static void Quiet(Task read)
+        => read.ContinueWith(static t => _ = t.Exception, CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+    private async Task<bool?> ScheduledAsync(CancellationToken ct) => await Reads.ScheduledAsync(ct);
+
+    /// <summary>
+    /// The first hand-over: the game, its moves on the market, the board's row and the polling
+    /// setting, with the rows and the headline built for the side in focus.
+    /// </summary>
+    private void HandOverMoves(Game? picked, List<OddsSnapshot> snapshots, bool? scheduled, BoardRow? board, string market)
+    {
+        _turning = false;
+        _movesIn = true;
+        _picked = picked;
+        _snapshots = snapshots;
+        _scheduled = scheduled;
+        _board = board;
+
+        // The pull is a league's: kept across games of one league, so its key does not blink
+        // out and back on every press, and dropped for another's until that one is read.
+        if (_linesJob is not null && !string.Equals(_linesSport, (picked?.Sport ?? board?.Game.Sport)?.Key, StringComparison.OrdinalIgnoreCase))
+            _linesJob = null;
+
+        _linesSport = (picked?.Sport ?? board?.Game.Sport)?.Key;
+        _sideOptions = [];
+        _rows = [];
+        _headline = string.Empty;
+        _span = string.Empty;
+
+        if (_snapshots.Count == 0)
+            return;
+
+        var sides = Sides(_snapshots.Select(s => s.Outcome), market,
+            _picked?.AwayTeam?.Name, _picked?.HomeTeam?.Name);
+
+        // Short names unless two clubs share one: the White Sox and the Red Sox are both "Sox".
+        var shortNames = sides.Select(SideLabel).Distinct(StringComparer.OrdinalIgnoreCase).Count() == sides.Count;
+
+        _sideOptions = sides
+            .Select(o => new DeskSwitchOption<string>(o, shortNames ? SideLabel(o) : o, o.Contains(' ') ? o : null))
+            .ToList();
+
+        // The side asked for, as stored: a press on the Board names it as the board reads it, and
+        // a provider's "over" is the board's "Over".
+        _side = sides.FirstOrDefault(s => string.Equals(s, _side, StringComparison.OrdinalIgnoreCase)) ?? sides[0];
+
+        Focus();
+    }
+
+    /// <summary>
+    /// The board's row for the game — each side's best, its fair price, every book's rung, all to
+    /// the reader's tier (BoardService, ADR 0024) — and the league's lines pull with its cost. Read
+    /// through the wager seam the Place wager window reads them through. A row that will not come
+    /// leaves the standing to say less, not the window to fail: the moves are the window's subject.
+    /// </summary>
+    private async Task<BoardRow?> ReadBoardAsync(int? gameId, CancellationToken ct)
+    {
+        if (gameId is not { } id || Provider.GetService<IWagerData>() is not { } data)
+            return null;
+
+        try
+        {
+            return await data.RowAsync(id, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            Log.LogWarning(ex, "The board row for Line movement's standing was not read");
+            return null;
+        }
+    }
+
+    /// <summary>The league whose pull <see cref="_linesJob"/> is, so another league's game drops it.</summary>
+    private string? _linesSport;
+
+    /// <summary>The league's lines pull as the job menu offers it; null for a visitor, or where it will not come.</summary>
+    private async Task<XLines.Ingestion.Services.IngestionJob?> ReadLinesJobAsync(string? sportKey, CancellationToken ct)
+    {
+        if (sportKey is null || !Manager.Access.CanOperate || Provider.GetService<IWagerData>() is not { } data)
+            return null;
+
+        try
+        {
+            return await data.LinesJobAsync(sportKey, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            Log.LogWarning(ex, "The lines pull for Line movement's standing was not read");
+            return null;
+        }
+    }
+
+    /// <summary>Whether any book on the side in focus has moved since it opened.</summary>
+    private bool AnyMoves => _rows.Any(r => r.Moves > 0);
+
+    /// <summary>The market in focus on the board's row.</summary>
+    private MarketPair? Pair => _board is not { } row ? null
+        : row.Moneyline.Market == _market ? row.Moneyline
+        : row.Spread.Market == _market ? row.Spread
+        : row.Total.Market == _market ? row.Total
+        : null;
+
+    private BestOffer? SideOffer => OfferFor(_side);
+
+    private BestOffer? OtherOffer => OfferFor(OtherSide);
+
+    private BestOffer? OfferFor(string? outcome)
+        => outcome is null || Pair is not { } pair ? null
+            : new[] { pair.First, pair.Second }.FirstOrDefault(o => o is not null
+                && string.Equals(o.Outcome, outcome, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The market's other side, from the switch's sides; null on a market priced on one side.</summary>
+    private string? OtherSide
+        => _sideOptions.Select(o => o.Value).FirstOrDefault(s => !string.Equals(s, _side, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>A side as the switch names it: "Chiefs", "Over".</summary>
+    private static string SideName(string? outcome) => outcome is null ? string.Empty : SideLabel(outcome);
+
+    /// <summary>"Pull NFL lines · 2 credits": the job menu's own entry, at the cost it quotes; null where it cannot run.</summary>
+    private string? PullLabel
+        => _linesJob is { Available: true } job && _board?.Game.Sport is { } sport
+            ? job.EstimatedCredits > 0
+                ? $"Pull {sport.Key.ToUpperInvariant()} lines · {job.EstimatedCredits} {(job.EstimatedCredits == 1 ? "credit" : "credits")}"
+                : $"Pull {sport.Key.ToUpperInvariant()} lines"
+            : null;
+
+    /// <summary>Why the pull cannot run, in the job's words (no key, the month spent).</summary>
+    private string? PullUnavailable => _linesJob is { Available: false } job ? job.Unavailable : null;
+
+    /// <summary>
+    /// Presses the toolbar's job menu on this league's pull, so the press here and the entry there
+    /// are one run: the same confirm before credits are spent, the same busy key, the same toast.
+    /// </summary>
+    private Task PullAsync()
+        => _pull is not null && _linesJob is { } job ? _pull.RunAsync(job.Key) : Task.CompletedTask;
+
+    /// <summary>
+    /// Builds the rows and the headline for the side in focus. The window's status is not said
+    /// here: a load says it as it settles (<see cref="StatusLine"/>), the side switch after this.
+    /// </summary>
+    private void Focus()
+    {
+        _rows = _side is null ? [] : MovementRows(_snapshots, _side);
+
+        if (_rows.Count == 0)
+        {
+            _headline = string.Empty;
+            _span = string.Empty;
+            return;
+        }
+
+        _headline = Headline(_rows, _market, _side!);
+        _span = SpanText(_rows);
+    }
+
+    // ---- The movement, as data -------------------------------------------------------------
+    // Static and free of the database, so the arithmetic a reader trusts — what counts as a
+    // move, which way it went, how far — is tested on its own (OddsMovementTests).
+
+    /// <summary>
+    /// One book's prices for the side in focus, open to now.
+    ///
+    /// <para>
+    /// <see cref="Moves"/> is every observation after the first: prices are written only when
+    /// they change, so each later row is a move and the first is where the book opened.
+    /// <see cref="Trend"/> is what the sparkline draws, with <see cref="Positions"/> placing
+    /// each value on the time axis the whole table shares; it ends with the last value held to
+    /// the right edge, because a price written on change still stands until the next one.
+    /// </para>
+    /// </summary>
+    public sealed record MovementRow(
+        string Book,
+        OddsSnapshot Open,
+        OddsSnapshot Now,
+        int Moves,
+        bool TrendsLine,
+        IReadOnlyList<double> Trend,
+        IReadOnlyList<double>? Positions)
+    {
+        /// <summary>The price's change in cents, now less open. Null where either reading is broken.</summary>
+        public int? PriceCents => Cents(Now.PriceAmerican) - Cents(Open.PriceAmerican);
+
+        /// <summary>The line's change, now less open. Null on a moneyline.</summary>
+        public decimal? LineChange => Now.Line - Open.Line;
+
+        /// <summary>When the price last changed; null for a book seen once, which has not moved.</summary>
+        public DateTimeOffset? LastMoved => Moves > 0 ? Now.CapturedAt : null;
+
+        /// <summary>Whether open and now differ. A book can move and come back, which is not a move.</summary>
+        public bool Moved => (PriceCents ?? 0) != 0 || (LineChange ?? 0) != 0;
+    }
+
+    /// <summary>
+    /// An American price on a scale with no hole in it, in cents: +105 is 5, -105 is -5, and
+    /// the ten cents between them are ten here rather than the 210 their numbers differ by.
+    ///
+    /// <para>
+    /// American odds have nothing between -100 and +100, so subtracting them raw makes a move
+    /// through even money look twenty times its size, and a sparkline of them draws a cliff.
+    /// This keeps the order the numbers are written in — -120 below -110 below +105 — so the
+    /// arrow and the sparkline go the way the printed number did, and closes the gap, so the
+    /// distance is the one a bettor means by "ten cents". Zero is not a price (see
+    /// <see cref="Implied"/>), so it has no place on the scale.
+    /// </para>
+    /// </summary>
+    public static int? Cents(int american) => american switch
+    {
+        0 => null,
+        > 0 => american - 100,
+        _ => american + 100
+    };
+
+    /// <summary>
+    /// A market's outcomes in the order the desk reads them: away before home, as the
+    /// matchup reads ("Cowboys at Eagles"), and Over before Under. Anything else follows,
+    /// alphabetically, so an outcome the provider named differently is offered, not lost.
+    /// </summary>
+    public static IReadOnlyList<string> Sides(IEnumerable<string> outcomes, string market, string? away, string? home)
+    {
+        static bool Is(string outcome, string? name)
+            => name is not null && string.Equals(outcome, name, StringComparison.OrdinalIgnoreCase);
+
+        int Order(string outcome) => market == Markets.Total
+            ? Is(outcome, "over") ? 0 : Is(outcome, "under") ? 1 : 2
+            : Is(outcome, away) ? 0 : Is(outcome, home) ? 1 : 2;
+
+        return outcomes
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(Order)
+            .ThenBy(o => o, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Every book's row for one outcome. Snapshots for other outcomes are ignored, so the
+    /// whole market can be handed over and the side chosen here.
+    /// </summary>
+    public static IReadOnlyList<MovementRow> MovementRows(IEnumerable<OddsSnapshot> snapshots, string outcome)
+    {
+        var side = snapshots
+            .Where(s => string.Equals(s.Outcome, outcome, StringComparison.Ordinal))
+            .OrderBy(s => s.CapturedAt)
+            .ToList();
+
+        if (side.Count == 0)
+            return [];
+
+        // One time axis for the table: the first reading at any book to the last. A side seen
+        // at a single instant has no axis, and its sparklines are spaced evenly instead.
+        var start = side[0].CapturedAt;
+        var length = (side[^1].CapturedAt - start).TotalSeconds;
+
+        double At(DateTimeOffset t) => (t - start).TotalSeconds / length;
+
+        return side
+            .GroupBy(s => s.Book, StringComparer.Ordinal)
+            .Select(book =>
+            {
+                var seen = book.ToList();
+
+                // A handicap market draws its number when the number moved, and its price when
+                // only the juice did: a flat line beside "6¢" would say nothing happened.
+                var trendsLine = seen.All(s => s.Line is not null)
+                                 && seen.Select(s => s.Line).Distinct().Count() > 1;
+
+                var plotted = seen
+                    .Select(s => (s.CapturedAt, Value: trendsLine ? (double?)(double)s.Line!.Value : Cents(s.PriceAmerican)))
+                    .Where(p => p.Value is not null)
+                    .ToList();
+
+                var values = plotted.Select(p => p.Value!.Value).ToList();
+                List<double>? positions = length > 0 ? plotted.Select(p => At(p.CapturedAt)).ToList() : null;
+
+                // The last price stands until the latest reading anywhere on the side.
+                if (positions is not null && values.Count > 1 && positions[^1] < 1)
+                {
+                    values.Add(values[^1]);
+                    positions.Add(1);
+                }
+
+                return new MovementRow(book.Key, seen[0], seen[^1], seen.Count - 1, trendsLine, values, positions);
+            })
+            .OrderBy(r => r.Book, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The finding, in the voice a person would use saying it out loud — "Dallas Cowboys
+    /// shortened +136 to -218 at DraftKings" — about the side in focus, the book by its name.
+    ///
+    /// <para>
+    /// The biggest move is the thing worth saying, so it is found and stated, including when
+    /// there isn't one, because "nothing moved" is also a finding. A line move outranks any
+    /// price move, since it changes what the bet is; between price moves the measure is
+    /// implied probability, which is what actually moved.
+    /// </para>
+    /// </summary>
+    public static string Headline(IReadOnlyList<MovementRow> rows, string market, string outcome)
+    {
+        var biggest = rows
+            .Where(r => r.Moved)
+            .OrderByDescending(r => Math.Abs(r.LineChange ?? 0))
+            .ThenByDescending(r => Math.Abs(ImpliedChange(r)))
+            .FirstOrDefault();
+
+        if (biggest is null)
+            return "Every book is holding its opening number";
+
+        var (open, now) = (biggest.Open, biggest.Now);
+        var book = BookNames.Display(biggest.Book);
+
+        if ((biggest.LineChange ?? 0) != 0)
+        {
+            // Over and Under share one number, so a total's move belongs to the total.
+            return market == Markets.Total
+                ? $"The total moved {Bare(open.Line!.Value)} to {Bare(now.Line!.Value)} at {book}"
+                : $"{outcome} moved {OddsMath.FormatLine(open.Line!.Value, outcome)} to "
+                  + $"{OddsMath.FormatLine(now.Line!.Value, outcome)} at {book}";
+        }
+
+        // Shortened or drifted, said the way the desk would say it: a price whose implied
+        // probability rose is one the market got more confident about.
+        var who = market switch
+        {
+            Markets.Total when now.Line is { } total => $"{SideLabel(outcome)} {Bare(total)}",
+            Markets.Spread when now.Line is { } line => $"{outcome} {OddsMath.FormatLine(line, outcome)}",
+            _ => outcome
+        };
+
+        return $"{who} {(ImpliedChange(biggest) > 0 ? "shortened" : "drifted")} "
+               + $"{Price(open.PriceAmerican)} to {Price(now.PriceAmerican)} at {book}";
+    }
+
+    /// <summary>
+    /// A game as the picker lists it: "Oct 26, Dallas Cowboys at Philadelphia Eagles". The day
+    /// leads because the list is in date order and the day is what tells two games of a series
+    /// apart; and a select too narrow for the whole label loses the end of a club's name rather
+    /// than leaving a separator with nothing after it. A comma, as a sentence would put it, not
+    /// a middle dot, which read as two tags.
+    /// </summary>
+    public static string GameOption(Game game) => $"{Day(game.StartsAt)}, {Matchup(game)}";
+
+    /// <summary>
+    /// The secondary line, in words: how many moves the rows hold and the span they cover —
+    /// "14 moves from Aug 24 to Oct 24". A single day gives its hours instead, and a single
+    /// instant says it was one reading. It was the span and the count joined by a middle dot,
+    /// two facts with nothing to say how they related.
+    /// </summary>
+    public static string SpanText(IReadOnlyList<MovementRow> rows)
+    {
+        if (rows.Count == 0)
+            return string.Empty;
+
+        var first = rows.Min(r => r.Open.CapturedAt);
+        var last = rows.Max(r => r.Now.CapturedAt);
+
+        // One instant is one reading, so there is nothing to have moved.
+        if (first == last)
+            return $"Seen once, {DisplayTime.Stamp(first)}";
+
+        var span = DisplayTime.Day(first) == DisplayTime.Day(last)
+            ? $"{DisplayTime.Format(first, "MMM d HH:mm")} to {DisplayTime.Format(last, "HH:mm")} {DisplayTime.Label}"
+            : $"{DisplayTime.Day(first)} to {DisplayTime.Day(last)}";
+
+        var moves = rows.Sum(r => r.Moves);
+
+        return moves == 0
+            ? $"No moves yet, {span}"
+            : $"{MovesText(moves)} from {span}";
+    }
+
+    /// <summary>A count of moves, as the window's status and the span line both say it.</summary>
+    public static string MovesText(int moves) => moves switch
+    {
+        0 => "no moves yet",
+        1 => "1 move",
+        _ => $"{moves} moves"
+    };
+
+    /// <summary>
+    /// The Move cell: the line's change in points, then the price's in cents with the
+    /// direction the number went — "-1.5 pts · ↓ 6¢". "unmoved" for a book seen once, and
+    /// "no net move" for one that moved and came back, which are different facts.
+    /// </summary>
+    public static string MoveText(MovementRow row)
+    {
+        if (row.Moves == 0)
+            return "unmoved";
+
+        var parts = new List<string>(2);
+
+        if (row.LineChange is { } line && line != 0)
+            parts.Add($"{Signed(line)} {(Math.Abs(line) == 1 ? "pt" : "pts")}");
+
+        if (row.PriceCents is { } cents && cents != 0)
+            parts.Add($"{(cents > 0 ? "↑" : "↓")} {Math.Abs(cents)}¢");
+
+        return parts.Count == 0 ? "no net move" : string.Join(" · ", parts);
+    }
+
+    /// <summary>The Open cell's tooltip: when the opening number was first seen.</summary>
+    public static string OpenedTooltip(MovementRow row) => $"Opened {DisplayTime.Stamp(row.Open.CapturedAt)}";
+
+    /// <summary>The Move cell's tooltip: the same change in words, with what it means for the side.</summary>
+    public static string MoveTitle(MovementRow row, string market)
+    {
+        if (row.Moves == 0)
+            return $"Seen once, {DisplayTime.Stamp(row.Open.CapturedAt)}: nothing to compare it with yet";
+
+        var parts = new List<string>(2);
+
+        if (row.LineChange is { } line && line != 0)
+        {
+            parts.Add(market == Markets.Total
+                ? $"Total {Bare(row.Open.Line!.Value)} to {Bare(row.Now.Line!.Value)}"
+                : $"Line {OddsMath.FormatLine(row.Open.Line!.Value, row.Open.Outcome)} to "
+                  + $"{OddsMath.FormatLine(row.Now.Line!.Value, row.Now.Outcome)}");
+        }
+
+        if (row.PriceCents is { } cents && cents != 0)
+        {
+            parts.Add($"price {Price(row.Open.PriceAmerican)} to {Price(row.Now.PriceAmerican)}, "
+                      + $"{(ImpliedChange(row) > 0 ? "shortened" : "drifted")} {Math.Abs(cents)}¢");
+        }
+
+        if (parts.Count == 0)
+            return $"Moved {row.Moves} {(row.Moves == 1 ? "time" : "times")} and is back at its opening number";
+
+        var sentence = string.Join("; ", parts);
+        return char.ToUpperInvariant(sentence[0]) + sentence[1..];
+    }
+
+    /// <summary>
+    /// The sparkline's accessible name: what it draws, from the open to now, and how many moves
+    /// — the numbers somebody who cannot see the shape needs instead of it.
+    /// </summary>
+    public static string TrendLabel(MovementRow row)
+    {
+        var moves = row.Moves == 0 ? "seen once, no moves" : MovesText(row.Moves);
+
+        if (row.TrendsLine)
+            return $"Line {OddsMath.FormatLine(row.Open.Line!.Value, row.Open.Outcome)} to "
+                   + $"{OddsMath.FormatLine(row.Now.Line!.Value, row.Now.Outcome)}, {moves}";
+
+        return row.Moves == 0
+            ? $"Price {Price(row.Now.PriceAmerican)}, {moves}"
+            : $"Price {Price(row.Open.PriceAmerican)} to {Price(row.Now.PriceAmerican)}, {moves}";
+    }
+
+    /// <summary>
+    /// A reading as the market writes it: the price alone on a moneyline, the line and its price
+    /// on a spread or total — "+4.5 -104". A stored zero is a broken reading and says so.
+    /// </summary>
+    public static string Quote(OddsSnapshot s)
+    {
+        var price = s.PriceAmerican == 0 ? "—" : Price(s.PriceAmerican);
+
+        return s.Line is { } line ? $"{OddsMath.FormatLine(line, s.Outcome)} {price}" : price;
+    }
+
+    /// <summary>"2.0d ago", in the desk's own age wording.</summary>
+    public static string Ago(DateTimeOffset at, DateTimeOffset now)
+    {
+        var minutes = (now - at).TotalMinutes;
+
+        return minutes < 1 ? "just now" : $"{Age(minutes)} ago";
+    }
+
+    /// <summary>A side's name on the switch: the club's last word, or Over and Under capitalised.</summary>
+    private static string SideLabel(string outcome)
+    {
+        var label = SelectionText.Short(outcome);
+
+        return label.Length == 0 ? label : char.ToUpperInvariant(label[0]) + label[1..];
+    }
+
+    /// <summary>
+    /// What a column sorts on: the line first where there is one, then the price on the cents
+    /// scale, so books on the same number sort by what they pay. A broken price sorts last.
+    /// </summary>
+    private static double Rank(OddsSnapshot s)
+        => (double)(s.Line ?? 0m) * 10_000 + (Cents(s.PriceAmerican) ?? -9_999);
+
+    /// <summary>How big a move was, for sorting the Move column: points first, then cents.</summary>
+    private static double MoveSize(MovementRow row)
+        => (double)Math.Abs(row.LineChange ?? 0m) * 10_000 + Math.Abs(row.PriceCents ?? 0);
+
+    /// <summary>The change in implied probability, open to now. Zero where either price is broken.</summary>
+    private static double ImpliedChange(MovementRow row)
+        => Implied(row.Now.PriceAmerican) is { } now && Implied(row.Open.PriceAmerican) is { } open
+            ? now - open
+            : 0;
+
+    /// <summary>
+    /// Implied probability, or null where the price cannot carry one.
+    ///
+    /// <para>
+    /// Zero is not a price — there is no American odds value between -100 and +100 — so
+    /// <c>OddsMath.ImpliedProbability</c> rejects it rather than inventing an answer. That
+    /// contract is right, and it is deliberately not softened there. But it means a single
+    /// malformed row from a provider would otherwise take down the whole window: the throw
+    /// lands in the load, not in one cell. A stored zero is a broken reading, so it is shown
+    /// as one and the rest of the market still renders.
+    /// </para>
+    /// </summary>
+    private static double? Implied(int american)
+        => american == 0 ? null : OddsMath.ImpliedProbability(american);
+
+    private static string Signed(decimal value)
+        => (value > 0 ? "+" : "") + value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>A total's number, unsigned: "47.5", since Over and Under both read it.</summary>
+    private static string Bare(decimal value)
+        => Math.Abs(value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+}

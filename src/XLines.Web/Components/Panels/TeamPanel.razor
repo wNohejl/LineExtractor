@@ -1,0 +1,547 @@
+@using XLines.Core.Entities
+@using XLines.Data
+@using XLines.Data.CrossReference
+@using XLines.Desk.Primitives
+@using Microsoft.EntityFrameworkCore
+@using XLines.Web.Components.Snippets
+@using XLines.Desk.Windowing
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    A team on its own — the destination for following a name off any board, slate or game view.
+
+    Deliberately not scoped to any one game: the question a team name answers is "how has this
+    side actually been playing", and a game that led here is context for that question rather
+    than a boundary on it.
+
+    Both halves are stacks of expandable rows rather than static tables, which is the same
+    interaction the slate and board use. A game row opens onto how that game sat against the
+    number; a player row opens onto their last five. Neither costs a window, because the answer
+    is usually one glance and spending a slot on it would evict something (ADR 0007).
+
+    Splits filter rows already loaded. Toggling between home and away is a re-render, not a
+    round trip, so situations can be flicked through at reading speed.
+*@
+
+@* The failure line sits above whatever the window already holds, as the Board's does. The
+   window refreshes on every game signal, and one refresh that failed used to replace a loaded
+   team with the sentence. *@
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (_team is null)
+{
+    @if (!Failed)
+    {
+        @* The title row and the first rows of the game log, in the places they will land — a
+           sentence saying the team is loading is a placeholder shaped like nothing. *@
+        <DeskSkeleton Width="40%" />
+        <div class="loglist">
+            @for (var i = 0; i < 3; i++)
+            {
+                <div class="logrow"><div class="logrow__head logrow__head--placeholder"><DeskSkeleton Width="100%" /></div></div>
+            }
+        </div>
+    }
+}
+else
+{
+    <PanelTitle>
+        @* The club's hero crest heads its own window; a fighter has none (TeamMark draws nothing). *@
+        <ChildContent><TeamMark Sport="@_team.Sport?.Key" Abbrev="@_team.Abbrev" Size="TeamMarkSize.Hero" />@_team.Name</ChildContent>
+        @* The season on screen is said once, by the detail line ("5-2 in the 2026 season"),
+           even when there is only one and the gate has nothing to offer — a record without its
+           season is a number without a unit. It was also an Info tag on the name's row, which
+           said it twice and floated beside the title rather than qualifying the record. *@
+        <Tags>
+            <Tag>@_team.Sport?.Name</Tag>
+        </Tags>
+        <Detail>
+            @GameLogSplits.FormatRecord(_visible) @SeasonPhrase
+            (@_visible.Count @(_visible.Count == 1 ? "game" : "games")@(_split == GameLogSplits.Split.All && _opponent is null ? "" : ", filtered"))
+        </Detail>
+        @* The season gate. One position per season this team has played in, newest first;
+           it hides itself when there is only one, because one season is not a choice. Past five
+           a switch is a row of years wider than the title (HIG 7), so it becomes a select of the
+           same options, still newest first. *@
+        <Keys>
+            @if (_seasonOptions.Count > 5)
+            {
+                <DeskSelect TValue="int" aria-label="Season" Mono="true"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))">
+                    @foreach (var option in _seasonOptions)
+                    {
+                        <option value="@option.Value">@option.Label</option>
+                    }
+                </DeskSelect>
+            }
+            else
+            {
+                <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+            }
+        </Keys>
+    </PanelTitle>
+
+    @if (IsFight)
+    {
+        @* The fighter's profile draws its own groups (FighterView), so it is not wrapped in a
+           card: a card around them would be a box around boxes. *@
+        <PanelSection Title="Fighter">
+            <FighterView TeamId="TeamId" />
+        </PanelSection>
+    }
+
+    @* Section cards in a .wflow (the Desk's grouping contract): the log and the roster are two
+       cards, each named in the bar at its top, side by side in a window wide enough for two and
+       stacked in a narrow one. The lists inside draw no second frame (TeamPanel.razor.css). *@
+    <div class="wflow team-flow">
+    @* The record for what is on screen trails the title, so a split states its own result
+       rather than leaving the operator to count tags; what it was read against (ATS, totals,
+       how many games had a closing line) is the footer under the card. The keys and the footer
+       are handed over only when there is a log: a fragment that is present but empty would
+       still draw its slot over the "nothing recorded" line. *@
+    <FormGroup Title="@(IsFight ? "Bouts on the desk" : "Recent games")"
+               Keys="@(_log.Count > 0 ? RecordKeys : null)"
+               Footer="@(_log.Count > 0 ? RecordFooter : null)"
+               GroupClass="team-card">
+        @* The splits, as the card's first row: two compact filters side by side, each with its
+           label (a split row). Every option filters the same loaded log, so nothing here
+           queries. Picking an opponent is a filter the strip cannot express, so it answers by
+           standing every position up and showing no cap at all — which is true, and reads
+           better than leaving one lit under a filter it is not doing. *@
+        @if (_log.Count > 0 && !IsFight)
+        {
+            <div class="wgroup__row wgroup__split team-splits">
+                <div class="wgroup__cell">
+                    <span class="wgroup__label" aria-hidden="true">Games</span>
+                    <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
+                                Value="@(_opponent is null ? _split : null)"
+                                ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
+                </div>
+                @if (_opponents.Count > 1)
+                {
+                    <div class="wgroup__cell">
+                        <span class="wgroup__label" aria-hidden="true">Opponent</span>
+                        <DeskSelect TValue="string" Class="team-splits__pick" aria-label="Opponent"
+                                    Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
+                            <option value="">vs anyone</option>
+                            @foreach (var name in _opponents)
+                            {
+                                <option value="@name">vs @name</option>
+                            }
+                        </DeskSelect>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_log.Count == 0)
+        {
+            <EmptyState Kind="EmptyStateKind.Filtered">No games on record for this season.</EmptyState>
+        }
+        else if (_visible.Count == 0)
+        {
+            <EmptyState Kind="EmptyStateKind.Filtered">No games match this split.</EmptyState>
+        }
+        else
+        {
+            @* The card is the group: the list inside it carries no fill or edge of its own,
+               the rows only an inset hairline between them. *@
+            <div class="loglist">
+                @foreach (var row in _visible)
+                {
+                    @* A disclosure: the triangle leads, the cells are its label, and the game's
+                       reading against the number is what it discloses. *@
+                    <DeskDisclosure Class="logrow" SummaryClass="logrow__head"
+                                    Open="@(_openGame == row.GameId)"
+                                    OpenChanged="@((bool open) => SetGame(row.GameId, open))">
+                        <Summary>
+                            <span class="logrow__date dim">@Day(row.StartsAt)</span>
+                            <span class="logrow__opp trunc">@(row.Home || IsFight ? "vs" : "at") <TeamMark Sport="@row.SportKey" Abbrev="@row.OpponentAbbrev" />@row.Opponent</span>
+
+                            @if (!IsFight)
+                            {
+                            <span class="logrow__score mono">
+                                @(row.HasScore ? $"{row.ScoreFor}-{row.ScoreAgainst}" : "—")
+                            </span>
+                            }
+
+                            @if (ResultTag.Of(row.Won, row.ScoreFor, row.ScoreAgainst) is { } result)
+                            {
+                                <ResultTag Result="@result" />
+                            }
+                            else
+                            {
+                                @* Live reads as it does on the Board and in the Game window. *@
+                                <Tag State="@(row.Status == GameStatus.Live ? DeskState.Warning : TagStates.Won(row.Won))"
+                                     Live="@(row.Status == GameStatus.Live)">
+                                    @TagStates.StatusWord(row.Status)
+                                </Tag>
+                            }
+
+                            @* The ATS tag rides on the closed row: it is the column an operator
+                               scans for, and hiding it behind an expand would defeat the log. *@
+                            @if (!IsFight && row.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
+                            {
+                                <ResultTag Result="@cover"
+                                           Title="@($"Against a closing spread of {row.ClosingSpread}")">
+                                    @(ats == EntryResult.Win ? "Covered" : ats == EntryResult.Loss ? "Missed" : "Push")
+                                </ResultTag>
+                            }
+                        </Summary>
+                        <ChildContent>
+                            <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"game-{row.GameId}")">
+                                <GameResultSnippet Row="row" />
+
+                                <DeskRow>
+                                    <DeskButton Size="DeskKeySize.Small"
+                                                Icon="@Icons.Material.Filled.SportsScore"
+                                                OnClick="() => OpenGameAsync(row.GameId)">
+                                        Open game
+                                    </DeskButton>
+
+                                    <DeskButton Size="DeskKeySize.Small"
+                                                Icon="@Icons.Material.Filled.ShowChart"
+                                                OnClick="() => LaunchMovement(row)">
+                                        Movement
+                                    </DeskButton>
+                                </DeskRow>
+                            </DeskStack>
+                        </ChildContent>
+                    </DeskDisclosure>
+                }
+            </div>
+        }
+    </FormGroup>
+
+    @* A fighter is a side of one (ADR 0021): no roster — the profile leads, above. *@
+    @if (!IsFight)
+    {
+    <FormGroup Title="Roster form" GroupClass="team-card">
+    @if (_roster.Count == 0)
+    {
+        <EmptyState Kind="EmptyStateKind.Filtered">No appearances on record for this roster this season.</EmptyState>
+    }
+    else
+    {
+        <div class="loglist">
+            @foreach (var player in _roster)
+            {
+                <DeskDisclosure Class="logrow" SummaryClass="logrow__head"
+                                Open="@(_openPlayer == player.PlayerId)"
+                                OpenChanged="@((bool open) => SetPlayer(player.PlayerId, open))">
+                    <Summary>
+                        <span class="logrow__opp trunc" title="@player.Name">@player.Name</span>
+                        @* No position is left out rather than drawn as a dash: "— 5 GP" read as a
+                           stat that failed to load, when the games count is the whole answer. *@
+                        @if (player.Position is { Length: > 0 } position)
+                        {
+                            <span class="dim">@position</span>
+                        }
+                        <span class="dim mono">@player.Appearances.ToString("N0") GP</span>
+                    </Summary>
+                    <ChildContent>
+                        <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"player-{player.PlayerId}")">
+                            <PlayerRecentSnippet PlayerId="player.PlayerId" />
+
+                            <DeskRow>
+                                <DeskButton Size="DeskKeySize.Small"
+                                            Icon="@Icons.Material.Filled.Person"
+                                            OnClick="() => LaunchPlayer(player)">
+                                    Full game log
+                                </DeskButton>
+                            </DeskRow>
+                        </DeskStack>
+                    </ChildContent>
+                </DeskDisclosure>
+            }
+        </div>
+    }
+    </FormGroup>
+    }
+    </div>
+}
+
+<FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
+
+@code {
+    protected override string LoadSubject => "The team";
+
+    private bool IsFight => FightSports.IsFight(_team?.Sport?.Key);
+
+    /// <summary>
+    /// The record for whatever is on screen, on the log card's bar, so a split states its own
+    /// result rather than leaving the operator to count tags.
+    /// </summary>
+    private RenderFragment RecordKeys => @<span class="mono">@GameLogSplits.FormatRecord(_visible)</span>;
+
+    /// <summary>
+    /// What the record was read against, under the log card: against the spread and the total,
+    /// and how many of the games on screen had a closing line. ATS is only shown when there is
+    /// market data behind it — a 0-0-0 would read as "never covered" rather than "never priced".
+    /// Home and away, a spread and a points total are a team's; a fighter has none (ADR 0021).
+    /// </summary>
+    private RenderFragment RecordFooter => @<text>@string.Join(" · ", RecordReadings())</text>;
+
+    private IEnumerable<string> RecordReadings()
+    {
+        if (!IsFight && _atsWins + _atsLosses + _atsPushes > 0)
+            yield return $"{_atsWins}-{_atsLosses}{(_atsPushes > 0 ? $"-{_atsPushes}" : "")} ATS";
+        if (!IsFight && _overs + _unders > 0)
+            yield return $"{_overs} O / {_unders} U";
+        yield return $"{_covered} of {_visible.Count} with a closing line";
+    }
+
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    /// <summary>
+    /// The most addressed games one refresh asks about before it reloads without asking. A notice
+    /// lists at most <see cref="DataTopics.MaxAddressed"/>, but the settle folds a burst of notices
+    /// into one refresh, and past this many the check stops being the cheap half of the choice.
+    /// </summary>
+    public const int MostGamesChecked = 4 * DataTopics.MaxAddressed;
+
+    /// <summary>
+    /// Reloads only for a change to one of this team's games. The window used to read all of
+    /// itself again — seasons, the roster aggregate, the log and its closes — on any score
+    /// anywhere: another league's live poll, a backfill. The games on screen cannot be the filter,
+    /// because the team's own new game (one that starts, a box score that lands after the load)
+    /// has an id the window never held; so the addressed ids are asked of the database instead.
+    /// A bare notice, or a refresh that does not say what changed, reloads as before.
+    /// </summary>
+    protected override async Task RefreshAsync(IReadOnlySet<string> heard)
+    {
+        if (await HeardOwnGameAsync(heard, PlaysInAnyAsync, _reads.Gone, "The team's"))
+            await LoadAsync();
+    }
+
+    /// <summary>
+    /// The games a refresh heard of, when every token addresses one under <c>games</c> and there
+    /// are few enough to ask about; null when the refresh must reload regardless — nothing said
+    /// what changed, a bare topic was heard, or more than <see cref="MostGamesChecked"/> games.
+    /// Shared with the Player window, which makes the same choice.
+    /// </summary>
+    public static int[]? AddressedGames(IReadOnlySet<string> heard)
+        => NoticeTokens.Addressed(heard, DataTopics.Games, MostGamesChecked);
+
+    /// <summary>The check's query: those of the games that this team played in, by primary key.</summary>
+    public static IQueryable<Game> OwnGames(XLinesDbContext db, int teamId, int[] ids)
+        => db.Games.AsNoTracking()
+            .Where(g => ids.Contains(g.Id) && (g.HomeTeamId == teamId || g.AwayTeamId == teamId));
+
+    /// <summary>
+    /// Whether any of these games is this team's, on a context of its own. Virtual so a test
+    /// bench can answer it without a database.
+    /// </summary>
+    protected virtual async Task<bool> PlaysInAnyAsync(int[] ids, CancellationToken ct)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<XLinesDbContext>();
+
+        return await OwnGames(db, TeamId, ids).AnyAsync(ct);
+    }
+
+    /// <summary>
+    /// The load in flight, cancelled when the next starts: a season picked, or the window re-aimed,
+    /// while a load ran let the slower, superseded one hand over last and paint the old season.
+    /// Its <see cref="LatestRead.Gone"/> is for the own-game check, which is not a load.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    protected override void OnDispose()
+    {
+        _reads.Cancel();
+        base.OnDispose();
+    }
+
+    /// <summary>
+    /// The team this view is about. Taken as an id rather than an object so the view can be
+    /// hosted as a desk window, which is rebuilt from its parameters and cannot carry a
+    /// reference.
+    /// </summary>
+    [Parameter, EditorRequired] public int TeamId { get; set; }
+
+    private static readonly GameLogSplits.Split[] _splits =
+    [
+        GameLogSplits.Split.All,
+        GameLogSplits.Split.Home,
+        GameLogSplits.Split.Away,
+        GameLogSplits.Split.Last5,
+        GameLogSplits.Split.Last10
+    ];
+
+    /// <summary>
+    /// The strip's positions. Nullable so that "an opponent is picked" — which is not one
+    /// of them — can be stated as a value that matches nothing, leaving the gate capless.
+    /// </summary>
+    private static readonly IReadOnlyList<DeskSwitchOption<GameLogSplits.Split?>> _splitOptions =
+        [.. _splits.Select(s => new DeskSwitchOption<GameLogSplits.Split?>(s, GameLogSplits.Label(s)))];
+
+    private readonly FollowUpLauncher _followUps = new();
+
+    private Team? _team;
+    private IReadOnlyList<TeamGameLogRow> _log = [];
+    private IReadOnlyList<TeamGameLogRow> _visible = [];
+    private IReadOnlyList<PlayerForm> _roster = [];
+    private IReadOnlyList<string> _opponents = [];
+
+    private GameLogSplits.Split _split = GameLogSplits.Split.All;
+    private string? _opponent;
+    private int? _openGame;
+    private int? _openPlayer;
+
+    /// <summary>
+    /// The season on screen. Null only for a team with no season on record, where the reader
+    /// falls back to a wide rolling window rather than showing nothing.
+    /// </summary>
+    private int? _seasonYear;
+    private IReadOnlyList<int> _seasons = [];
+    private IReadOnlyList<DeskSwitchOption<int>> _seasonOptions = [];
+
+    /// <summary>Wide on purpose: only reached when the team has no season to bound by.</summary>
+    private static readonly TimeSpan FallbackWindow = TimeSpan.FromDays(365);
+
+    private int _atsWins, _atsLosses, _atsPushes, _overs, _unders, _covered;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private string? SeasonLabel => _seasonYear is { } year && _team?.Sport?.Key is { } sport
+        ? SeasonCalendar.Label(sport, year)
+        : null;
+
+    private string SeasonPhrase => SeasonLabel is { } season
+        ? $"in the {season} season"
+        : "over the last year";
+
+    private async Task SetSeasonAsync(int year)
+    {
+        _seasonYear = year;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            // Taken inside the work so Try again, which repeats it, starts a read of its own.
+            var ct = _reads.Next();
+            var teamId = TeamId;
+            var asked = _seasonYear;
+
+            // Read into locals and handed over at once, and only by the latest load. The reads
+            // share the scope's one context, so they stay one after another.
+            await LatestRead.HandOverAsync(ct, async () =>
+            {
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
+                var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+                // The seasons this team has played in decide the gate; the newest is the default.
+                var seasons = await log.SeasonsForTeamAsync(teamId, ct);
+
+                var seasonYear = PickSeason(seasons, asked);
+
+                // The roster still comes from the aggregate side — per-player form over a season is
+                // exactly what it is for. Only the games are read at game grain.
+                var form = await lookup.GetTeamAsync(teamId, FallbackWindow, maxPlayers: 15, seasonYear: seasonYear, ct: ct);
+
+                var games = await log.TeamGameLogAsync(teamId, FallbackWindow, seasonYear, ct);
+
+                return (Seasons: seasons, SeasonYear: seasonYear, Form: form, Games: games);
+            },
+            read =>
+            {
+                _seasons = read.Seasons;
+                _seasonYear = read.SeasonYear;
+                _team = read.Form?.Team;
+                _roster = read.Form?.Roster ?? [];
+
+                _seasonOptions = SeasonOptions(_team?.Sport?.Key, _seasons);
+
+                _log = read.Games;
+                _opponents = GameLogSplits.Opponents(_log);
+
+                ApplySplit();
+            });
+        },
+        settle: () => _team is null ? PulseState.Idle : PulseState.Healthy,
+        status: () => _team is null ? "not found" : StateStatus(_log, SeasonLabel));
+    }
+
+    private void SelectSplit(GameLogSplits.Split split)
+    {
+        _split = split;
+        _opponent = null;
+        ApplySplit();
+    }
+
+    private void OnOpponentChanged(string value)
+    {
+        _opponent = string.IsNullOrEmpty(value) ? null : value;
+
+        // An opponent filter is its own view of the log rather than a refinement of "last 5",
+        // which would otherwise silently mean "the last 5 games, of which some are vs them".
+        if (_opponent is not null)
+            _split = GameLogSplits.Split.All;
+
+        ApplySplit();
+    }
+
+    /// <summary>
+    /// Recomputes what is on screen and the records that describe it. Pure filtering over the
+    /// loaded log — no query runs here, which is what makes the strip feel instant.
+    /// </summary>
+    private void ApplySplit()
+    {
+        _visible = _opponent is { } opponent
+            ? GameLogSplits.VersusOpponent(_log, opponent)
+            : GameLogSplits.Apply(_log, _split);
+
+        (_atsWins, _atsLosses, _atsPushes) = GameLogSplits.AtsRecord(_visible);
+        (_overs, _unders, _) = GameLogSplits.TotalRecord(_visible);
+        _covered = GameLogSplits.WithClosingLine(_visible);
+
+        // A row that just left the view must not stay expanded underneath the filter.
+        if (_openGame is { } open && _visible.All(r => r.GameId != open))
+            _openGame = null;
+    }
+
+    // One row open at a time in each list: opening a row closes the one that was open, and
+    // closing a row closes only that one.
+    private void SetGame(int gameId, bool open)
+        => _openGame = open ? gameId : _openGame == gameId ? null : _openGame;
+
+    private void SetPlayer(int playerId, bool open)
+        => _openPlayer = open ? playerId : _openPlayer == playerId ? null : _openPlayer;
+
+    /// <summary>How a game reads from this team's side, for a window title.</summary>
+    private static string Against(TeamGameLogRow row) => $"{(row.Home ? "vs" : "at")} {row.Opponent}";
+
+    private Task LaunchMovement(TeamGameLogRow row)
+    {
+        _followUps.Launch(Manager, WindowCatalog.Odds, "GameId", row.GameId, Against(row));
+        return Task.CompletedTask;
+    }
+
+    private Task LaunchPlayer(PlayerForm player)
+    {
+        // In this window, with Back to the team, rather than a dialog or a column of its own.
+        Manager.OpenPlayer(player.PlayerId, player.Name, WindowId);
+        return Task.CompletedTask;
+    }
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+        if (await board.GetRowAsync(gameId) is { } row)
+            Manager.OpenGame(row.Game, WindowId);
+    }
+}

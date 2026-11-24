@@ -84,7 +84,7 @@ class names, and it lands in the shape. The **Window manager** is the live refer
 of several sections: section cards in a flow that gains columns as it widens, a split row, a
 card that takes the rest of the row for a grid of tiles, and a filter in a card's bar.
 
-In the Desk's own repository, the LineOps wager window (`BoardWager.razor`) is the worked
+In the Desk's own repository, the XLines wager window (`BoardWager.razor`) is the worked
 example the references cite: a grouped form in three steps, a segmented control per market,
 each group a fill with one hairline.
 

@@ -2,7 +2,7 @@
 
 **Status:** Accepted, 2026-11-22. Built in the Desk (`FormGroup`, `DeskCardSpan`, `.wflow`,
 `.wgroup__split`, `DeskThemePicker`'s `Group`) and the Window manager; the hand-spelled sections
-in `LineOps.Web` are still to move to it.
+in `XLines.Web` are still to move to it.
 
 **Amends:** [ADR 0016](0016-apple-feel-design-system.md) and the October 2026 house rule it grew
 (a group is a fill with one hairline edge), which now says where a group's name goes;
@@ -112,7 +112,7 @@ Windows, Tab groups, Primary window, Resolution and Workspaces.
 ## Consequences
 
 - `.wgroup__head`, the old header above the group, stays in `desk.css` for the sections
-  `LineOps.Web` still spells by hand; it is the old spelling and nothing new uses it. The hand
+  `XLines.Web` still spells by hand; it is the old spelling and nothing new uses it. The hand
   spelling of the new card, where `FormGroup` cannot be used, is `section.wsection >
   div.wgroup > div.wgroup__bar > h3.wgroup__title (+ div.wgroup__keys)`, then the rows, then
   `p.wgroup__foot` after the `.wgroup`.

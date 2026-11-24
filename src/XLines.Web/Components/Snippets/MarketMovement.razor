@@ -1,0 +1,296 @@
+@namespace XLines.Web.Components.Snippets
+@using XLines.Core.Entities
+@using XLines.Data
+@using XLines.Data.CrossReference
+@using XLines.Web.Components.Panels
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<XLinesDbContext> DbFactory
+@inject ILogger<MarketMovement> Logger
+@inject XLines.Core.Contracts.IDataTier Tier
+@implements IDisposable
+
+@*
+    One market opened in place, under its row in the Game window: what the Line movement window
+    says about it, without leaving the game.
+
+    What it shows turns on what is held (ADR 0010). Before the start the scans are on file, so
+    the row shows how each book moved one side, as Line movement does: a headline, then a row
+    per book with its trend, open, now and move. Once the game starts the scans are folded into
+    one close per book and there is no path left to draw, so the row shows what there is, which
+    is every book's close on both sides. That used to be a hover tooltip on each price.
+
+    The arithmetic is Line movement's own (OddsPanel's static readers, under OddsMovementTests),
+    so the window and the row never disagree about what moved.
+*@
+
+<div class="gamemove" id="@Id" role="region" aria-label="@($"{MarketName} at every book")">
+    @if (Closing)
+    {
+        @RenderEveryBook()
+    }
+    else if (_read.Loading)
+    {
+        <DeskSkeleton Lines="3" />
+    }
+    else if (_read.Error is not null)
+    {
+        <SnippetFailure Message="@_read.Error" OnRetry="LoadAsync" />
+    }
+    else if (_rows.Count == 0)
+    {
+        @* No scan on this market: the best price above is all there is, so show every book's. *@
+        @RenderEveryBook()
+    }
+    else
+    {
+        <div class="gamemove__head">
+            <p class="gamemove__headline">@_headline</p>
+            @if (_sideOptions.Count > 1)
+            {
+                <DeskSwitch TValue="string" Options="_sideOptions" Label="@($"{MarketName} side")"
+                            Size="DeskKeySize.Small" Value="_side" ValueChanged="SetSide" />
+            }
+        </div>
+
+        <table class="grid grid--tight gamemove__table">
+            <thead>
+                <tr>
+                    <th>Book</th>
+                    <th>Trend</th>
+                    <th class="r">Open</th>
+                    <th class="r">Now</th>
+                    <th class="r">Move</th>
+                </tr>
+            </thead>
+            <tbody>
+                @* Ranked on the whole market and capped, as every book table is (BookRanking): the
+                   same five books lead here as in More bets and Line movement. *@
+                @foreach (var row in BookRanking.Visible(BookRanking.Order(_rows, r => r.Book, First, Second), IsExpanded, MaxBooks))
+                {
+                    <tr>
+                        <td class="trunc">@BookNames.Display(row.Book)</td>
+                        <td>
+                            <DeskSparkline Values="row.Trend" Positions="row.Positions" Step="true" Width="64" Height="16"
+                                           Label="@OddsPanel.TrendLabel(row)" />
+                        </td>
+                        <td class="r dim gamemove__quote">
+                            <DeskTooltip Text="@($"Opened {DisplayTime.Stamp(row.Open.CapturedAt)}")">
+                                <span tabindex="0">@OddsPanel.Quote(row.Open)</span>
+                            </DeskTooltip>
+                        </td>
+                        <td class="r gamemove__quote">@OddsPanel.Quote(row.Now)</td>
+                        <td class="r gamemove__quote @(row.Moved ? null : "dim")">
+                            <DeskTooltip Text="@OddsPanel.MoveTitle(row, Market)">
+                                <span tabindex="0">@OddsPanel.MoveText(row)</span>
+                            </DeskTooltip>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <MoreBooks Total="_rows.Count" Top="MaxBooks" Expanded="IsExpanded" ExpandedChanged="SetExpandedAsync" Controls="@Id" />
+
+        <p class="gamemove__foot">
+            <span>@OddsPanel.SpanText(_rows)</span>
+            @if (OnOpenWindow.HasDelegate)
+            {
+                @* The window is for the moves over time and the side's standing; every book is the
+                   key above, so this no longer says "All 10 books…". *@
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ShowChart"
+                            OnClick="() => OnOpenWindow.InvokeAsync()">
+                    Line movement…
+                </DeskButton>
+            }
+        </p>
+    }
+</div>
+
+@code {
+    /// <summary>The window's game.</summary>
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    /// <summary>The market's key (<see cref="Markets"/>).</summary>
+    [Parameter, EditorRequired] public string Market { get; set; } = Markets.Moneyline;
+
+    /// <summary>The market as the row names it: "Moneyline", "Total rounds".</summary>
+    [Parameter, EditorRequired] public string MarketName { get; set; } = string.Empty;
+
+    /// <summary>The two sides in the order the row shows them, away then home, Over then Under.</summary>
+    [Parameter] public BestOffer? First { get; set; }
+
+    [Parameter] public BestOffer? Second { get; set; }
+
+    /// <summary>The row's names for the two sides: "Chiefs", "Over".</summary>
+    [Parameter, EditorRequired] public string FirstSide { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string SecondSide { get; set; } = string.Empty;
+
+    /// <summary>The game's sport key and the two clubs' abbreviations, for their crests; none on a total.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    [Parameter] public string? FirstAbbrev { get; set; }
+
+    [Parameter] public string? SecondAbbrev { get; set; }
+
+    /// <summary>Whether the row's prices are closes: the game has started and the scans are gone.</summary>
+    [Parameter] public bool Closing { get; set; }
+
+    /// <summary>
+    /// When the market last moved. A new value is a new reading to load; the parent re-renders
+    /// on every signal, and without it each one would re-read every scan.
+    /// </summary>
+    [Parameter] public DateTimeOffset? PricedAt { get; set; }
+
+    /// <summary>The region's id, for the row's aria-controls.</summary>
+    [Parameter] public string? Id { get; set; }
+
+    /// <summary>Opens the Line movement window on this game, for every book or the market's detail.</summary>
+    [Parameter] public EventCallback OnOpenWindow { get; set; }
+
+    /// <summary>How many books the row shows before "View more" (BookRanking.Top, as every book table).</summary>
+    public const int MaxBooks = BookRanking.Top;
+
+    /// <summary>
+    /// Whether every book shows. Optional: a host that binds it (with ExpandedChanged) keeps the
+    /// choice across the market being closed and opened again; unbound, the row keeps it while it
+    /// is open, through every re-render and new price.
+    /// </summary>
+    [Parameter] public bool? Expanded { get; set; }
+
+    [Parameter] public EventCallback<bool> ExpandedChanged { get; set; }
+
+    private bool _expanded;
+
+    private bool IsExpanded => ExpandedChanged.HasDelegate ? Expanded ?? false : _expanded;
+
+    private async Task SetExpandedAsync(bool expanded)
+    {
+        _expanded = expanded;
+
+        if (ExpandedChanged.HasDelegate)
+            await ExpandedChanged.InvokeAsync(expanded);
+    }
+
+    private List<OddsSnapshot> _snapshots = [];
+    private IReadOnlyList<OddsPanel.MovementRow> _rows = [];
+    private IReadOnlyList<DeskSwitchOption<string>> _sideOptions = [];
+    private string? _side;
+    private string _headline = string.Empty;
+    private readonly SnippetRead _read = new();
+
+    private (int, string, bool, DateTimeOffset?)? _loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = (GameId, Market, Closing, PricedAt);
+
+        if (_loaded == key)
+            return;
+
+        _loaded = key;
+
+        if (Closing)
+        {
+            // The closes are the answer now: a scan read still in flight is not wanted.
+            _read.Settle();
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private Task LoadAsync()
+    {
+        // A new price reloads under the rows already drawn, so only a first read shows the
+        // skeleton. Handed over only by the latest read: a slow read of the market as it stood
+        // cannot land after the newer one.
+        var (gameId, market) = (GameId, Market);
+
+        return _read.RunAsync(async ct =>
+        {
+            await using var db = await DbFactory.CreateDbContextAsync(ct);
+
+            // Scans keep to the tier (ADR 0024): an evaluation feed's moves are the operator's.
+            return await db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct)).AsNoTracking()
+                .Where(s => s.GameId == gameId && s.Market == market)
+                .OrderBy(s => s.CapturedAt)
+                .ToListAsync(ct);
+        }, snapshots =>
+        {
+            _snapshots = snapshots;
+            Focus(keepSide: true);
+        }, "The moves did not load.", Logger, logged: "The market's moves did not load", showLoading: _rows.Count == 0);
+    }
+
+    public void Dispose() => _read.Dispose();
+
+    /// <summary>The two sides, in the row's order and by the row's names; anything else after them.</summary>
+    private void Focus(bool keepSide)
+    {
+        var sides = OddsPanel.Sides(_snapshots.Select(s => s.Outcome), Market, First?.Outcome, Second?.Outcome);
+
+        _sideOptions = sides.Select(o => new DeskSwitchOption<string>(o, SideName(o))).ToList();
+
+        if (!keepSide || _side is null || !sides.Contains(_side))
+            _side = sides.FirstOrDefault();
+
+        _rows = _side is null ? [] : OddsPanel.MovementRows(_snapshots, _side);
+        _headline = _rows.Count == 0 ? string.Empty : OddsPanel.Headline(_rows, Market, _side!);
+    }
+
+    private void SetSide(string side)
+    {
+        _side = side;
+        _rows = OddsPanel.MovementRows(_snapshots, side);
+        _headline = _rows.Count == 0 ? string.Empty : OddsPanel.Headline(_rows, Market, side);
+    }
+
+    private string SideName(string outcome)
+        => string.Equals(outcome, First?.Outcome, StringComparison.OrdinalIgnoreCase) ? FirstSide
+            : string.Equals(outcome, Second?.Outcome, StringComparison.OrdinalIgnoreCase) ? SecondSide
+            : outcome;
+
+    /// <summary>
+    /// Every book's number on both sides, a row per book: the desk's one book table
+    /// (BookComparison), ranked and capped at the top five as More bets and Line movement are.
+    /// It was a table of its own here, headed "Close", that wrote a total's number without its
+    /// o/u, named no edge and ordered by name.
+    /// </summary>
+    private RenderFragment RenderEveryBook() => @<text>
+        @if (First is null && Second is null)
+        {
+            <p class="gamemove__foot"><span>No book priced this market.</span></p>
+        }
+        else
+        {
+            <BookComparison Market="@Market" First="First" Second="Second"
+                            FirstSide="@FirstSide" SecondSide="@SecondSide"
+                            Sport="@Sport" FirstAbbrev="@FirstAbbrev" SecondAbbrev="@SecondAbbrev"
+                            Top="MaxBooks" Controls="@Id"
+                            Expanded="IsExpanded" ExpandedChanged="SetExpandedAsync" />
+            <p class="gamemove__foot">
+                <span>
+                    @(Closing ? "The last number each book showed before the start." : "No moves on record yet: each book's number now.")
+                    @if (BookRanking.FairText(First, Second) is { Length: > 0 } fair)
+                    {
+                        <text> @fair.</text>
+                    }
+                    The best price on each side is marked.
+                </span>
+            </p>
+        }
+    </text>;
+
+    /// <summary>The two sides' rungs joined by book, in book-name order.</summary>
+    public static IReadOnlyList<(string Book, BookPrice? First, BookPrice? Second)> EveryBook(BestOffer? first, BestOffer? second)
+    {
+        var a = (first?.Rungs ?? []).GroupBy(r => r.Book).ToDictionary(g => g.Key, g => g.First());
+        var b = (second?.Rungs ?? []).GroupBy(r => r.Book).ToDictionary(g => g.Key, g => g.First());
+
+        return a.Keys.Union(b.Keys)
+            .OrderBy(k => BookNames.Display(k), StringComparer.OrdinalIgnoreCase)
+            .Select(k => (k, a.GetValueOrDefault(k), b.GetValueOrDefault(k)))
+            .ToList();
+    }
+}

@@ -57,9 +57,9 @@ A 2 GB VM is the floor (web 512 MB, worker 384 MB, Postgres 512 MB, Caddy and ba
 3. **The files.** Only `deploy/` is needed on the server, not the repository.
 
    ```bash
-   sudo mkdir -p /opt/lineops && sudo chown "$USER" /opt/lineops && cd /opt/lineops
+   sudo mkdir -p /opt/xlines && sudo chown "$USER" /opt/xlines && cd /opt/xlines
    for f in compose.yml Caddyfile .env.example deploy.sh restore.sh backup.sh; do
-     curl -fsSLO "https://raw.githubusercontent.com/wNohejl/LineExtractor/main/deploy/$f"
+     curl -fsSLO "https://raw.githubusercontent.com/wNohejl/XLines/main/deploy/$f"
    done
    chmod +x deploy.sh restore.sh
    cp .env.example .env && chmod 600 .env
@@ -79,8 +79,8 @@ A 2 GB VM is the floor (web 512 MB, worker 384 MB, Postgres 512 MB, Caddy and ba
      non-commercial use only, so a desk showing its data stays gated and `SHARING_MODE` stays
      `Local`.
 
-5. **The registry.** A new GHCR package is private. Either make `lineops-web` and
-   `lineops-worker` public (GitHub → Packages → Package settings), or log the server in
+5. **The registry.** A new GHCR package is private. Either make `xlines-web` and
+   `xlines-worker` public (GitHub → Packages → Package settings), or log the server in
    with a token that can only read packages:
 
    ```bash
@@ -98,7 +98,7 @@ A 2 GB VM is the floor (web 512 MB, worker 384 MB, Postgres 512 MB, Caddy and ba
    loads.
 
    ```bash
-   scp data/personal/snapshots/lineops.dump server:/opt/lineops/     # from the private clone
+   scp data/personal/snapshots/lineops.dump server:/opt/xlines/     # from the private clone
    ./restore.sh lineops.dump
    ```
 
@@ -127,14 +127,14 @@ A 2 GB VM is the floor (web 512 MB, worker 384 MB, Postgres 512 MB, Caddy and ba
 
 ## Backups
 
-The `backup` container writes `backups/lineops-<time>.dump` at start and every 24 hours after,
+The `backup` container writes `backups/xlines-<time>.dump` at start and every 24 hours after,
 keeping 14 days. Those files sit on the same disk as the database, so they protect against a
 bad migration or a deleted row, not a lost server. Copy them off the box too. A weekly cron
 with `rclone` to Cloudflare R2 or Backblaze B2 costs nothing at this size:
 
 ```bash
 # crontab -e
-30 4 * * 0  rclone sync /opt/lineops/backups r2:lineops-backups --max-age 8d
+30 4 * * 0  rclone sync /opt/xlines/backups r2:xlines-backups --max-age 8d
 ```
 
 **Restore one every quarter** into a scratch database (`./restore.sh backups/<file> --force`

@@ -28,7 +28,7 @@ The path from ESPN to the screen, while a game is on:
 | 1. Scheduler tick asks "is any started game not final?" | `IngestionScheduler.LivePollIsDueAsync` | tick every `TickInterval`; the live pass runs at most every `LivePoll` = **90 s** |
 | 2. Runs the whole **slate** job: one scoreboard call per sport per league-day in play | `IngestionJobs.RunSlateAsync` → `FetchScheduleAsync` | 1 request per sport, after a 250 ms `RequestDelay` |
 | 3. Every event on the scoreboard is resolved; status and both scores are written only when they changed | `EntityResolver.ResolveGameAsync:249-299` | one `SaveChanges` per changed game |
-| 4. The save fires `pg_notify('lineops_changes','games')` | `ChangeNotifier` | once per save, topic-coarse |
+| 4. The save fires `pg_notify('xlines_changes','games')` | `ChangeNotifier` | once per save, topic-coarse |
 | 5. The web host's listener fans the topic to every circuit | `DataChangeListener` → `DeskSignals` | immediate |
 | 6. Every panel watching `games` waits the 1 s **settle**, then reloads everything it draws | `PanelBase.RefreshSoonAsync`, `GamePanel.LoadAsync` | ~10 queries per Game window per refresh |
 | 7. Blazor diffs the whole panel and ships the diff over the circuit | InteractiveServer (ADR 0004) | — |
@@ -301,7 +301,7 @@ A `GamecastFeed` hosted service in the ingestion library, beside the scheduler, 
    15 s and `plays?limit=25&page=last` when the situation's `lastPlay.id` moves — and
    upserts new or modified plays. Summary first because it is one request; the core split
    is the optimisation if the summary's weight shows up in the logs.
-3. Writes through `LineOpsDbContext` so `ChangeNotifier` announces `plays:{gameId}` for
+3. Writes through `XLinesDbContext` so `ChangeNotifier` announces `plays:{gameId}` for
    free, and the Gamecast window — watching exactly that — appends the new plays and moves
    the field strip. No full reload: `plays` since the last sequence the window holds.
 4. Stops the moment the game is final, and runs the box-score parse once more so the

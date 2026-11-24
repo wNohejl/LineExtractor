@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/XLines.Core/XLines.Core.csproj" />
+    <Project Path="src/XLines.Data/XLines.Data.csproj" />
+    <Project Path="src/XLines.Desk/XLines.Desk.csproj" />
+    <Project Path="src/XLines.Desk.Hosting/XLines.Desk.Hosting.csproj" />
+    <Project Path="src/XLines.Desk.Templates/XLines.Desk.Templates.csproj" />
+    <Project Path="src/XLines.Desk.Testing/XLines.Desk.Testing.csproj" />
+    <Project Path="src/XLines.Ingestion/XLines.Ingestion.csproj" />
+    <Project Path="src/XLines.Observability/XLines.Observability.csproj" />
+    <Project Path="src/XLines.Reliability/XLines.Reliability.csproj" />
+    <Project Path="src/XLines.Web/XLines.Web.csproj" />
+    <Project Path="src/XLines.Worker/XLines.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/XLines.Desk.Hosting.Tests/XLines.Desk.Hosting.Tests.csproj" />
+    <Project Path="tests/XLines.Desk.Tests/XLines.Desk.Tests.csproj" />
+    <Project Path="tests/XLines.Tests/XLines.Tests.csproj" />
+    <Project Path="tests/XLines.Web.Tests/XLines.Web.Tests.csproj" />
+  </Folder>
+</Solution>

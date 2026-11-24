@@ -4,7 +4,7 @@
 
 ## Context
 
-`LineOps.Reliability` already computes freshness, success rate, volume anomaly and budget burn,
+`XLines.Reliability` already computes freshness, success rate, volume anomaly and budget burn,
 raises alerts against SLOs, and opens incidents. Adding OpenTelemetry raises an obvious question:
 if the platform already measures itself, what is the second system for — and if OTel can measure
 it, why does the first system exist?
@@ -41,13 +41,13 @@ that no generic exporter could make:
 Those are the interesting decisions, and they are the ones a dashboard cannot make for you.
 
 **Instrumentation is BCL; only the host knows about OpenTelemetry.** `ActivitySource` and `Meter`
-are framework types, so `LineOps.Core.Diagnostics.LineOpsTelemetry` declares the names and the
-working libraries emit through them with no package reference. `LineOps.Observability` is the only
+are framework types, so `XLines.Core.Diagnostics.XLinesTelemetry` declares the names and the
+working libraries emit through them with no package reference. `XLines.Observability` is the only
 project that references OpenTelemetry at all. Changing exporter, or dropping OTel entirely, touches
 one project and no instrumentation.
 
-**The gauges publish the reliability layer's own numbers.** `lineops.source.freshness_minutes`,
-`lineops.budget.utilisation`, `lineops.incidents.awaiting_rca` and the rest are computed by
+**The gauges publish the reliability layer's own numbers.** `xlines.source.freshness_minutes`,
+`xlines.budget.utilisation`, `xlines.incidents.awaiting_rca` and the rest are computed by
 `KpiCalculator` and `BudgetCalculator` — the same code the Ops Center and the alert engine use, not
 a second implementation. This is the whole point: the bespoke layer becomes legible to standard
 tooling without becoming a second source of truth.
@@ -56,7 +56,7 @@ tooling without becoming a second source of truth.
 collection path; querying Postgres from inside one blocks that thread and, under load, is how a
 monitoring system becomes the outage it exists to report. `KpiMetricsPublisher` samples on a timer
 and the callbacks read a reference. The snapshot's own age is published as
-`lineops.kpi.snapshot_age_seconds`, so a publisher that has silently stopped is visible rather than
+`xlines.kpi.snapshot_age_seconds`, so a publisher that has silently stopped is visible rather than
 presenting its last reading as current for ever.
 
 **Off by default, on via an overlay.** `Observability:Enabled` is false in `appsettings.json`; the

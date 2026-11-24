@@ -1,0 +1,78 @@
+@using XLines.Core.Analytics
+
+@*
+    The stake: a field, three quick keys, and what it returns.
+
+    Immediate, because Returns beside it recomputes as you type — a field whose typing is the
+    action, not one waiting to be validated. Returns sits to the right, which is where the eye goes
+    after typing. One definition, shared by the wager window, the slip's parlay block and the
+    Journal's manual entry (SelectionGuardTests).
+*@
+
+<div class="row stake-row">
+    @* A number field without the browser's spinner (xlines.css, .stake-row): the quick keys
+       beside it are the steps, and a 5-dollar arrow is not how a stake is chosen. *@
+    <DeskField TValue="decimal" Mono="true" Immediate="true" Class="stake-row__field"
+               type="number" step="5" min="0"
+               placeholder="Stake" aria-label="Stake" Value="Stake" ValueChanged="SetAsync"
+               aria-invalid="@(HasError ? "true" : null)"
+               aria-describedby="@(HasError ? _errorId : null)" />
+
+    @foreach (var quick in Quick)
+    {
+        @* Plain keys. The amount the stake already is reads as chosen, as a toggle-style button
+           does (HIG: state shown by a neutral fill, not by the accent, and said to a screen
+           reader); the accent is for focus, the current step and the one Filled key. *@
+        var chosen = Stake == quick;
+        <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain"
+                    aria-pressed="@(chosen ? "true" : "false")"
+                    OnClick="() => SetAsync(quick)">@quick.ToString("C0")</DeskButton>
+    }
+
+    @if (ShowReturns && PriceAmerican is { } price && price != 0 && Stake > 0)
+    {
+        @* Label, figure, detail — stacked, so the figure is the thing the eye lands on. *@
+        <span class="stake-row__returns num">
+            <span class="stake-row__returns-label">Returns</span>
+            <strong>@OddsMath.Money(OddsMath.PayoutOnWin(price, Stake))</strong>
+            <span class="stake-row__profit">@OddsMath.Money(OddsMath.ProfitOnWin(price, Stake)) profit</span>
+        </span>
+    }
+</div>
+
+@* Under the row, not inside it: the row is one line of field, keys and Returns, and a sentence
+   among them would push the keys aside. The field points at it, so a screen reader reads the
+   problem with the field rather than only when the alert fires. *@
+@if (HasError)
+{
+    <p class="field-err" id="@_errorId" role="alert">@Error</p>
+}
+
+@code {
+    private static readonly decimal[] Quick = [25m, 50m, 100m];
+
+    [Parameter] public decimal Stake { get; set; }
+
+    [Parameter] public EventCallback<decimal> StakeChanged { get; set; }
+
+    /// <summary>The price the stake would be paid at. Null: no Returns (nothing to price it at yet).</summary>
+    [Parameter] public decimal? PriceAmerican { get; set; }
+
+    /// <summary>
+    /// Draw Returns beside the quick keys. Off where the host says what the stake wins as its
+    /// group's footer instead (the wager window, after the wizard recipe).
+    /// </summary>
+    [Parameter] public bool ShowReturns { get; set; } = true;
+
+    /// <summary>
+    /// What is wrong with the stake, said under the row in the field's own error style (as
+    /// DeskField's Error is). Null when nothing is, or nothing has been touched yet.
+    /// </summary>
+    [Parameter] public string? Error { get; set; }
+
+    private readonly string _errorId = "stake-err-" + Guid.NewGuid().ToString("N")[..8];
+
+    private bool HasError => !string.IsNullOrWhiteSpace(Error);
+
+    private Task SetAsync(decimal stake) => StakeChanged.InvokeAsync(stake);
+}

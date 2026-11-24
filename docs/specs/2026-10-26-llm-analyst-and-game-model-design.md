@@ -1,7 +1,7 @@
 # An analyst on the desk: Claude reads the numbers, a model makes them
 
 Date: 2026-10-26. Written from a `/goal` brief; not yet approved.
-**Audience:** the developer deciding how an LLM attaches to LineOps' data, and whether a bet's
+**Audience:** the developer deciding how an LLM attaches to XLines' data, and whether a bet's
 soundness should come from Claude, from a sports-trained LLM, or from something else.
 
 ## 0. The answer, first
@@ -78,7 +78,7 @@ simulation uses all of it and a language model approximates it.
 ## 3. What really produces results, in order of reliability
 
 1. **Shopping a price against a sharp fair price.** Nine books against Pinnacle's no-vig number:
-   the EV check LineOps already runs (`FairValue`, `Checks.Value`). This is the most dependable
+   the EV check XLines already runs (`FairValue`, `Checks.Value`). This is the most dependable
    edge the desk has, and it needs no model.
 2. **Pricing numbers the reference didn't.** `FairValue` deliberately refuses a fair price on a
    line Pinnacle did not quote ("that needs a model of how often games land on 2"). A
@@ -152,7 +152,7 @@ What follows from it:
 
 ## 6. The model
 
-### 6.1 Shared shape (`LineOps.Core/Modeling`, pure, no dependencies)
+### 6.1 Shared shape (`XLines.Core/Modeling`, pure, no dependencies)
 
 - `GameProjection`: per game, per model version: the distribution it implies, and from it
   `P(side, number)` for moneyline, spread/run line and total at **any** number.
@@ -189,7 +189,7 @@ What follows from it:
   7) need more games than 391 to estimate; v1 leaves them out and says so rather than borrowing a
   published table.
 
-### 6.4 The projection store (`LineOps.Data`)
+### 6.4 The projection store (`XLines.Data`)
 
 `projection(id, game_id, model_key, model_version, market, outcome, line, probability,
 fair_price, market_probability, market_basis, inputs jsonb, projected_at)`: append-only,
@@ -239,7 +239,7 @@ beside Pinnacle and consensus.
 
 ### 8.1 One tool catalog, two transports
 
-A `LineOps.Analyst` library defines the tools once over existing read services; two thin hosts
+A `XLines.Analyst` library defines the tools once over existing read services; two thin hosts
 expose them.
 
 | Tool | Wraps |
@@ -258,7 +258,7 @@ expose them.
 Every tool is read-only. Nothing the analyst can call writes a row, pulls a metered feed or logs a
 bet.
 
-### 8.2 Transport 1, now: an MCP server (`LineOps.Mcp`)
+### 8.2 Transport 1, now: an MCP server (`XLines.Mcp`)
 
 A stdio host on the official C# MCP SDK (`ModelContextProtocol` NuGet, maintained by Microsoft
 and Anthropic) registered with Claude desktop and Claude Code. The operator asks "is Cubs +135
@@ -330,7 +330,7 @@ Each phase is one plan, committed on `LineX_Development`, verified by the CLAUDE
 
 | # | Phase | Ends with | Size |
 |---|---|---|---|
-| 1 | **MCP analyst** over today's data: catalog minus projection tools, read-only role, `LineOps.Mcp` | Claude desktop answers board, form and value questions from LineOps | 2–3 days |
+| 1 | **MCP analyst** over today's data: catalog minus projection tools, read-only role, `XLines.Mcp` | Claude desktop answers board, form and value questions from XLines | 2–3 days |
 | 2 | **Projection store and harness**: entity, migration, grading in settlement, market-only baseline, record metrics | `get_model_record` reports the baseline's log loss and calibration | 3–4 days |
 | 3 | **NFL model** + `BetVerdict` + Model check row | NFL projections on the board and in the wager window, behind the §6.6 gate | 1 week |
 | 4 | **Projections window** and Model record | The BARTOLO-shaped view for NFL | 3–4 days |

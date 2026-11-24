@@ -1,0 +1,1581 @@
+@using System.Globalization
+@using XLines.Data.CrossReference
+@using XLines.Data.Gamecast
+@using XLines.Ingestion.Services
+@using XLines.Web.Components.Snippets
+@using XLines.Web.Services
+@using Microsoft.Extensions.Logging
+@inherits PanelBase
+@implements IAsyncDisposable
+@inject IGamecastData Data
+@inject IJSRuntime JS
+
+@*
+    One NFL game, play by play, while it is on (spec 2026-10-24 §6.1, §6.4).
+
+    The anatomy is ADR 0020's: the title is the matchup and the score with the period and the
+    clock as tags and the situation as its one quiet line. Under it, a flow of cards (ADR 0032):
+    the field while the game is on, the score by quarter, and the two teams compared — as many
+    across as the window's width allows, stacked in a narrow one — and beneath them, the whole
+    row, the sections: the drive log, the win probability, the scoring and the box score. No
+    in-play market: that is a later step, and an empty section promising it would be a
+    placeholder shaped like nothing.
+
+    How the plays are arriving is one state (StateOf): live, read in turn, quiet, final or not
+    started. Live says nothing extra — the period tag and the running clock already say it. Read
+    in turn is one quiet line under the field; quiet is a warning note about the field card. The
+    window tells the feed it is open (IGamecastData.Watch), so the game it shows is read first.
+
+    The window appends rather than reloads. It holds the plays it has drawn and, on its own
+    game's plays notice, asks for what came after the last of them; every row is keyed by the
+    play's id, so the diff is an insert at the top of the open drive rather than a rewrite of the
+    log. ESPN rewrites a play in place after a review, and may renumber it, so the same refresh
+    reads the current drive's plays again and every play is matched by its id: a correction
+    replaces its row, a play not held is inserted where its sequence puts it, and no play is ever
+    held twice. Loads and appends overlap — Try again during a refresh, a notice during a load —
+    so each builds its lists aside and only the latest swaps them in. The probability
+    line and the scoring summary are drawn from the plays the window already holds, so an append
+    moves them with no query of their own.
+*@
+
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (_header is null || _game is null)
+{
+    @if (!Failed)
+    {
+        @if (Loaded)
+        {
+            <EmptyState>This game is not on the desk.</EmptyState>
+        }
+        else
+        {
+            <DeskSkeleton Shape="DeskSkeletonShape.Block" Width="45%" Height="56px" />
+            <DeskSkeleton Lines="3" />
+        }
+    }
+}
+else
+{
+    var game = _game;
+    var isLive = game.Status == GameStatus.Live;
+    var situation = PlayState.Situation(game);
+    var lastPlay = PlayState.LastPlay(game);
+    var (period, clock) = ClockParts(game);
+
+    <PanelTitle>
+        <ChildContent>
+            <Scoreboard Game="game"
+                        OnTeam="@((int teamId) => Manager.OpenTeam(teamId, teamId == game.AwayTeamId ? game.AwayTeam?.Name : game.HomeTeam?.Name, WindowId))" />
+        </ChildContent>
+        <Tags>
+            @if (isLive && period is not null)
+            {
+                <Tag State="DeskState.Warning" Live="true">@period</Tag>
+            }
+            @if (clock is not null)
+            {
+                @* The clock is counted down in the browser between the feed's readings
+                   (gameclock.js); each render here hands it a fresh one. The rail chip says
+                   the server's reading; this tag may run ahead of it by at most ClockRunsFor. *@
+                <Tag State="DeskState.Neutral"><span class="gc__clock" @ref="_clockEl">@clock</span></Tag>
+            }
+            @if (!isLive && game.Status != GameStatus.Scheduled)
+            {
+                <Tag State="@(game.Status == GameStatus.Final ? DeskState.Positive : DeskState.Info)">@Phase(game)</Tag>
+            }
+        </Tags>
+        <Detail>
+            @if (situation is not null)
+            {
+                <span class="gc__situation">@situation</span>
+            }
+            @if (lastPlay is not null)
+            {
+                @* The line is cut to fit; the whole play is a tooltip on a trigger that takes
+                   focus, not a title only a pointer raises (HIG 12). *@
+                <DeskTooltip Text="@game.LastPlay!.Trim()" Placement="DeskTooltipPlacement.Bottom">
+                    <span class="gc__last" tabindex="0">Last: @lastPlay</span>
+                </DeskTooltip>
+            }
+            @if (situation is null && lastPlay is null)
+            {
+                <span>@Starts(game.StartsAt)</span>
+            }
+        </Detail>
+        <Keys>
+            @* One key, straight in the title's key slot, which spaces keys itself. *@
+            <DeskButton Icon="@Icons.Material.Filled.SportsScore" Emphasis="DeskEmphasis.Tinted"
+                        Title="Open this game's lines, team data and players in the Game window"
+                        OnClick="() => Manager.OpenGame(game)">
+                Game
+            </DeskButton>
+        </Keys>
+    </PanelTitle>
+
+    @if (game.Sport?.Key != Nfl)
+    {
+        <EmptyState>The gamecast covers NFL games.</EmptyState>
+    }
+    else
+    {
+        var now = Now;
+        var feed = Data.Feed(GameId);
+        var state = StateOf(game.Status, feed, QuietFor(game, now), IsBreak(game));
+        var (drivePlays, driveStart) = FieldDrive();
+        var hasLinescore = _header.AwayLinescore is { Count: > 0 } || _header.HomeLinescore is { Count: > 0 };
+        var compared = (game.Status is GameStatus.Live or GameStatus.Final) && _comparison.Count > 0;
+
+        @* The cards flow (.wflow, ADR 0032): one track each, as many across as the window allows,
+           a short card keeping its own height beside a tall one. The sections take the whole row
+           beneath them (.wsection--span), as the Game window's box score does. *@
+        <div class="wflow gc__flow">
+            @if (isLive)
+            {
+                @* The field, and how its plays are arriving: a warning note about the card when
+                   they are not (its Notice, never inside the card), one quiet footer line while
+                   the game is read in turn, and nothing while they arrive at full pace. *@
+                <FormGroup Title="Field" Class="gc__fieldcard"
+                           Notice="@(state == FeedState.Quiet ? QuietNote(feed, now) : null)"
+                           Footer="@(state == FeedState.Slow ? Words(SlowLine(feed)) : null)">
+                    <div class="gc__cardbody">
+                        <FieldGraphic HomeAbbrev="@_header.Home.Abbrev" AwayAbbrev="@_header.Away.Abbrev"
+                                      YardLine="@_header.YardLine" Distance="@_header.Distance"
+                                      HomeBall="@HomeBall(_header)" Label="@FieldLabel(game, situation)"
+                                      Sport="@_header.SportKey"
+                                      DrivePlays="drivePlays" DriveStartYardLine="driveStart" />
+                    </div>
+                </FormGroup>
+            }
+
+            @if (hasLinescore)
+            {
+                @* The Game window's own spelling: the line score inset into the card, its own box
+                   undone (linescore--inset), so the card's edge is the one edge. *@
+                <FormGroup Title="Score by quarter" Class="gc__scorecard">
+                    <Linescore Sport="@_header.SportKey" Class="linescore--inset"
+                               AwayAbbrev="@_header.Away.Abbrev" HomeAbbrev="@_header.Home.Abbrev"
+                               Away="_header.AwayLinescore" Home="_header.HomeLinescore"
+                               AwayTotal="_header.AwayScore" HomeTotal="_header.HomeScore" />
+                </FormGroup>
+            }
+
+            @if (compared)
+            {
+                <FormGroup Title="Team comparison" Class="gc__comparecard">
+                    <div class="gc__cardbody">
+                        <TeamComparison Rows="_comparison" AwayAbbrev="@_header.Away.Abbrev" HomeAbbrev="@_header.Home.Abbrev"
+                                        Sport="@_header.SportKey" />
+                    </div>
+                </FormGroup>
+            }
+
+        <div class="wsection wsection--span gc__sections">
+        @* One reading at a time, as the Game window's sections are and as a league's own game
+           page is: the plays, the scoring, the probability, the box score. Twenty drives no
+           longer stand between the title and the chart. *@
+        <DeskTabs TValue="View" Tabs="@Views()" Label="Gamecast sections" @bind-Value="_view">
+            @if (context == View.Plays)
+            {
+                @if (_plays.Count == 0)
+                {
+                    <EmptyState>@NoPlays(state)</EmptyState>
+                }
+                else
+                {
+                    <PanelSection Title="@(_drives.Count == 0 ? "Plays" : "Drives")">
+                        <Keys>
+                            @if (_drives.Count > 0)
+                            {
+                                <DeskToggle Label="Every play" Checked="_everyPlay" CheckedChanged="@((bool on) => _everyPlay = on)"
+                                            Title="Open every drive, so the whole game reads top to bottom" />
+                            }
+                        </Keys>
+                        <ChildContent>
+                            @RenderDrives()
+                        </ChildContent>
+                    </PanelSection>
+                }
+            }
+            else if (context == View.Scoring)
+            {
+                <PanelSection Title="Scoring">
+                    @RenderScoring()
+                </PanelSection>
+            }
+            else if (context == View.Probability)
+            {
+                <PanelSection Title="Win probability">
+                    <Keys>
+                        <DeskRow Gap="DeskSpace.Space3">
+                            <DeskToggle Label="Spread cover" Checked="_showCover" CheckedChanged="@((bool on) => ShowSeries(cover: on))"
+                                        Title="Add the chance the home side covers the closing spread" />
+                            <DeskToggle Label="Total over" Checked="_showOver" CheckedChanged="@((bool on) => ShowSeries(over: on))"
+                                        Title="Add the chance the game goes over the closing total" />
+                        </DeskRow>
+                    </Keys>
+                    <ChildContent>
+                        @* Height="auto": the plot spans the section and keeps its own proportions, as the
+                           Performance window's does, rather than shrinking into a fixed box. *@
+                        <div class="gc__chart">
+                        <DeskChart Series="_series" Labels="_labels" Height="auto"
+                                   Family="DeskChartFamily.Movement"
+                                   Headline="@ChartHeadline()"
+                                   Takeaway="@CloseCaption(_header)"
+                                   ShowLegend="@(_series.Count > 1)"
+                                   Description="@DeskChart.Describe("Win probability by play, in percent", _labels, _series)" />
+                        </div>
+                    </ChildContent>
+                </PanelSection>
+            }
+            else
+            {
+                <PanelSection Title="Box score">
+                    @if (_box is { IsEmpty: false } box)
+                    {
+                        <BoxScoreSide Side="box.Away" Team="@(game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenPlayer"
+                                      Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" />
+                        <BoxScoreSide Side="box.Home" Team="@(game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenPlayer"
+                                      Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" />
+                    }
+                    else
+                    {
+                        <EmptyState>The box score appears once the first stats are in.</EmptyState>
+                    }
+                </PanelSection>
+            }
+        </DeskTabs>
+        </div>
+        </div>
+    }
+}
+
+@code {
+    private const string Nfl = "nfl";
+
+    /// <summary>Past this many rows an open drive's plays are virtualised (spec §6.4).</summary>
+    public const int VirtualizeAt = 150;
+
+    /// <summary>
+    /// No play newer than this while the game is live: the feed is not following it. The feed
+    /// reads every fifteen seconds, and a play lands at least every minute or so outside the
+    /// breaks the clock already says.
+    /// </summary>
+    public static readonly TimeSpan QuietAfter = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// How far past a reading the browser may count the clock: one feed poll (fifteen seconds)
+    /// and a little slack. A stoppage the feed has not read yet costs at most this much, and the
+    /// next reading corrects it, rather than the clock running half a minute ahead.
+    /// </summary>
+    public static readonly TimeSpan ClockRunsFor = TimeSpan.FromSeconds(18);
+
+    /// <summary>
+    /// How far the clock's drop between two readings may differ from the wall-clock time between
+    /// them and still count as a clock that ran: the feed's own timing jitters by a second or two.
+    /// </summary>
+    public static readonly TimeSpan ClockTolerance = TimeSpan.FromSeconds(5);
+
+    /// <summary>The flat 50% line the cover and over series are read against.</summary>
+    public const string EvenSeries = "Cover and over at even";
+
+    /// <summary>A live game's box score is read at most this often; the feed writes it about once a minute.</summary>
+    public static readonly TimeSpan BoxEvery = TimeSpan.FromSeconds(30);
+
+    /// <summary>The time the window reads by. Virtual so a test bench can step past the box score's throttle.</summary>
+    protected virtual DateTimeOffset Now => DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Whether a game has a gamecast to open: an NFL game once it has kicked off. A final keeps it,
+    /// because its plays stay stored. Asked by the Game window's keys and the Board's row actions,
+    /// which only have the game, so it costs no query: an NFL final the feed never followed opens
+    /// onto the window's own empty state.
+    /// </summary>
+    public static bool Offered(Game game)
+        => game.Sport?.Key == Nfl && game.Status is GameStatus.Live or GameStatus.Final;
+
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    protected override string LoadSubject => "The gamecast";
+
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games, DataTopics.Plays };
+
+    /// <summary>
+    /// <c>games</c> and <c>plays</c> for this game only: thirteen NFL games on a Sunday afternoon
+    /// each write a play every half minute, and none but this one is this window's business.
+    /// Built when the game is set, since the Desk reads it on the publisher's thread.
+    /// </summary>
+    protected override IReadOnlyDictionary<string, IReadOnlySet<string>> WatchesIds => _ids;
+
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _ids = new Dictionary<string, IReadOnlySet<string>>();
+    private string _gameKey = string.Empty;
+
+    private GamecastHeader? _header;
+
+    /// <summary>The header as a <see cref="Game"/>, so the title reads through PlayState and Scoreboard as the Game window's does.</summary>
+    private Game? _game;
+
+    /// <summary>
+    /// The plays drawn, in sequence order (ties by id), each id once. Never changed in place: a
+    /// load or an append builds the next list aside and swaps it in (see <see cref="Merge"/>).
+    /// </summary>
+    private List<GamecastPlay> _plays = [];
+
+    private IReadOnlyList<GamecastDrive> _drives = [];
+    private GameBoxScore? _box;
+
+    /// <summary>When the box score was last read; a live game's is read again once <see cref="BoxEvery"/> has passed.</summary>
+    private DateTimeOffset? _boxReadAt;
+
+    // Generations. Every full load, append and header read takes the next number of its kind when
+    // it starts, and applies what it read only if no later one of its kind (and, for an append, no
+    // load) has started since. The renderer runs one continuation at a time, so these need no lock;
+    // what they guard against is two reads interleaving at their awaits.
+    private int _loads;
+    private int _appends;
+    private int _headerReads;
+
+    /// <summary>A full load is in flight. An append asked for meanwhile waits for it, then runs.</summary>
+    private bool _loading;
+    private bool _appendWaiting;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = GameId.ToString(CultureInfo.InvariantCulture);
+        if (key != _gameKey)
+        {
+            var mine = new HashSet<string> { key };
+            _ids = new Dictionary<string, IReadOnlySet<string>> { [DataTopics.Games] = mine, [DataTopics.Plays] = mine };
+            _gameKey = key;
+            await LoadAsync();
+        }
+    }
+
+    /// <summary>
+    /// Everything, once: when the window opens, on Try again, and on a refresh that does not say
+    /// what changed.
+    ///
+    /// <para>
+    /// The reads land in locals and are swapped in at the end, and only by the latest load to
+    /// start: Try again pressed during a refresh's load starts a second one, and the two
+    /// interleave at their awaits. An append asked for while a load is in flight waits for it
+    /// (<see cref="_appendWaiting"/>) and then runs against what the load drew.
+    /// </para>
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            var generation = ++_loads;
+            _loading = true;
+
+            try
+            {
+                var headerRead = ++_headerReads;
+                var header = await Data.HeaderAsync(GameId);
+
+                // The title first, so the window has its shape while the plays are read.
+                if (generation == _loads && headerRead == _headerReads)
+                {
+                    SetHeader(header);
+                    Follow(renew: false);
+                }
+
+                List<GamecastPlay> plays = [];
+                IReadOnlyList<GamecastDrive> drives = [];
+                GameBoxScore? box = null;
+                DateTimeOffset? boxAt = null;
+
+                if (header is not null && header.SportKey == Nfl)
+                {
+                    plays = Merge([], await Data.PlaysAsync(GameId));
+                    drives = await Data.DrivesAsync(GameId);
+                    boxAt = Now;
+                    box = await Data.BoxScoreAsync(GameId);
+                }
+
+                // A later load started while this one read: it draws, and this one is dropped.
+                if (generation != _loads)
+                    return;
+
+                _plays = plays;
+                _drives = drives;
+                _box = box;
+                _boxReadAt = boxAt;
+                RebuildChart();
+                RebuildComparison();
+            }
+            finally
+            {
+                if (generation == _loads)
+                    _loading = false;
+            }
+
+            if (_appendWaiting && _header?.SportKey == Nfl)
+            {
+                _appendWaiting = false;
+                try
+                {
+                    await AppendAsync();
+                }
+                catch (Exception ex)
+                {
+                    // The load itself landed; the plays notice it held back did not. The next
+                    // notice asks again.
+                    Log.LogWarning(ex, "The gamecast's append after a load failed");
+                }
+            }
+        },
+        settle: () => _game is null ? PulseState.Idle : PulseState.Healthy,
+        status: () => _game is null ? "not found" : Pulse(_game));
+    }
+
+    /// <summary>
+    /// What a notice touched, and only that (spec §6.4).
+    ///
+    /// <para>
+    /// <c>games:{id}</c> — or a bare <c>games</c> from the fallback poll — reads the header, and
+    /// the box score while the game is live (at most once per <see cref="BoxEvery"/>) or final:
+    /// the feed writes the box from the summary about once a minute while the game is on.
+    /// <c>plays:{id}</c>, or a bare <c>plays</c>, appends. A refresh that says nothing (Try again,
+    /// a reconnect) reloads.
+    /// </para>
+    ///
+    /// <para>
+    /// The two are independent: a header read that throws does not cost the append, nor the
+    /// append the header. A read that fails leaves what is drawn where it is, is logged, and the
+    /// pulse says which part did not refresh.
+    /// </para>
+    /// </summary>
+    protected override async Task RefreshAsync(IReadOnlySet<string> heard)
+    {
+        try
+        {
+            await RefreshPartsAsync(heard);
+        }
+        finally
+        {
+            // Every notice renews the window's interest while the game is one to hold, and the
+            // one that brings the final whistle gives it back.
+            Follow(renew: true);
+        }
+    }
+
+    private async Task RefreshPartsAsync(IReadOnlySet<string> heard)
+    {
+        if (_header is null || Failed || heard.Count == 0)
+        {
+            await LoadAsync();
+            return;
+        }
+
+        var failed = new List<string>(2);
+        var moved = false;
+
+        if (heard.Contains(DataTopics.Games) || heard.Contains(DataTopics.Address(DataTopics.Games, _gameKey)))
+        {
+            try
+            {
+                var headerRead = ++_headerReads;
+                var header = await Data.HeaderAsync(GameId);
+                if (header is null)
+                {
+                    await LoadAsync();
+                    return;
+                }
+
+                if (headerRead == _headerReads)
+                {
+                    SetHeader(header);
+                    await ReadBoxIfDueAsync(header);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning(ex, "The gamecast's header did not refresh");
+                failed.Add("score");
+            }
+        }
+
+        if (_header?.SportKey == Nfl
+            && (heard.Contains(DataTopics.Plays) || heard.Contains(DataTopics.Address(DataTopics.Plays, _gameKey))))
+        {
+            try
+            {
+                moved = await AppendAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning(ex, "The gamecast's plays did not refresh");
+                failed.Add("plays");
+            }
+        }
+
+        if (failed.Count > 0)
+            Report(PulseState.Warn, failed.Count == 2 ? "refresh failed" : $"{failed[0]} did not refresh");
+        else if (_game is not null)
+            Report(moved ? PulseState.Active : PulseState.Healthy, Pulse(_game));
+    }
+
+    /// <summary>
+    /// The box score again, when it can have moved: every notice of a final, and a live game's
+    /// once <see cref="BoxEvery"/> has passed since the last read.
+    /// </summary>
+    private async Task ReadBoxIfDueAsync(GamecastHeader header)
+    {
+        if (header.SportKey != Nfl)
+            return;
+
+        var now = Now;
+        var due = header.Status switch
+        {
+            GameStatus.Final => true,
+            GameStatus.Live => _boxReadAt is not { } at || now - at >= BoxEvery,
+            _ => false
+        };
+
+        if (!due)
+            return;
+
+        _boxReadAt = now;
+        _box = await Data.BoxScoreAsync(GameId);
+        RebuildComparison();
+    }
+
+    /// <summary>
+    /// The plays after the last one held; then the drives, for the results and which one is
+    /// current; then the drive in progress read again, so a play ESPN rewrote — a review, a spot
+    /// corrected, a probability that landed after its play, a play renumbered — replaces its row.
+    /// True when a play was added.
+    ///
+    /// <para>
+    /// The re-read starts at the first play of the earliest of the drive that was current before
+    /// this refresh and the one current after it, so the scoring play that ended a drive is
+    /// corrected too. Everything read is merged by id (<see cref="Merge"/>), never by sequence:
+    /// GamecastWriter updates a stored play's sequence, and a play inserted late at or below the
+    /// last sequence held is added, not skipped.
+    /// </para>
+    ///
+    /// <para>
+    /// The merge is built aside and swapped in only if no later append, and no load, started
+    /// while this one read; one asked for during a load waits for it.
+    /// </para>
+    /// </summary>
+    private async Task<bool> AppendAsync()
+    {
+        if (_loading)
+        {
+            _appendWaiting = true;
+            return false;
+        }
+
+        var generation = ++_appends;
+        var loads = _loads;
+        var held = _plays;
+        var wasCurrent = CurrentDrive;
+        long? last = held.Count == 0 ? null : held[^1].Sequence;
+
+        var fresh = last is { } after
+            ? await Data.PlaysSinceAsync(GameId, after)
+            : await Data.PlaysAsync(GameId);
+
+        var drives = await Data.DrivesAsync(GameId);
+        var current = CurrentOf(drives);
+
+        var from = last is null ? null : new[] { wasCurrent?.FirstSequence, current?.FirstSequence }
+            .Where(s => s is not null && s <= last)
+            .Min();
+
+        IReadOnlyList<GamecastPlay> again = from is { } first
+            ? await Data.PlaysSinceAsync(GameId, first - 1)
+            : [];
+
+        if (generation != _appends || loads != _loads)
+            return false;
+
+        _plays = Merge(held, fresh.Concat(again));
+        _drives = drives;
+
+        // The operator left the drive in progress open; when the next one starts, follow it.
+        if (_driveChosen && _openDrive == wasCurrent?.Sequence && current?.Sequence != wasCurrent?.Sequence)
+            _driveChosen = false;
+
+        RebuildChart();
+        RebuildComparison();
+
+        return _plays.Count > held.Count;
+    }
+
+    /// <summary>
+    /// The plays held with those read merged in by id: a play already held is replaced (its row
+    /// keeps its key, so only its text changes, or it moves if its sequence did); one not held is
+    /// added. The result is in sequence order, ties by id, and holds each id once.
+    /// </summary>
+    public static List<GamecastPlay> Merge(IReadOnlyList<GamecastPlay> held, IEnumerable<GamecastPlay> read)
+    {
+        var byId = new Dictionary<long, GamecastPlay>(held.Count + 8);
+
+        foreach (var play in held)
+            byId[play.Id] = play;
+        foreach (var play in read)
+            byId[play.Id] = play;
+
+        return byId.Values.OrderBy(p => p.Sequence).ThenBy(p => p.Id).ToList();
+    }
+    private void SetHeader(GamecastHeader? header)
+    {
+        _header = header;
+        _game = header is null ? null : AsGame(header);
+
+        // The clock's last two readings: a new reading shifts the last one back; the same
+        // reading read again (another notice, the same feed write) leaves both where they are.
+        var reading = _game is null ? null : ClockReading.Of(_game);
+        if (reading is null)
+        {
+            (_previousReading, _reading) = (null, null);
+        }
+        else if (reading.At != _reading?.At)
+        {
+            (_previousReading, _reading) = (_reading, reading);
+        }
+    }
+
+    /// <summary>
+    /// The header as the entity PlayState and Scoreboard read. Built rather than read a second
+    /// time, so the clock, the situation and the last play are worded exactly as the Game window's
+    /// title words them, from one query.
+    /// </summary>
+    public static Game AsGame(GamecastHeader h) => new()
+    {
+        Id = h.GameId,
+        Sport = new Sport { Key = h.SportKey, Name = h.SportName },
+        HomeTeamId = h.Home.Id,
+        HomeTeam = new Team { Id = h.Home.Id, Name = h.Home.Name, Abbrev = h.Home.Abbrev },
+        AwayTeamId = h.Away.Id,
+        AwayTeam = new Team { Id = h.Away.Id, Name = h.Away.Name, Abbrev = h.Away.Abbrev },
+        StartsAt = h.StartsAt,
+        Status = h.Status,
+        HomeScore = h.HomeScore,
+        AwayScore = h.AwayScore,
+        Period = h.Period,
+        DisplayClock = h.DisplayClock,
+        ClockSeconds = h.ClockSeconds,
+        StatusDetail = h.StatusDetail,
+        PossessionTeamId = h.PossessionTeamId,
+        Down = h.Down,
+        Distance = h.Distance,
+        YardLine = h.YardLine,
+        DownDistanceText = h.DownDistanceText,
+        PossessionText = h.PossessionText,
+        IsRedZone = h.IsRedZone,
+        HomeTimeouts = h.HomeTimeouts,
+        AwayTimeouts = h.AwayTimeouts,
+        LastPlay = h.LastPlay,
+        LiveUpdatedAt = h.LiveUpdatedAt
+    };
+
+    /// <summary>The rail chip as a mini-scoreboard: "Q3 4:12 · CHI ball", else where the game stands.</summary>
+    private static string Pulse(Game game)
+    {
+        var side = PlayState.Situation(game) is { } s ? s.Split(',')[0] : null;
+        return PlayState.Clock(game) is { } clock
+            ? side is null ? clock : $"{clock} · {side}"
+            : StateStatus(game);
+    }
+
+    /// <summary>
+    /// The period and the clock as two tags — "Q3", "4:12" — when PlayState's reading ends in
+    /// the clock; one tag otherwise ("Halftime", "End of 3rd"), as the period, with no clock to run.
+    /// </summary>
+    private static (string? Period, string? Clock) ClockParts(Game game)
+    {
+        if (PlayState.Clock(game) is not { } reading)
+            return (null, null);
+
+        var clock = game.DisplayClock?.Trim();
+        if (!string.IsNullOrEmpty(clock) && reading.EndsWith(" " + clock, StringComparison.Ordinal))
+            return (reading[..^(clock.Length + 1)], clock);
+
+        return (reading, null);
+    }
+
+    private static bool? HomeBall(GamecastHeader h)
+        => h.PossessionTeamId is not { } id ? null
+            : id == h.Home.Id ? true
+            : id == h.Away.Id ? false
+            : null;
+
+    /// <summary>The field in words: "PHI ball, 2nd and 6 at WSH 34", or what the field shows when nobody has the ball.</summary>
+    private static string FieldLabel(Game game, string? situation)
+        => situation is not null
+            ? $"Field: {situation.Replace("&", "and", StringComparison.Ordinal)}"
+            : $"Field: {game.AwayTeam?.Abbrev} on the left, {game.HomeTeam?.Abbrev} on the right; no ball spotted";
+
+    // ---- How the plays are arriving ------------------------------------------------------
+
+    /// <summary>How the plays are arriving, in one word (<see cref="StateOf"/>).</summary>
+    public enum FeedState
+    {
+        /// <summary>Plays arrive at full pace. Nothing is said: the period tag and the running clock say it.</summary>
+        Live,
+
+        /// <summary>The feed here reads the game in turn with others, so plays land in steps.</summary>
+        Slow,
+
+        /// <summary>Plays should be arriving and are not, or the feed here is not reading the game.</summary>
+        Quiet,
+
+        Final,
+
+        /// <summary>Scheduled, or postponed: no play is due.</summary>
+        NotStarted
+    }
+
+    /// <summary>
+    /// The state, from the game's status, the feed's reading, how long since the newest play (the
+    /// kickoff, while there is none) and whether the clock names a break.
+    ///
+    /// <para>
+    /// A live game is <see cref="FeedState.Live"/> while the feed here has it in the fast lane, or,
+    /// with the feed elsewhere, while a play is younger than <see cref="QuietAfter"/>.
+    /// <see cref="FeedState.Slow"/> while the feed here reads it in turn — and quiet only once
+    /// nothing has landed for well past its turn (<see cref="SlowQuietAfter"/>).
+    /// <see cref="FeedState.Quiet"/> when nothing is newer than <see cref="QuietAfter"/> outside a
+    /// break and nothing explains it, when the feed here is backing off the game, or when it is
+    /// here and reads the game in no lane at all.
+    /// </para>
+    /// </summary>
+    public static FeedState StateOf(GameStatus status, GamecastFeedReading feed, TimeSpan sinceNewest, bool isBreak)
+    {
+        if (status == GameStatus.Final)
+            return FeedState.Final;
+        if (status != GameStatus.Live)
+            return FeedState.NotStarted;
+
+        var stale = !isBreak && sinceNewest >= QuietAfter;
+
+        if (!feed.Here)
+            return stale ? FeedState.Quiet : FeedState.Live;
+
+        return feed.Lane switch
+        {
+            GamecastLane.Fast => stale ? FeedState.Quiet : FeedState.Live,
+            GamecastLane.Slow => !isBreak && sinceNewest >= SlowQuietAfter(feed) ? FeedState.Quiet : FeedState.Slow,
+            _ => FeedState.Quiet
+        };
+    }
+
+    /// <summary>
+    /// How long a game read in turn may go without a play before it is quiet: <see cref="QuietAfter"/>
+    /// and two of its turns, so a game read every forty-five seconds is quiet only after three and a
+    /// half minutes, and one read every two minutes after six.
+    /// </summary>
+    public static TimeSpan SlowQuietAfter(GamecastFeedReading feed)
+        => QuietAfter + (feed.SlowEvery ?? TimeSpan.Zero) * 2;
+
+    /// <summary>How long since the newest play, or since the kickoff while there is none.</summary>
+    private TimeSpan QuietFor(Game game, DateTimeOffset now)
+    {
+        var newest = _plays.Count == 0 ? (DateTimeOffset?)null
+            : _plays.Max(p => Later(p.Wallclock, p.Modified));
+
+        return now - (newest ?? game.StartsAt);
+    }
+
+    /// <summary>
+    /// The warning about a quiet game: what is wrong, and how old the newest play is. Where the
+    /// feed is not in this process the settings that run it are on the note, in a line of their own
+    /// rather than in a title a note — which never takes focus — gave only a pointer (HIG 12); the
+    /// sentence itself names none. Where the feed is here the keys are not the problem and are not shown.
+    /// </summary>
+    private RenderFragment QuietNote(GamecastFeedReading feed, DateTimeOffset now) => @<text>
+        <Note State="DeskState.Warning" Class="gc__quiet">
+            @QuietLine(feed, now)
+            @if (!feed.Here)
+            {
+                <span class="gc__quiet-keys">@QuietKeys</span>
+            }
+        </Note>
+    </text>;
+
+    /// <summary>The quiet note's sentences.</summary>
+    private string QuietLine(GamecastFeedReading feed, DateTimeOffset now)
+    {
+        var since = _game is null ? TimeSpan.Zero : QuietFor(_game, now);
+        var age = AgeWords(since);
+
+        var what = _plays.Count == 0
+            ? $"Plays are not arriving. The game kicked off {age} ago and none has landed."
+            : $"Plays are not arriving. The newest is {age} old.";
+
+        var why = !feed.Here ? "The feed runs on the machine that runs the schedule."
+            : feed.Lane == GamecastLane.BackedOff ? "The last reads of this game did not succeed; it is tried again shortly."
+            : feed.Lane is null && feed.SlowLanePerPoll <= 0 && feed.InPlay > feed.FastLaneSize
+                ? $"{feed.InPlay} games are on and {feed.FastLaneSize} are read at a time; this one is not among them."
+            : feed.Lane is null ? "This game is not being read."
+            : "The game is being read, and no new play has come in.";
+
+        return $"{what} {why}";
+    }
+
+    /// <summary>
+    /// The one line under the field while the game is read in turn: how many games are on, how often
+    /// this one is read, and — only when it is so — that with this window open it moves to every
+    /// poll. Every number is the reading's.
+    /// </summary>
+    public static string SlowLine(GamecastFeedReading feed)
+    {
+        var on = feed.InPlay == 1 ? "1 game is on." : $"{feed.InPlay} games are on.";
+        var every = feed.SlowEvery is { } turn ? $"This one is read about every {Span(turn)}" : "This one is read in turn with the others";
+
+        return feed.Promoted
+            ? $"{on} {every}; with this window open it moves to every {Span(feed.Poll)}."
+            : $"{on} {every}.";
+    }
+
+    /// <summary>"45 seconds", "2 minutes".</summary>
+    private static string Span(TimeSpan span)
+    {
+        if (span < TimeSpan.FromSeconds(90))
+        {
+            var seconds = (int)Math.Round(span.TotalSeconds);
+            return seconds == 1 ? "second" : $"{seconds} seconds";
+        }
+
+        return $"{(int)Math.Round(span.TotalMinutes)} minutes";
+    }
+
+    /// <summary>An age in words for a sentence: "under a minute", "9m", "1.5h".</summary>
+    private static string AgeWords(TimeSpan since)
+        => since < TimeSpan.FromMinutes(1) ? "under a minute" : Age(since.TotalMinutes);
+
+    /// <summary>The plays tab with nothing in it, said for the state the game is in.</summary>
+    public static string NoPlays(FeedState state) => state switch
+    {
+        FeedState.NotStarted => "Plays appear once the game kicks off.",
+        FeedState.Final => "No play-by-play is held for this game.",
+        _ => "No plays have landed yet."
+    };
+
+    private static RenderFragment Words(string text) => b => b.AddContent(0, text);
+
+    /// <summary>The settings behind the note where the feed is not in this process; the sentence itself names none.</summary>
+    private const string QuietKeys = "Ingestion:HostScheduler runs the feed; Ingestion:Gamecast:Enabled turns it on.";
+
+    // ---- Telling the feed the window is open ----------------------------------------------
+
+    /// <summary>A scheduled game is watched from this long before its start, so its first plays are read at full pace.</summary>
+    public static readonly TimeSpan WatchBefore = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Whether the window should hold the feed's interest in the game: an NFL game that is live, or
+    /// scheduled to start within <see cref="WatchBefore"/>.
+    /// </summary>
+    public static bool Interested(GamecastHeader? header, DateTimeOffset now)
+        => header is { SportKey: Nfl }
+           && (header.Status == GameStatus.Live
+               || (header.Status == GameStatus.Scheduled && header.StartsAt - now <= WatchBefore));
+
+    /// <summary>The game whose interest this window holds; null while it holds none.</summary>
+    private int? _watched;
+
+    /// <summary>
+    /// Renews the lease between notices, a third of a lease apart: a game in a long stoppage sends
+    /// none, and its lease would otherwise run out with the window still open on it.
+    /// </summary>
+    private System.Threading.Timer? _renewer;
+
+    private bool _released;
+
+    /// <summary>
+    /// Watch once when the game becomes one to hold, renew on every refresh while it stays one, and
+    /// let go once when it stops being one (the final whistle) or the window closes. Watch and
+    /// Unwatch pair exactly once per game: the count in GamecastLanes is per window.
+    /// </summary>
+    private void Follow(bool renew)
+    {
+        if (_released)
+            return;
+
+        var wants = Interested(_header, Now) && _header!.GameId == GameId;
+
+        if (wants && _watched == GameId)
+        {
+            if (renew)
+                Data.Renew(GameId);
+            return;
+        }
+
+        Release();
+
+        if (!wants)
+            return;
+
+        var id = GameId;
+        _watched = id;
+        Data.Watch(id);
+
+        var every = GamecastLanes.Lease / 3;
+        _renewer = new System.Threading.Timer(_ =>
+        {
+            if (_watched == id)
+                Data.Renew(id);
+        }, null, every, every);
+    }
+
+    private void Release()
+    {
+        _renewer?.Dispose();
+        _renewer = null;
+
+        if (_watched is { } id)
+        {
+            _watched = null;
+            Data.Unwatch(id);
+        }
+    }
+
+    protected override void OnDispose()
+    {
+        _released = true;
+        Release();
+    }
+
+    // ---- The field and the comparison ----------------------------------------------------
+
+    /// <summary>
+    /// The drive on the field's plays, in sequence order, and where it started: only that drive's,
+    /// since the field lays out one drive. None while no drive is current, and none while the
+    /// side with the ball is not the drive's own: after an interception returned for a score ESPN
+    /// still calls the beaten drive current until the kickoff, and its plays drawn under the other
+    /// side's ball would read as that side's drive, run backwards.
+    /// </summary>
+    private (IReadOnlyList<GamecastPlay> Plays, int? Start) FieldDrive()
+    {
+        if (CurrentDrive is not { } drive)
+            return ([], null);
+
+        if (drive.TeamId is { } owner && _header?.PossessionTeamId is { } holder && owner != holder)
+            return ([], null);
+
+        return (_plays.Where(p => DriveOf(p, _drives) == drive.Sequence).ToList(), drive.StartYardLine);
+    }
+
+    /// <summary>The comparison's rows, rebuilt only when the plays, the drives or the box score move.</summary>
+    private IReadOnlyList<ComparisonRow> _comparison = [];
+
+    private void RebuildComparison()
+        => _comparison = _header is null ? [] : GamecastTelemetry.Compare(_header, _drives, _plays, _box);
+
+    private static DateTimeOffset? Later(DateTimeOffset? a, DateTimeOffset? b)
+        => a is null ? b : b is null ? a : a > b ? a : b;
+
+    /// <summary>A stoppage the detail line names — halftime, the end of a quarter — when nothing is meant to be happening.</summary>
+    private static bool IsBreak(Game game)
+        => game.StatusDetail is { } d
+           && (d.Contains("Halftime", StringComparison.OrdinalIgnoreCase)
+               || d.StartsWith("End", StringComparison.OrdinalIgnoreCase)
+               || d.Contains("Delayed", StringComparison.OrdinalIgnoreCase));
+
+    private Task OpenPlayer((int PlayerId, string Name) player)
+    {
+        Manager.OpenPlayer(player.PlayerId, player.Name, WindowId);
+        return Task.CompletedTask;
+    }
+
+    // ---- The drive log -------------------------------------------------------------------
+
+    /// <summary>The drive in progress: the one ESPN marks current, else the last one there is.</summary>
+    private GamecastDrive? CurrentDrive => CurrentOf(_drives);
+
+    private GamecastDrive? CurrentOf(IReadOnlyList<GamecastDrive> drives)
+        => drives.LastOrDefault(d => d.IsCurrent) ?? (_game?.Status == GameStatus.Live ? drives.LastOrDefault() : null);
+
+    /// <summary>The disclosure key of the plays no drive holds; no drive is numbered this.</summary>
+    private const int OtherPlays = int.MinValue;
+
+    /// <summary>
+    /// The drive a play is drawn under: the one ESPN filed it with, else the drive whose sequence
+    /// range holds it (a timeout or a two-minute warning between two of the drive's snaps), else
+    /// <see cref="OtherPlays"/>. A play is never left undrawn for want of a drive — nor for a
+    /// drive number the drives read does not hold yet.
+    /// </summary>
+    private static int DriveOf(GamecastPlay play, IReadOnlyList<GamecastDrive> drives)
+    {
+        if (play.DriveSeq is { } drive && drives.Any(d => d.Sequence == drive))
+            return drive;
+
+        foreach (var d in drives)
+        {
+            if (d.FirstSequence is { } first && d.LastSequence is { } last && first <= play.Sequence && play.Sequence <= last)
+                return d.Sequence;
+        }
+
+        return OtherPlays;
+    }
+
+    /// <summary>The drive the operator opened; until they open one, the drive in progress.</summary>
+    private int? _openDrive;
+    private bool _driveChosen;
+
+    private int? OpenDrive => _driveChosen ? _openDrive : CurrentDrive?.Sequence;
+
+    /// <summary>One drive open at a time, as one row is everywhere on the desk. Pressing the open one closes it.</summary>
+    private void ToggleDrive(int sequence)
+    {
+        var open = OpenDrive;
+        _driveChosen = true;
+        _openDrive = open == sequence ? null : sequence;
+    }
+
+    /// <summary>
+    /// Every drive open at once, so the whole game reads top to bottom without a press per drive.
+    /// While it is on a drive's line is a heading rather than a disclosure: there is nothing to fold.
+    /// </summary>
+    private bool _everyPlay;
+
+    /// <summary>
+    /// A game that is on reads newest first, the way it is followed; one that is over reads from
+    /// the kickoff down, the way a league's own play-by-play page prints it.
+    /// </summary>
+    private bool NewestFirst => _game?.Status == GameStatus.Live;
+
+    // ---- The sections --------------------------------------------------------------------
+
+    /// <summary>Which reading is on screen: one at a time, as the Game window's sections are.</summary>
+    private enum View { Plays, Scoring, Probability, Box }
+
+    private View _view = View.Plays;
+
+    /// <summary>The sections this game has. Scoring and the probability wait for a play to draw from.</summary>
+    private IReadOnlyList<DeskTab<View>> Views() =>
+    [
+        new(View.Plays, "Plays"),
+        new(View.Scoring, "Scoring", _plays.Count > 0),
+        new(View.Probability, "Win probability", _series.Count > 0),
+        new(View.Box, "Box score")
+    ];
+
+    // ---- The drives, drawn ---------------------------------------------------------------
+
+    /// <summary>
+    /// The drives under a heading per period, each a disclosure: closed, its result line, where
+    /// on the field it ran and the score it left; open, its plays. Newest first while the game is
+    /// on, from the kickoff down once it is over (<see cref="NewestFirst"/>). A game the feed wrote
+    /// no drives for is one flat list of its plays. A play no drive holds (<see cref="DriveOf"/>)
+    /// closes the log as "Other plays", so every play held is in the log, as it is in the scoring
+    /// and the chart.
+    /// </summary>
+    private RenderFragment RenderDrives() => @<text>
+        @{
+            var newestFirst = NewestFirst;
+        }
+        @if (_drives.Count == 0)
+        {
+            <div class="wgroup">
+                @RenderPlays(newestFirst ? _plays.AsEnumerable().Reverse().ToList() : _plays)
+            </div>
+        }
+        else
+        {
+            var open = OpenDrive;
+            var byDrive = _plays.GroupBy(p => DriveOf(p, _drives)).ToDictionary(g => g.Key, g => g.ToList());
+            var others = byDrive.GetValueOrDefault(OtherPlays);
+            var headed = new HashSet<int>();
+            <div class="wgroup gc__drives">
+                @foreach (var drive in newestFirst ? _drives.Reverse() : _drives)
+                {
+                    var held = byDrive.GetValueOrDefault(drive.Sequence) ?? [];
+                    var isOpen = _everyPlay || open == drive.Sequence;
+                    var region = $"gcdrive-{WindowId}-{drive.Sequence}";
+                    var sequence = drive.Sequence;
+                    var span = DriveSpan(drive, _header?.YardLine);
+                    var tally = DriveTally(held);
+
+                    @if (drive.StartPeriod is { } period && headed.Add(period))
+                    {
+                        <div class="wgroup__row gc__period" role="heading" aria-level="3" @key="@($"period-{period}")">@Periods.Name(_game?.Sport?.Key, period)</div>
+                    }
+
+                    <div class="wgroup__row gc__drive @(isOpen ? "gc__drive--open" : null)" @key="drive.Sequence" data-drive="@drive.Sequence">
+                        @if (_everyPlay)
+                        {
+                            <span class="gc__toggle gc__toggle--still">@RenderDriveLead(drive)</span>
+                        }
+                        else
+                        {
+                            <button type="button" class="gc__toggle disclosure__summary"
+                                    aria-expanded="@(isOpen ? "true" : "false")" aria-controls="@region"
+                                    @onclick="() => ToggleDrive(sequence)">
+                                <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
+                                @RenderDriveLead(drive)
+                            </button>
+                        }
+                        <span class="gc__drive-trail">
+                            @if (span is { } ran)
+                            {
+                                @* Where on the field the drive ran, away's goal on the left as the
+                                   field card has it. The line beside it already says the yards. *@
+                                <FieldSpan From="ran.From" Length="ran.Length" Scored="drive.IsScore" />
+                            }
+                            @if (drive.IsScore)
+                            {
+                                <Tag State="DeskState.Positive">@(drive.Result ?? "Score")</Tag>
+                            }
+                            else if (drive.IsCurrent)
+                            {
+                                <Tag State="DeskState.Warning" Live="true">On the field</Tag>
+                            }
+                            @if (tally is not null)
+                            {
+                                <span class="gc__tally @(drive.IsScore ? null : "gc__tally--quiet")">@tally</span>
+                            }
+                        </span>
+                    </div>
+                    @if (isOpen)
+                    {
+                        <div class="wgroup__row gc__plays" id="@region" @key="(drive.Sequence, true)">
+                            @if (held.Count == 0)
+                            {
+                                <span class="dim">No plays held for this drive yet.</span>
+                            }
+                            else
+                            {
+                                @RenderPlays(newestFirst ? held.AsEnumerable().Reverse().ToList() : held)
+                            }
+                        </div>
+                    }
+                }
+                @if (others is { Count: > 0 })
+                {
+                    var isOpen = _everyPlay || open == OtherPlays;
+                    var region = $"gcdrive-{WindowId}-other";
+                    var count = others.Count == 1 ? "1 play" : $"{others.Count} plays";
+                    <div class="wgroup__row gc__drive @(isOpen ? "gc__drive--open" : null)" @key="OtherPlays" data-drive="other">
+                        @if (_everyPlay)
+                        {
+                            <span class="gc__toggle gc__toggle--still">
+                                <span class="gc__result">Other plays · @count filed under no drive</span>
+                            </span>
+                        }
+                        else
+                        {
+                            <button type="button" class="gc__toggle disclosure__summary"
+                                    aria-expanded="@(isOpen ? "true" : "false")" aria-controls="@region"
+                                    @onclick="() => ToggleDrive(OtherPlays)">
+                                <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
+                                <span class="gc__result">Other plays · @count filed under no drive</span>
+                            </button>
+                        }
+                    </div>
+                    @if (isOpen)
+                    {
+                        <div class="wgroup__row gc__plays" id="@region" @key="(OtherPlays, true)">
+                            @RenderPlays(newestFirst ? others.AsEnumerable().Reverse().ToList() : others)
+                        </div>
+                    }
+                }
+            </div>
+        }
+    </text>;
+
+    /// <summary>A drive's side and its result line: the words of its row, in a disclosure or on their own.</summary>
+    private RenderFragment RenderDriveLead(GamecastDrive drive) => @<text>
+        <span class="gc__team"><TeamMark Sport="@_game?.Sport?.Key" Abbrev="@drive.TeamAbbrev" />@(drive.TeamAbbrev ?? "—")</span>
+        <span class="gc__result">@DriveLine(drive)</span>
+    </text>;
+
+    /// <summary>
+    /// Where a drive ran, as a start and a length in hundredths of the field measured from the
+    /// away side's goal line — the field's frame (FieldGeometry), with yard lines counted from the home goal
+    /// (<see cref="Game.YardLine"/>). The drive in progress ends where the ball is. Null when
+    /// either end is unknown; a drive that went nowhere still draws a mark two yards wide.
+    /// </summary>
+    public static (double From, double Length)? DriveSpan(GamecastDrive drive, int? ballOn)
+    {
+        var end = drive.EndYardLine ?? (drive.IsCurrent ? ballOn : null);
+        return FieldGeometry.Span(drive.StartYardLine, end);
+    }
+
+    /// <summary>The score a drive left, away first as the title has it: "PHI 7–3 WSH". Null until a play of it carries one.</summary>
+    private string? DriveTally(List<GamecastPlay> held)
+    {
+        if (_header is null)
+            return null;
+
+        for (var i = held.Count - 1; i >= 0; i--)
+        {
+            if (held[i] is { AwayScore: { } away, HomeScore: { } home })
+                return $"{_header.Away.Abbrev} {away}–{home} {_header.Home.Abbrev}";
+        }
+
+        return null;
+    }
+
+    /// <summary>Plays in the order given: the shared play log, virtualised past <see cref="VirtualizeAt"/>.</summary>
+    private RenderFragment RenderPlays(List<GamecastPlay> plays)
+        => @<PlayLog Plays="plays" Sport="@_game?.Sport?.Key" VirtualizeAt="VirtualizeAt" />;
+
+    /// <summary>
+    /// A drive closed to one line: "7 plays, 62 yds, 3:48 · Touchdown". Plays are the provider's
+    /// offensive count (it leaves out penalties and kicks); a figure ESPN did not send is left out.
+    /// </summary>
+    public static string DriveLine(GamecastDrive drive)
+    {
+        var parts = new List<string>(3);
+
+        if (drive.OffensivePlays is { } n)
+            parts.Add(n == 1 ? "1 play" : $"{n} plays");
+        if (drive.Yards is { } y)
+            parts.Add($"{y} yds");
+        if (!string.IsNullOrWhiteSpace(drive.TimeElapsed))
+            parts.Add(drive.TimeElapsed!);
+
+        var line = parts.Count == 0 ? "No plays yet" : string.Join(", ", parts);
+        var result = drive.IsCurrent && string.IsNullOrWhiteSpace(drive.Result) ? "In progress" : drive.Result;
+
+        return string.IsNullOrWhiteSpace(result) ? line : $"{line} · {result}";
+    }
+
+    // ---- Scoring -------------------------------------------------------------------------
+
+    private RenderFragment RenderScoring() => @<text>
+        @{
+            var scoring = _plays.Where(p => p.IsScoring).ToList();
+        }
+        @if (scoring.Count == 0)
+        {
+            <EmptyState>No score yet.</EmptyState>
+        }
+        else
+        {
+            <div class="wgroup">
+                @foreach (var play in scoring)
+                {
+                    <div class="wgroup__row gc__score" @key="play.Id">
+                        <span class="gc__when">@PlayLog.When(_game?.Sport?.Key, play)</span>
+                        <span class="gc__team"><TeamMark Sport="@_game?.Sport?.Key" Abbrev="@TeamAbbrev(play.TeamId)" />@TeamAbbrev(play.TeamId)</span>
+                        <span class="gc__text">@(play.Text ?? play.Type)</span>
+                        @if (play.AwayScore is { } a && play.HomeScore is { } h)
+                        {
+                            <span class="gc__tally">@_header!.Away.Abbrev @a–@h @_header.Home.Abbrev</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </text>;
+
+    private string TeamAbbrev(int? teamId)
+        => teamId == _header?.Home.Id ? _header!.Home.Abbrev
+            : teamId == _header?.Away.Id ? _header!.Away.Abbrev
+            : string.Empty;
+
+    // ---- Win probability -----------------------------------------------------------------
+
+    private bool _showCover;
+    private bool _showOver;
+
+    // Rebuilt only when the plays or the toggles change: DeskChart redraws on a new reference.
+    private List<ChartSeries<double>> _series = [];
+    private string[] _labels = [];
+
+    private void ShowSeries(bool? cover = null, bool? over = null)
+    {
+        _showCover = cover ?? _showCover;
+        _showOver = over ?? _showOver;
+        RebuildChart();
+    }
+
+    /// <summary>
+    /// The probability line over play sequence, in percent, with its references.
+    ///
+    /// <para>
+    /// A play the provider gave no probability for carries the last real reading forward; a
+    /// series with no reading at all is not drawn. Nothing is drawn before a series' first
+    /// reading: DeskChart draws no gaps and every series shares the x axis from its first point,
+    /// so the chart starts at the first play where every series shown has read. With the cover
+    /// and over off, that is the first win reading.
+    /// </para>
+    ///
+    /// <para>
+    /// Two flat references, because DeskChart has no reference-line API and is app-neutral: the
+    /// home side's pre-game win probability (the first reading the provider gave, at kickoff),
+    /// drawn beside the win line; and, while the cover or the over is shown, the even line at 50%
+    /// they are read against. The close itself stays named in the caption.
+    /// </para>
+    /// </summary>
+    private void RebuildChart()
+    {
+        var points = _plays
+            .Where(p => p.HomeWinPct is not null || p.SpreadCoverPctHome is not null || p.TotalOverPct is not null)
+            .ToList();
+
+        var home = _header?.Home.Abbrev ?? "Home";
+
+        var win = $"{home} win";
+        var lines = new List<(string Name, Func<GamecastPlay, double?> Read)> { (win, p => p.HomeWinPct) };
+        if (_showCover)
+            lines.Add(($"{home} cover", p => p.SpreadCoverPctHome));
+        if (_showOver)
+            lines.Add(("Over", p => p.TotalOverPct));
+
+        lines.RemoveAll(l => points.All(p => l.Read(p) is null));
+
+        var start = lines.Count == 0 ? 0 : lines.Max(l => points.FindIndex(p => l.Read(p) is not null));
+        var shown = points.Skip(start).ToList();
+
+        var series = new List<ChartSeries<double>>();
+
+        foreach (var (name, read) in lines)
+        {
+            // Carried from the start of the game, so a series whose first reading came before the
+            // chart's first point starts from that reading, not from nothing.
+            double? carried = null;
+            var values = points
+                .Select(p => carried = read(p) ?? carried)
+                .Skip(start)
+                .Select(v => Math.Round(v!.Value * 100, 1))
+                .ToArray();
+
+            series.Add(new ChartSeries<double> { Name = name, Data = values });
+
+            if (name == win && PreGameWin() is { } pregame)
+                series.Add(Flat($"{home} pre-game", pregame));
+        }
+
+        if (lines.Any(l => l.Name != win))
+            series.Add(Flat(EvenSeries, 0.5));
+
+        _series = series;
+        _labels = shown
+            .Select((p, i) => i == 0 || p.Period != shown[i - 1].Period ? (p.Period is { } n ? Periods.Mark(_header?.SportKey, n) : null) ?? string.Empty : string.Empty)
+            .ToArray();
+
+        ChartSeries<double> Flat(string name, double value)
+            => new() { Name = name, Data = Enumerable.Repeat(Math.Round(value * 100, 1), shown.Count).ToArray() };
+    }
+
+    /// <summary>
+    /// The home side's chance before a play had moved it: the provider's first reading. The header
+    /// carries no pre-game probability of ESPN's own, so this is the honest stand-in; with no
+    /// reading there is no line.
+    /// </summary>
+    private double? PreGameWin() => _plays.FirstOrDefault(p => p.HomeWinPct is not null)?.HomeWinPct;
+
+    /// <summary>"WSH 64% to win", from the last reading.</summary>
+    private string? ChartHeadline()
+    {
+        var last = _plays.LastOrDefault(p => p.HomeWinPct is not null)?.HomeWinPct;
+        if (last is not { } win || _header is null)
+            return null;
+
+        return win >= 0.5
+            ? $"{_header.Home.Abbrev} {win * 100:0}% to win"
+            : $"{_header.Away.Abbrev} {(1 - win) * 100:0}% to win";
+    }
+
+    /// <summary>
+    /// The pre-game market, named under the chart: "Closed PHI -3, total 44.5". The chart draws
+    /// the pre-game win probability and the even line as its references (see RebuildChart); the
+    /// close is a spread and a total, not a probability, so it is said rather than drawn. The
+    /// spread is named for the favourite, as a book prints it. "Priced" before the start, when the number is still the scan.
+    /// </summary>
+    public static string? CloseCaption(GamecastHeader header)
+    {
+        if (header.Close is not { } close)
+            return null;
+
+        var parts = new List<string>(2);
+
+        if (close.HomeSpread is { } spread)
+        {
+            parts.Add(spread switch
+            {
+                < 0 => $"{header.Home.Abbrev} {spread.ToString("0.#", CultureInfo.InvariantCulture)}",
+                > 0 => $"{header.Away.Abbrev} -{spread.ToString("0.#", CultureInfo.InvariantCulture)}",
+                _ => "pick'em"
+            });
+        }
+
+        if (close.Total is { } total)
+            parts.Add($"total {total.ToString("0.#", CultureInfo.InvariantCulture)}");
+
+        return parts.Count == 0 ? null : $"{(close.IsClosing ? "Closed" : "Priced")} {string.Join(", ", parts)}";
+    }
+
+    // ---- The clock -----------------------------------------------------------------------
+
+    /// <summary>One clock reading: the period, the seconds left in it, and when the feed read them.</summary>
+    public sealed record ClockReading(int? Period, int Seconds, DateTimeOffset At)
+    {
+        public static ClockReading? Of(Game game)
+            => game.ClockSeconds is { } seconds && game.LiveUpdatedAt is { } at ? new(game.Period, seconds, at) : null;
+    }
+
+    // The last two readings, for whether the clock is running (see ClockRun).
+    private ClockReading? _reading;
+    private ClockReading? _previousReading;
+
+    private ElementReference _clockEl;
+    private bool _clockStarted;
+    private Task<IJSObjectReference>? _import;
+    private bool _disposing;
+
+    /// <summary>Whether the title is drawing the clock tag this render, so there is an element to hand the browser.</summary>
+    private bool ClockShown => _game is not null && ClockParts(_game).Clock is not null;
+
+    /// <summary>
+    /// Hands the browser the clock after every render (gameclock.js), and never in prerender —
+    /// there is no browser to hand it to. Whether it runs, from where and for how long is
+    /// <see cref="ClockRun"/>'s.
+    ///
+    /// <para>
+    /// The import is held as a task: a window closed while it is in flight disposes the module
+    /// when it arrives (<see cref="DisposeAsync"/>) rather than leaking it.
+    /// </para>
+    ///
+    /// <para>
+    /// Nothing the browser says here escapes: an exception out of this method ends the whole
+    /// desk circuit, and a clock that does not tick is the lesser loss. An import that failed is
+    /// let go so a later render may ask once more (<see cref="ClockImportAttempts"/>), and after
+    /// that the clock is given up quietly; the tag still shows the server's reading.
+    /// </para>
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!RendererInfo.IsInteractive || _disposing || !ClockShown || _game is null)
+            return;
+
+        if (_import is null && _clockImports >= ClockImportAttempts)
+            return;
+
+        var game = _game;
+        var previous = _previousReading;
+        var element = _clockEl;
+
+        try
+        {
+            if (_import is null)
+            {
+                _clockImports++;
+                _import = JS.InvokeAsync<IJSObjectReference>("import", "./js/gameclock.js").AsTask();
+            }
+
+            var module = await _import;
+
+            if (_disposing)
+                return;
+
+            var (seconds, running, limit) = ClockRun(game, previous, Now);
+            await module.InvokeVoidAsync("startClock", element, seconds, running, limit);
+            _clockStarted = true;
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException
+                                       or TaskCanceledException or ObjectDisposedException)
+        {
+            // A faulted import cached would fail every render after; let it go so one more may try.
+            if (_import is { IsCompleted: true, IsCompletedSuccessfully: false })
+                _import = null;
+
+            Log.LogDebug(ex, "Gamecast {GameId}: the browser clock did not start; the tag shows the server's reading", GameId);
+        }
+    }
+
+    /// <summary>Imports of gameclock.js a window asks for before it gives the ticking clock up.</summary>
+    private const int ClockImportAttempts = 2;
+
+    private int _clockImports;
+
+    /// <summary>
+    /// What the browser's clock starts from, whether it runs, and for how many seconds at most.
+    ///
+    /// <para>
+    /// ESPN does not say whether the clock is running, so the last two readings are asked: it
+    /// runs only when the seconds dropped between them by about the wall-clock time between
+    /// them (within <see cref="ClockTolerance"/>), in one period. A reading that repeats the
+    /// last one's seconds is a stopped clock; one reading alone says nothing. A live game, a
+    /// period not over, and a reading under <see cref="ClockRunsFor"/> old, besides.
+    /// </para>
+    ///
+    /// <para>
+    /// It starts from the reading less its age and may run for what is left of
+    /// <see cref="ClockRunsFor"/>, never past 0:00. So the title's tag may run ahead of the rail
+    /// chip — which reports the server's reading, as every pulse does — by at most that bound,
+    /// and the next reading puts the two back together. That disagreement is accepted: the chip
+    /// is a status line, redrawn on each notice, and cannot tick.
+    /// </para>
+    /// </summary>
+    public static (int Seconds, bool Running, int Limit) ClockRun(Game game, ClockReading? previous, DateTimeOffset now)
+    {
+        var seconds = game.ClockSeconds ?? 0;
+        var stopped = (seconds, false, 0);
+
+        if (game.Status != GameStatus.Live || seconds <= 0 || IsBreak(game) || game.LiveUpdatedAt is not { } at)
+            return stopped;
+
+        if (previous is null || previous.Period != game.Period || previous.At >= at)
+            return stopped;
+
+        var drop = previous.Seconds - seconds;
+        var between = (at - previous.At).TotalSeconds;
+        if (drop <= 0 || Math.Abs(drop - between) > ClockTolerance.TotalSeconds)
+            return stopped;
+
+        var age = now - at;
+        if (age < TimeSpan.Zero)
+            age = TimeSpan.Zero;
+
+        if (age >= ClockRunsFor)
+            return stopped;
+
+        var left = Math.Max(0, seconds - (int)age.TotalSeconds);
+        if (left == 0)
+            return (0, false, 0);
+
+        return (left, true, Math.Min((int)(ClockRunsFor - age).TotalSeconds, left));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposing = true;
+        Dispose();
+
+        if (_import is not { } import)
+            return;
+
+        // Still in flight: dispose the module when it arrives, without holding the window's
+        // disposal open on the browser.
+        if (!import.IsCompleted)
+        {
+            _ = ReleaseAsync(import, stop: false);
+            return;
+        }
+
+        await ReleaseAsync(import, _clockStarted);
+    }
+
+    private async Task ReleaseAsync(Task<IJSObjectReference> import, bool stop)
+    {
+        try
+        {
+            var module = await import;
+            if (stop)
+                await module.InvokeVoidAsync("stopClock", _clockEl);
+            await module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (TaskCanceledException)
+        {
+        }
+        catch (JSException)
+        {
+            // The import itself failed: there is no module to release.
+        }
+    }
+}

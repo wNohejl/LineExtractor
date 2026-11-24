@@ -6,6 +6,11 @@ static site, 1.0 as a desk each person runs, a hosted demo on the existing VM ki
 wanted, and no Azure App Service for 1.0. Phases B to D are not yet carried out: each creates
 or changes something outside this checkout, and is the developer's to start (§ What is decided).
 
+**Amended 2026-11-23:** the identifiers are renamed after all — see
+[§ Amendment](#amendment-2026-11-23-the-identifiers-are-renamed-the-stored-values-are-not). §1's
+table below is the record of what each rename costs, and the amendment keeps every row of it
+that costs data.
+
 **Supersedes:** the going-public plan's §8 to §10b
 ([2026-09-27](../specs/2026-09-27-going-public-plan.md)) as the statement of where the
 project is going, and the open decisions at the end of the multi-device research
@@ -259,3 +264,40 @@ Not something a document can settle:
   which may be shown.
 - Not done by this ADR: no identifier is renamed, no repository is created, nothing is deployed.
   The brand and the version are the first change of Phase A; the rest of it is next.
+
+## Amendment 2026-11-23: the identifiers are renamed, the stored values are not
+
+The developer chose to finish the rename before the tree becomes the first commit of
+`wNohejl/XLines`, rather than carry two names into the new repository. §1's reason for waiting —
+every open branch would conflict — is weakest at exactly that moment: the new repository starts
+with no branches but `main` and `LineX_Development`.
+
+**Renamed:** every project, folder and namespace (`XLines.Core` … `XLines.Worker`, the tests),
+the solution `XLines.slnx`, `XLinesDbContext`, the `AddXLines*` registrations, the telemetry
+source, meter and metric names (`xlines.*`), the stylesheet `xlines.css`, the container names
+and images (`xlines-web`, `xlines-worker`), the environment variables (`XLINES_HOST`,
+`XLINES_TAILNET_HOST`, `XLINES_CONNECTION`, `XLINES_COMPOSE_FILES`), the setup skill
+(`xlines-setup`), the hosted stack's paths and project, and every document and clone line,
+which now name `https://github.com/wNohejl/XLines.git` cloned into `XLines`.
+
+**The Desk packages take new ids:** `XLines.Desk`, `XLines.Desk.Hosting`, `XLines.Desk.Templates`
+and `XLines.Desk.Testing`, at the versions they had. The `LineOps.Desk*` ids on the feed stay as
+published; a consumer such as TicketMiser moves to the new ids when it next updates.
+
+**Kept, because each one is a value saved on a machine or in another repository:**
+
+| Kept as | Why |
+|---|---|
+| Database and role `lineops`; `Database=lineops;Username=lineops` | Renaming is a dump and restore on both machines |
+| Compose project `name: lineops`, volumes `lineops-pgdata`, `lineops-keys` | Pinned in `docker-compose.yml`, so a checkout folder named `XLines` still finds the existing volumes |
+| Connection string `ConnectionStrings:LineOps` | It is in each machine's user-secrets, `appsettings.Local.json` and `.env`-built environment |
+| Data Protection application name `LineOps` | The odds key saved in Ops and every sign-in cookie |
+| Key folder `%LOCALAPPDATA%\LineOps` | Where `DeskOddsKey` finds the saved key |
+| Layout key `lineops.desk`, cookie `lineops.access`, theme keys `lineops.theme*` | Saved layouts, signed-in visitors, saved themes |
+| Postgres function `lineops_ensure_odds_partition` | It exists in every database the initial migration made |
+| Journal `SyncId` prefix `lineops-journal-entry:` | Entries already synced keep their ids, so the merge stays idempotent |
+| Repository `lineops-journal`, snapshot `snapshots/lineops.dump` | They live in the private repository, which does not change |
+| Certificate file `LineOps.Web.pfx` | `setup.ps1` made it on each machine; `CERT_PATH` points at it |
+
+A `.env` that sets `LINEOPS_TAILNET_HOST` needs it renamed to `XLINES_TAILNET_HOST`; unset, the
+tailnet overlay accepts any host name, as it did before the variable was set.

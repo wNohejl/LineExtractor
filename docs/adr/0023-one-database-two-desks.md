@@ -140,7 +140,7 @@ database is migrated exactly as before, without being asked anything first.
 when `.env` has an uncommented, non-empty `TAILNET_IP`: the machine that set its tailnet address
 is the one the laptop reaches. `restore-data.ps1` brings Postgres up with that list, and the
 messages in `publish-data.ps1` and `publish-journal.ps1` print it, so a restore on the desktop
-no longer takes the tailnet port away. `LINEOPS_COMPOSE_FILES`, semicolon-separated, replaces the
+no longer takes the tailnet port away. `XLINES_COMPOSE_FILES`, semicolon-separated, replaces the
 list for a machine whose overlays are not the ones `.env` implies.
 
 ## Amendment, 2026-11-15: the database is forwarded, not published

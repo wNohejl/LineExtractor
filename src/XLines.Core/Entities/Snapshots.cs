@@ -1,0 +1,197 @@
+namespace XLines.Core.Entities;
+
+/// <summary>
+/// Canonical market keys. Deliberately strings, not an enum, on the entity:
+/// player props and futures slot in later with no schema change.
+/// </summary>
+public static class Markets
+{
+    public const string Moneyline = "h2h";
+    public const string Spread = "spread";
+    public const string Total = "total";
+
+    public static readonly string[] V1 = [Moneyline, Spread, Total];
+}
+
+/// <summary>
+/// An observation of one priced outcome at one book at one instant.
+/// Append-only: rows are never updated, so line movement is reconstructible.
+/// </summary>
+public class OddsSnapshot : Contracts.IFromSource
+{
+    public long Id { get; set; }
+
+    public int GameId { get; set; }
+    public Game? Game { get; set; }
+
+    public int SourceId { get; set; }
+    public Source? Source { get; set; }
+
+    /// <summary>Sportsbook key, e.g. "draftkings".</summary>
+    public string Book { get; set; } = string.Empty;
+
+    /// <summary>See <see cref="Markets"/>. Text so future markets need no migration.</summary>
+    public string Market { get; set; } = string.Empty;
+
+    /// <summary>Which side: team abbrev, "over"/"under", etc.</summary>
+    public string Outcome { get; set; } = string.Empty;
+
+    /// <summary>Handicap or total. Null for moneyline.</summary>
+    public decimal? Line { get; set; }
+
+    public int PriceAmerican { get; set; }
+
+    /// <summary>Null for v1 team markets; populated when player props arrive.</summary>
+    public int? PlayerId { get; set; }
+    public Player? Player { get; set; }
+
+    public DateTimeOffset CapturedAt { get; set; }
+
+    public long IngestionRunId { get; set; }
+}
+
+/// <summary>
+/// The line as it stood when the game started — the only odds record kept permanently.
+///
+/// <para>
+/// <see cref="OddsSnapshot"/> is a scan tier now: it holds the live market while a game is
+/// still ahead of us, and it is deleted once the game is under way. What survives is this,
+/// one row per game, book, market and outcome, promoted at first pitch when the line is set.
+/// That is the observation everything downstream actually needs — closing-line value, and
+/// "what did the market think of this matchup" — and it costs a few hundred rows a day
+/// instead of a stream that grows with poll frequency for ever.
+/// </para>
+///
+/// <para>
+/// Unlike <see cref="OddsSnapshot"/> this table is not partitioned, so it has a plain primary
+/// key and <i>can</i> be the target of a foreign key — the constraint that forced
+/// <c>ADR 0002</c> does not apply here.
+/// </para>
+/// </summary>
+public class ClosingLine : Contracts.IFromSource
+{
+    public long Id { get; set; }
+
+    public int GameId { get; set; }
+    public Game? Game { get; set; }
+
+    public int SourceId { get; set; }
+    public Source? Source { get; set; }
+
+    public string Book { get; set; } = string.Empty;
+
+    /// <summary>See <see cref="Markets"/>.</summary>
+    public string Market { get; set; } = string.Empty;
+
+    public string Outcome { get; set; } = string.Empty;
+
+    public decimal? Line { get; set; }
+
+    public int PriceAmerican { get; set; }
+
+    /// <summary>Null for team markets; populated when player props arrive.</summary>
+    public int? PlayerId { get; set; }
+    public Player? Player { get; set; }
+
+    /// <summary>
+    /// When the observation that became the close was taken. Not the same as
+    /// <see cref="PromotedAt"/>: a book that stops moving an hour before first pitch has a
+    /// close an hour old, and the gap is worth being able to see.
+    /// </summary>
+    public DateTimeOffset CapturedAt { get; set; }
+
+    /// <summary>When promotion ran. Always at or after the game's start.</summary>
+    public DateTimeOffset PromotedAt { get; set; }
+
+    /// <summary>
+    /// What this book's side opened at, where the provider stated it beside the close — ESPN does,
+    /// on the same block its close is read from. Kept on the close's row rather than a table of its
+    /// own because it is the same observation's other end: one book, one market, one side, and
+    /// "how far did it move" is a subtraction on one row. Null on every close promoted from the book
+    /// market, whose first scan is only the first time we looked, not the open; and null where the
+    /// provider stated no open. <see cref="Line"/> and <see cref="PriceAmerican"/> stay the close,
+    /// so every reader of the close reads exactly what it did before.
+    /// </summary>
+    public decimal? OpenLine { get; set; }
+
+    /// <summary>The opening price for the same side, where stated. See <see cref="OpenLine"/>.</summary>
+    public int? OpenPriceAmerican { get; set; }
+}
+
+/// <summary>Raw per-game stats payload. jsonb because stat shapes differ per sport and source.</summary>
+public class StatSnapshot : Contracts.IFromSource
+{
+    public long Id { get; set; }
+    public int GameId { get; set; }
+    public Game? Game { get; set; }
+    public int SourceId { get; set; }
+    public Source? Source { get; set; }
+
+    public string Payload { get; set; } = "{}";
+    public DateTimeOffset CapturedAt { get; set; }
+    public long IngestionRunId { get; set; }
+}
+
+/// <summary>A player's box-score line for one game. Upserted on backfill.</summary>
+public class PlayerGameStat : Contracts.IFromSource
+{
+    public long Id { get; set; }
+
+    public int PlayerId { get; set; }
+    public Player? Player { get; set; }
+
+    public int GameId { get; set; }
+    public Game? Game { get; set; }
+
+    public int SourceId { get; set; }
+    public Source? Source { get; set; }
+
+    /// <summary>
+    /// The side the player was on in this game, as the box score reported it.
+    ///
+    /// <para>
+    /// Not the same thing as <see cref="Player.TeamId"/>, which is where the player is
+    /// <i>now</i>. A player who changed clubs between seasons played last year's games for the
+    /// old one, and reading those games through the new one puts a season's stats on a team
+    /// the player never suited up for. Null only on lines stored before this was recorded;
+    /// readers fall back to the player's current team for those.
+    /// </para>
+    /// </summary>
+    public int? TeamId { get; set; }
+    public Team? Team { get; set; }
+
+    /// <summary>jsonb: pts/reb/ast, pass yds, shots on goal… per sport.</summary>
+    public string StatLine { get; set; } = "{}";
+
+    public DateTimeOffset CapturedAt { get; set; }
+    public long IngestionRunId { get; set; }
+}
+
+/// <summary>
+/// A finished game a closing-line source was asked about and had no close for. The refill asks
+/// ESPN one game at a time, and ESPN holds no line for much of the history it is asked about —
+/// a fight card from two seasons ago, an early-season game. Without this row every press asked
+/// the same five hundred games again, took two minutes, wrote nothing and said "Success".
+///
+/// <para>
+/// One row per game and source. A game is asked again once <see cref="RetryAt"/> has passed,
+/// because ESPN does fill a close in after the fact; the row is removed the moment a close is
+/// written. Nothing here is a line: it is only the memory of having asked.
+/// </para>
+/// </summary>
+public class ClosingLineMiss
+{
+    public int GameId { get; set; }
+    public Game? Game { get; set; }
+
+    public int SourceId { get; set; }
+    public Source? Source { get; set; }
+
+    /// <summary>How many runs have asked for this game's close and come away without one.</summary>
+    public int Attempts { get; set; }
+
+    public DateTimeOffset LastTriedAt { get; set; }
+
+    /// <summary>Not asked again before this.</summary>
+    public DateTimeOffset RetryAt { get; set; }
+}

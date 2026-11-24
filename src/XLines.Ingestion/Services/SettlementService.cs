@@ -1,0 +1,360 @@
+using XLines.Core.Analytics;
+using XLines.Core.Entities;
+using XLines.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace XLines.Ingestion.Services;
+
+public record SettlementSummary(int Graded, int ClvResolved, int LeftPending, int Voided = 0, int ParlaysSettled = 0);
+
+/// <summary>
+/// Settles journal entries once their game finishes, and resolves closing-line value.
+///
+/// <para>
+/// CLV needs the market as it stood at first pitch. That used to mean reading the append-only
+/// scan table; it now means reading <see cref="ClosingLine"/>, which
+/// <see cref="OddsRetentionService"/> promotes once a game starts and which is never pruned.
+/// The result is still denormalised onto the entry, so the number outlives even that.
+/// </para>
+///
+/// <para>
+/// Because the close is written by a separate pass, settlement can arrive first — a game that
+/// finishes inside one retention interval, or a manual <see cref="MarkFinalAsync"/>. So CLV is
+/// retried for already-graded entries rather than only attempted while an entry is pending;
+/// otherwise a race between two background jobs would silently cost a number that cannot be
+/// recomputed later.
+/// </para>
+/// </summary>
+public class SettlementService(XLinesDbContext db, ILogger<SettlementService> logger)
+{
+    /// <summary>
+    /// How long a postponed game may go unplayed before bets on it are void. Books differ — some
+    /// void at once, some keep action if the game is made up within a day or two — so this is
+    /// the common middle, not any one book's rule. A game made up inside the window is graded
+    /// on the make-up as normal; the journal's own Settle menu corrects a book that ruled
+    /// otherwise.
+    /// </summary>
+    public static readonly TimeSpan VoidPostponedAfter = TimeSpan.FromHours(36);
+
+    /// <summary>
+    /// How long after its game's start a settled entry keeps looking for a close. Closes are
+    /// promoted minutes after first pitch and ESPN's reference arrives with the box score, so
+    /// anything not found in a week is not coming.
+    /// </summary>
+    public static readonly TimeSpan ClvSearchWindow = TimeSpan.FromDays(7);
+
+    public async Task<SettlementSummary> SettleAsync(CancellationToken ct = default)
+    {
+        var graded = 0;
+        var clvResolved = 0;
+        var pending = 0;
+        var voided = 0;
+        var voidBefore = DateTimeOffset.UtcNow - VoidPostponedAfter;
+
+        var candidates = await db.JournalEntries
+            .Include(e => e.Game).ThenInclude(g => g!.HomeTeam)
+            .Include(e => e.Game).ThenInclude(g => g!.AwayTeam)
+            .Where(e => e.Result == EntryResult.Pending && e.GameId != null)
+            .ToListAsync(ct);
+
+        // A fight is graded by how it ended rather than by a score (ADR 0021), so the bouts behind
+        // the pending entries are read once, here.
+        var gameIds = candidates.Select(e => e.GameId!.Value).Distinct().ToList();
+        var bouts = await db.Bouts
+            .Where(b => gameIds.Contains(b.GameId))
+            .ToDictionaryAsync(b => b.GameId, ct);
+
+        foreach (var entry in candidates)
+        {
+            var game = entry.Game;
+
+            // Postponed, cancelled, suspended or abandoned — ESPN's four all land here — and not
+            // made up inside the window: the bet had no action. Left alone, it sat at Pending for
+            // ever, counted as open risk on a game that was never going to be played.
+            if (game is { Status: GameStatus.Postponed } && game.StartsAt < voidBefore)
+            {
+                PerformanceAnalytics.ApplyResult(entry, EntryResult.Void);
+                voided++;
+                continue;
+            }
+
+            if (game is { Status: GameStatus.Final } && bouts.TryGetValue(game.Id, out var bout))
+            {
+                // A no contest has no result to price against, so no CLV is read for it either.
+                if (bout.Outcome != BoutOutcome.NoContest && entry.ClosingSnapshotId is null
+                    && await ResolveClvAsync(entry, game, ct))
+                    clvResolved++;
+
+                var fought = Grading.GradeFight(
+                    entry, game.HomeTeam?.Name ?? string.Empty, game.AwayTeam?.Name ?? string.Empty,
+                    game.HomeScore, game.AwayScore, bout);
+
+                if (fought is null)
+                {
+                    pending++;
+                    continue;
+                }
+
+                PerformanceAnalytics.ApplyResult(entry, fought.Value);
+
+                if (fought == EntryResult.Void)
+                    voided++;
+                else
+                    graded++;
+
+                continue;
+            }
+
+            if (game is null
+                || game.Status != GameStatus.Final
+                || game.HomeScore is not { } homeScore
+                || game.AwayScore is not { } awayScore)
+            {
+                pending++;
+                continue;
+            }
+
+            // Resolve CLV first: it depends only on the game having started, not on the
+            // result, and it must happen before old snapshots are ever pruned.
+            if (entry.ClosingSnapshotId is null && await ResolveClvAsync(entry, game, ct))
+                clvResolved++;
+
+            var result = Grading.Grade(
+                entry, game.HomeTeam?.Name ?? string.Empty, game.AwayTeam?.Name ?? string.Empty,
+                homeScore, awayScore);
+
+            if (result is null)
+            {
+                // Not automatically gradable — a free-text or unmapped market. Leave it for
+                // the user rather than inventing a result.
+                pending++;
+                continue;
+            }
+
+            PerformanceAnalytics.ApplyResult(entry, result.Value);
+            graded++;
+        }
+
+        clvResolved += await BackfillMissingClvAsync(ct);
+
+        var parlays = await SettleParlaysAsync(ct);
+
+        if (graded > 0 || clvResolved > 0 || voided > 0 || parlays > 0)
+            await db.SaveChangesAsync(ct);
+
+        if (graded > 0 || clvResolved > 0 || pending > 0 || voided > 0)
+        {
+            logger.LogInformation(
+                "Settlement: {Graded} graded, {Voided} voided, {Clv} CLV resolved, {Pending} left pending",
+                graded, voided, clvResolved, pending);
+        }
+
+        return new SettlementSummary(graded, clvResolved, pending, voided, parlays);
+    }
+
+    /// <summary>
+    /// Grades every pending parlay whose legs now decide it. Runs after the legs are graded in
+    /// the same pass, and reads them through the same context, so a parlay settles on the tick
+    /// its last leg does rather than one tick later.
+    /// </summary>
+    private async Task<int> SettleParlaysAsync(CancellationToken ct)
+    {
+        var pending = await db.Parlays
+            .Include(p => p.Legs)
+            .Where(p => p.Result == EntryResult.Pending)
+            .ToListAsync(ct);
+
+        var settled = 0;
+
+        foreach (var parlay in pending)
+        {
+            var outcome = ParlayGrading.Grade(parlay, parlay.Legs);
+            if (outcome.Result == EntryResult.Pending)
+                continue;
+
+            ParlayGrading.Apply(parlay, outcome);
+            settled++;
+        }
+
+        return settled;
+    }
+
+    /// <summary>
+    /// Picks up entries that were graded before their game's close had been promoted.
+    ///
+    /// The main loop only visits pending entries, so without this an entry settled in the gap
+    /// between first pitch and the next retention pass would keep <c>ClosingSnapshotId</c> null
+    /// for ever — nothing would ever look at it again. Promotion is idempotent and the close is
+    /// permanent, so retrying costs one indexed query per settled-but-unresolved entry and
+    /// eventually succeeds where a close exists.
+    ///
+    /// <para>
+    /// Bounded, because where none exists it never succeeds: a free-text market has no feed, and
+    /// a game no source closed never gets one. Unbounded, every such entry was reloaded on every
+    /// tick for the life of the journal, a list that only grew. A void is left out too — it had
+    /// no action, so there is no value to measure against the close.
+    /// </para>
+    /// </summary>
+    private async Task<int> BackfillMissingClvAsync(CancellationToken ct)
+    {
+        var since = DateTimeOffset.UtcNow - ClvSearchWindow;
+
+        var stragglers = await db.JournalEntries
+            .Include(e => e.Game)
+            .Where(e => e.Result != EntryResult.Pending
+                        && e.Result != EntryResult.Void
+                        && e.ClosingSnapshotId == null
+                        && e.FreeTextMarket == null
+                        && e.GameId != null
+                        && e.Game!.StartsAt >= since)
+            .ToListAsync(ct);
+
+        var resolved = 0;
+
+        foreach (var entry in stragglers)
+        {
+            if (entry.Game is { } game && await ResolveClvAsync(entry, game, ct))
+                resolved++;
+        }
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// Finds the last price observed before kick-off for the same book, market and outcome.
+    /// Falls back to any book when the entry's own book was not tracked — a cross-book close
+    /// is a weaker comparison but far better than no CLV at all.
+    /// </summary>
+    private async Task<bool> ResolveClvAsync(JournalEntry entry, Game game, CancellationToken ct)
+    {
+        var closing = await FindClosingAsync(entry, game, sameBookOnly: true, ct)
+                      ?? await FindClosingAsync(entry, game, sameBookOnly: false, ct);
+
+        if (closing is null)
+            return false;
+
+        entry.ClosingSnapshotId = closing.Id;
+        entry.ClosingCapturedAt = closing.CapturedAt;
+        entry.ClosingPrice = closing.PriceAmerican;
+        entry.ClosingPoints = closing.Line;
+        entry.ClosingBook = closing.Book;
+
+        await ResolveFairCloseAsync(entry, game, ct);
+        return true;
+    }
+
+    /// <summary>
+    /// The closing market's fair chance of the entry's side at the number it was taken on.
+    ///
+    /// <para>
+    /// Read from the whole close rather than the one row the price comparison uses: a fair price
+    /// needs both sides and, where Pinnacle did not close the market, several books. The same
+    /// source rule as the board (ADR 0011) — a book market where the feed covered the game, the
+    /// stats provider's single-book reference only where it did not, and never the two mixed.
+    /// </para>
+    /// </summary>
+    private async Task ResolveFairCloseAsync(JournalEntry entry, Game game, CancellationToken ct)
+    {
+        var closes = await db.ClosingLines
+            .Where(c => c.GameId == game.Id && c.Market == entry.Market)
+            .Select(c => new { c.Book, c.Outcome, c.Line, c.PriceAmerican, c.CapturedAt, c.Source!.Kind })
+            .ToListAsync(ct);
+
+        // Only a market that closed near the start is a fair close. An early one is the market
+        // as it stood when lines were last pulled, and valuing a bet at it would read days of
+        // drift as edge; the reference alone is one book, which has no fair price — so a game
+        // whose market closed early honestly has no fair close.
+        var freshFrom = game.StartsAt - FreshCloseWithin;
+        var fresh = closes.Where(c => c.Kind == SourceKind.Odds && c.CapturedAt >= freshFrom).ToList();
+
+        var market = fresh.Count > 0
+            ? fresh
+            : closes.Where(c => c.Kind != SourceKind.Odds).ToList();
+
+        // The other side of a two-way market is whichever outcome is not the entry's.
+        var other = market
+            .Select(c => c.Outcome)
+            .FirstOrDefault(o => !o.Equals(entry.Outcome, StringComparison.OrdinalIgnoreCase));
+
+        var fair = other is null
+            ? null
+            : FairMarket.Build(entry.Market, entry.Outcome, other,
+                    market.Select(c => new SidePrice(c.Book, c.Outcome, c.Line, c.PriceAmerican)))
+                .For(entry.Outcome, entry.LineTaken);
+
+        entry.ClosingFairProbability = fair?.Probability;
+        entry.ClosingFairBasis = fair?.Basis;
+    }
+
+    /// <summary>
+    /// Reads the promoted close rather than the scan stream it came from.
+    ///
+    /// This used to search <c>OddsSnapshots</c> for the newest row at or before the start.
+    /// That worked while every scan was kept for ever, and would break silently the moment
+    /// retention began deleting them — an entry settled a week late would simply find nothing
+    /// and lose its CLV. <c>ClosingLines</c> holds exactly one row per game, book, market and
+    /// outcome, chosen by the same rule, and is never pruned.
+    /// </summary>
+    private async Task<ClosingLine?> FindClosingAsync(
+        JournalEntry entry, Game game, bool sameBookOnly, CancellationToken ct)
+    {
+        var query = db.ClosingLines
+            .Where(c => c.GameId == game.Id
+                        && c.Market == entry.Market
+                        && c.Outcome == entry.Outcome);
+
+        // Case-blind: the odds feed writes "draftkings", ESPN's reference writes "DraftKings",
+        // and the journal holds whatever was typed. An exact match missed its own book and fell
+        // through to the cross-book comparison it was meant to be better than.
+        if (sameBookOnly)
+            query = query.Where(c => c.Book.ToLower() == entry.Book.ToLower());
+
+        // Either lookup can match several rows — the same-book one a market close and ESPN's
+        // reference close for that book, the any-book one a close per book. A book market that
+        // closed near the start outranks the stats provider's reference, which is stamped at
+        // first pitch and would otherwise always sort newest; among markets the latest wins.
+        //
+        // A market "close" taken long before the start is not a close: under manual polling it
+        // is whenever lines were last pulled, and most were more than six hours early — one
+        // NFL game's was five days out. The reference, taken at first pitch, is then the truer
+        // number, so an early market close ranks below it and is used only where nothing else
+        // closed the game.
+        var freshFrom = game.StartsAt - FreshCloseWithin;
+
+        return await query
+            .OrderByDescending(c => c.Source!.Kind == SourceKind.Odds && c.CapturedAt >= freshFrom)
+            .ThenByDescending(c => c.Source!.Kind != SourceKind.Odds)
+            .ThenByDescending(c => c.CapturedAt)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// How near the start a market close must have been captured to count as the close. The
+    /// longest interval automatic polling leaves between scans (<c>LinePolling.MaximumInterval</c>),
+    /// so a close from a feed running as designed always qualifies, and a manual pull from the
+    /// morning of an evening game does not.
+    /// </summary>
+    public static readonly TimeSpan FreshCloseWithin = TimeSpan.FromHours(3);
+
+    /// <summary>
+    /// Marks games final from ingested scores. Real score feeds arrive via the stats sources;
+    /// this keeps the settlement path testable independently of them.
+    /// </summary>
+    public async Task<int> MarkFinalAsync(
+        int gameId, int homeScore, int awayScore, CancellationToken ct = default)
+    {
+        var game = await db.Games.FirstOrDefaultAsync(g => g.Id == gameId, ct);
+        if (game is null)
+            return 0;
+
+        game.HomeScore = homeScore;
+        game.AwayScore = awayScore;
+        game.Status = GameStatus.Final;
+
+        await db.SaveChangesAsync(ct);
+
+        var summary = await SettleAsync(ct);
+        return summary.Graded;
+    }
+}

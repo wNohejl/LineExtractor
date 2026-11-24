@@ -1,0 +1,47 @@
+@using XLines.Desk.Windowing
+
+@*
+    A list of workspaces to choose from, on the empty desk: one group with one hairline, a row per
+    workspace divided by inset rules. Each row is one button — its icon, its name, its sentence and
+    the windows it opens — with the chevron a row that goes somewhere wears (HIG, Lists and
+    tables), so the whole row is the target and nothing inside it is a second one.
+*@
+
+<section class="desk-empty__group" aria-labelledby="@_headingId">
+    <h3 class="desk-empty__heading" id="@_headingId">@Heading</h3>
+    <ul class="desk-empty__list">
+        @foreach (var offered in Offered)
+        {
+            var workspace = offered.Workspace;
+
+            <li class="desk-empty__item">
+                <button class="desk-empty__row" type="button" @onclick="() => OnChoose.InvokeAsync(workspace)">
+                    <span class="desk-empty__icon" aria-hidden="true"><Glyph Icon="@(workspace.Icon ?? Fallback)" /></span>
+                    <span class="desk-empty__body">
+                        <span class="desk-empty__name">@workspace.Name</span>
+                        @if (!string.IsNullOrWhiteSpace(workspace.Description))
+                        {
+                            <span class="desk-empty__desc">@workspace.Description</span>
+                        }
+                        <span class="desk-empty__windows">Opens @offered.Windows</span>
+                    </span>
+                    <span class="desk-empty__chevron" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ChevronRight" /></span>
+                </button>
+            </li>
+        }
+    </ul>
+</section>
+
+@code {
+    private readonly string _headingId = $"ws-{Guid.NewGuid():N}"[..11];
+
+    /// <summary>The group's name, in sentence case.</summary>
+    [Parameter, EditorRequired] public string Heading { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public IReadOnlyList<OfferedWorkspace> Offered { get; set; } = [];
+
+    /// <summary>The glyph for a workspace that names no icon of its own.</summary>
+    [Parameter] public string Fallback { get; set; } = Icons.Material.Filled.Dashboard;
+
+    [Parameter] public EventCallback<Workspace> OnChoose { get; set; }
+}

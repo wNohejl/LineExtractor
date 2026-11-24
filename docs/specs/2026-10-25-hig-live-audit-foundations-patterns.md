@@ -1,6 +1,6 @@
 # HIG live audit: Foundations and Patterns, 25 October 2026
 
-Audit of the desk (`src/LineOps.Desk`, panels in `src/LineOps.Web/Components/Panels`) against
+Audit of the desk (`src/XLines.Desk`, panels in `src/XLines.Web/Components/Panels`) against
 the live Human Interface Guidelines, read today as Markdown (`<page>.md`). It covers Foundations
 and Patterns only. Components are a sibling audit. It does not re-open anything already
 decided in `2026-10-25-hig-desk-audit.md`, `2026-10-24-panel-anatomy-design.md` or the
@@ -9,7 +9,7 @@ controls), one accent and only for interaction, sentence case, and a 1px hairlin
 or card. The wager window's two cards are out of scope.
 
 Line numbers are taken at HEAD `195e41e`. That commit landed during the audit and moved
-`lineops.css` from 4865 to 4909 lines, so lines after about 3300 were re-checked.
+`xlines.css` from 4865 to 4909 lines, so lines after about 3300 were re-checked.
 
 Contrast figures are WCAG 2 ratios computed from the token blocks, with each alpha token
 composited over `--surface-1`. The HIG's own thresholds (Accessibility, March 2025) are 4.5:1 for
@@ -57,10 +57,10 @@ values updated, Liquid Glass added).
 
 | Rule | Status | Evidence | Fix |
 |---|---|---|---|
-| One colour, one meaning | Partly | Accent on non-interactive text: `.hdr__brand em` (`lineops.css:475`), `.desk-empty__mark em` (1302), `.wstep--current .wstep__title` (4513). Accent wash as a hover: `.pullmenu__item:hover` (2419), `.book-picker__list .book-row:hover` (4652). Accent as status: `.pulse--active` (1557), `.desk-toast--action` (`mud-bridge.css:517`). | Use `--text-primary` for the wordmark `em`s and the current-step title (weight already distinguishes it). Use `--surface-3` for the two hover fills. Use `--text-secondary` for the Info toast edge. Keep the accent for focus, selection and Filled/Tinted. |
+| One colour, one meaning | Partly | Accent on non-interactive text: `.hdr__brand em` (`xlines.css:475`), `.desk-empty__mark em` (1302), `.wstep--current .wstep__title` (4513). Accent wash as a hover: `.pullmenu__item:hover` (2419), `.book-picker__list .book-row:hover` (4652). Accent as status: `.pulse--active` (1557), `.desk-toast--action` (`mud-bridge.css:517`). | Use `--text-primary` for the wordmark `em`s and the current-step title (weight already distinguishes it). Use `--surface-3` for the two hover fills. Use `--text-secondary` for the Info toast edge. Keep the accent for focus, selection and Filled/Tinted. |
 | Increased-contrast variant of every colour | Not met | No `prefers-contrast` rule in any CSS file. `theme.js` watches only `prefers-color-scheme` (`theme.js:51-91`). The High contrast family exists but is opt-in only. | In `theme.js`, also watch `(prefers-contrast: more)`. Have `ThemeService` resolve the `contrast-*` block while it matches and the operator is on Standard, the same way System resolves dark or light. |
 | Not colour alone | Partly | The pulse strip says healthy, warn or critical by hue only. It is labelled for screen readers (`AppWindow.razor:96-97`), but sighted readers get no shape. `.up`/`.down` carry a sign. Tags carry words. Met there. | When `Window.Pulse` is Warn or Critical, put a 12px warning or alert glyph before `win__status` (`AppWindow.razor:56-59`), so the bar says it in shape too. |
-| Don't redefine semantic roles | Met | `--separator` is never used as text. Text tiers stay text. `--chart-neutral` is a separate, opaque token (`lineops.css:70-77`). | n/a |
+| Don't redefine semantic roles | Met | `--separator` is never used as text. Text tiers stay text. `--chart-neutral` is a separate, opaque token (`xlines.css:70-77`). | n/a |
 | Current system values | Partly | `--accent: #0A84FF` (48), `--state-warning: #FF9F0A` (64), light `--accent: #007AFF` (265) and `#FF9500` (287) are the pre-June-2025 values. | Update the `--state-*` fill tokens to the 2025 values in both apple blocks and in `DeskTheme.cs` (ADR 0016 mirror). **Keep the accent fill**: white on `#0091FF` is only 3.23:1. |
 | Light, dark and contrast palettes per theme | Partly | Every family has dark and light. Only one family has contrast. Light-theme state colours fail as text (table above). | See the state-ink finding under Accessibility. |
 
@@ -106,12 +106,12 @@ table); March 7, 2025 (Dynamic Type expanded).
 |---|---|---|---|
 | 10pt floor at every setting | Not met | `--text-caption: calc(10px * var(--text-scale))` (108) and `html { zoom: var(--ui-scale) }` (361). The settings window offers Interface 80% and Text 90% (`WindowManagerPanel.razor:327,336`), so caption renders at 8px and footnote at 8.8px. | Clamp the ramp: `--text-caption: max(10px, calc(10px * var(--text-scale)))`. Drop the 80% interface scale (or stop the zoom shrinking type below 10px by dividing the clamp by `--ui-scale`). |
 | One family | Met | `--face-ui` is one family. Numbers use `tabular-nums` (`.num`, 398-402). | n/a |
-| Style names match the platform | Partly | The desk's `--text-subheadline` is 12px (Apple's Callout) and `--text-footnote` is 11px (Apple's Subheadline) (`lineops.css:106-107`). Designers reading the HIG table pick the wrong token. | Rename to `--text-callout: 12px` and `--text-subheadline: 11px`, and keep the sizes. Add the Apple `--text-footnote` as 10px only if a call site needs it. |
+| Style names match the platform | Partly | The desk's `--text-subheadline` is 12px (Apple's Callout) and `--text-footnote` is 11px (Apple's Subheadline) (`xlines.css:106-107`). Designers reading the HIG table pick the wrong token. | Rename to `--text-callout: 12px` and `--text-subheadline: 11px`, and keep the sizes. Add the Apple `--text-footnote` as 10px only if a call site needs it. |
 | Headline is Bold, emphasized weights exist | Partly | `.win__title` uses `--text-headline` with `--weight-semibold` (1421-1422), and so do `.panel-h` and `.mud-dialog-title`. There is no token for an emphasized style. | Add `--weight-headline: 700`, use it on `.win__title`, `.desk-sheet__title` and `.mud-dialog-title`, and document the emphasized weight beside each style in the token block. |
 | Leading | Partly | `--leading-body: 1.45` (111) is 18.9px at 13px. macOS Body is 16pt (1.23). It is inherited by every grid cell and row. | Make `--leading-body: 1.25` for UI. Add `--leading-prose: 1.45` for Notes, empty-state paragraphs and `.desk-empty__hint`. |
 | No positive tracking on small UI text | Not met | `.mud-dialog-title` .05em (`mud-bridge.css:395`), `.mud-tooltip` .02em (425), toast .01em (505), chart headline .01em (579), legend .04em (599). | Set all five to `letter-spacing: 0` (or -0.006em at 13px). Tracking is reserved for the wordmark (`.hdr__brand`, 469). |
 | Text styles, not literals | Partly | Off-ramp sizes are still in the bridge: `calc(12.5px …)` (`mud-bridge.css:503,577`) and `calc(10.5px …)` (598). | Snap them to `--text-subheadline` (12) and `--text-footnote` (11) respectively. |
-| Text grows without breaking hierarchy | Met | `--text-scale` multiplies the ramp only (`lineops.css:337-345`). Window titles and keys use the same ramp, so they grow together. | n/a |
+| Text grows without breaking hierarchy | Met | `--text-scale` multiplies the ramp only (`xlines.css:337-345`). Window titles and keys use the same ramp, so they grow together. | n/a |
 
 ## Layout
 
@@ -151,7 +151,7 @@ Change log: **September 9, 2025** (Liquid Glass updated); June 9, 2025 (Liquid G
 
 | Rule | Status | Evidence | Fix |
 |---|---|---|---|
-| No glass in the content layer | Met | Window bodies stay opaque by design (`lineops.css:78-81`). | n/a |
+| No glass in the content layer | Met | Window bodies stay opaque by design (`xlines.css:78-81`). | n/a |
 | Sparingly, by purpose | Met | Thin for the header and footer, regular for drawers, thick for dialogs and the palette (`--material-*`, 82-86). | n/a |
 | Respect Reduce Transparency | Not met | Only a no-support fallback exists: `@supports not (backdrop-filter …)` (4144, 4656). There is no `prefers-reduced-transparency` rule. | Add `@media (prefers-reduced-transparency: reduce)` with the same body as the `@supports not` block at 4144 (every material becomes its `--surface-*` tier). |
 | Vibrant labels on materials | Met | Text tiers are alpha white or black (40-44), so they composite over any material. | n/a |
@@ -461,7 +461,7 @@ No change log on the live page.
 Ranked by how much a user would notice the fix.
 
 1. **State colours fail as text in every light theme** (apple-light: positive 2.22, warning
-   2.20, negative 3.55). The rules affected are `.up`/`.down` (`lineops.css:2547-2548`),
+   2.20, negative 3.55). The rules affected are `.up`/`.down` (`xlines.css:2547-2548`),
    `.metric--good/warn/bad` (1892-1894), `.tag--*` (2593-2595) and `.price__edge--wide` (2103).
    Fix: add `--state-*-ink` tokens using Apple's increased-contrast values (`#008932`, `#E9152D`,
    `#C55300`) and repoint the text rules.
@@ -475,13 +475,13 @@ Ranked by how much a user would notice the fix.
    that triggers a confirm and exempts the window from eviction.
 4. **The OS Increase Contrast and Reduce Transparency settings are ignored.** There is no
    `prefers-contrast` or `prefers-reduced-transparency` handling anywhere (`theme.js:51-91`,
-   `lineops.css:4144`). Fix: resolve the `contrast-*` family under `prefers-contrast: more`, and
+   `xlines.css:4144`). Fix: resolve the `contrast-*` family under `prefers-contrast: more`, and
    reuse the `@supports not` body under `prefers-reduced-transparency`.
 5. **Accent text is under 4.5:1** (4.30 dark, 4.02 light, 3.41 to 3.72 in three light families).
    `.bar__key--current` (703), `.desklink:hover` (2534). Fix: `--accent-ink` (`#409CFF` dark,
    `#0062CC` light).
 6. **Type can render below the 10pt floor.** At Interface 80% and Text 90%
-   (`WindowManagerPanel.razor:327,336` × `lineops.css:108,361`), caption is 8px. Fix: clamp the
+   (`WindowManagerPanel.razor:327,336` × `xlines.css:108,361`), caption is 8px. Fix: clamp the
    ramp at 10px and drop the 80% option.
 7. **Journal's Selection is free text after a game is chosen** (`JournalPanel.razor:681-685`).
    Fix: a `DeskSwitch` of the two teams, or Over/Under.
@@ -525,7 +525,7 @@ Ranked by how much a user would notice the fix.
   graphite-accent behaviour a browser can't observe. Don't add alpha to resting controls to fake
   it.
 - **The literal macOS settings window**: dimmed minimize and zoom buttons, a toolbar of pane
-  icons, a title of "LineOps Settings". The desk's settings is a desk window, so use `DeskTabs`
+  icons, a title of "XLines Settings". The desk's settings is a desk window, so use `DeskTabs`
   panes (Settings, above) rather than rebuilding NSToolbar chrome.
 - **The June 2025 system blue as the accent fill.** White on `#0091FF` is 3.23:1, worse than the
   current 3.65. Update the state fills if you like, but keep the accent fill as it is.

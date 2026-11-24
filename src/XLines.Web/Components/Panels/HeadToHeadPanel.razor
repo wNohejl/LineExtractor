@@ -1,0 +1,304 @@
+@using XLines.Core.Entities
+@using XLines.Data.CrossReference
+@using XLines.Desk.Primitives
+@using XLines.Desk.Windowing
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    Every meeting between these two sides that the desk holds.
+
+    The snippet on a row shows five; this is the rest, and it exists because a fixture's history
+    is one of the few things where more rows genuinely change the reading — a 3-2 split over
+    five games and a 12-8 split over twenty are different claims about the same matchup.
+
+    Takes a game id rather than two team ids so any row on the desk can reach it without
+    resolving the sides first. The matchup is what was clicked.
+*@
+
+@* The failure line sits above whatever the window already holds, as the Board's does. The
+   window refreshes on every game signal; one refresh that failed used to replace the meetings
+   with the sentence, and every refresh that succeeded blanked them while it ran. *@
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        @* The title row and the first meetings, in the places they will land — a sentence
+           saying the meetings are being read is a placeholder shaped like nothing. *@
+        <DeskSkeleton Width="40%" />
+        <DeskGrid T="HeadToHeadRow" Items="_rows" Loading="true" SkeletonRows="3" LoadingLabel="Fetching the meetings" />
+    }
+}
+else if (_rows.Count == 0)
+{
+    <EmptyState Kind="EmptyStateKind.Filtered">
+        <ChildContent>
+            No previous meeting on record between these sides. Either they have not met inside
+            the history held, or the backfill has not reached that far.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.History"
+                        OnClick="() => Manager.OpenHistory()">
+                Walk further back
+            </DeskButton>
+        </Action>
+    </EmptyState>
+}
+else
+{
+    @* The count of meetings is a fact about the record, so it leads the detail line with it.
+       As an Info tag on the name's row it was a count dressed as a state, floating beside a
+       title it did not qualify. Coverage is stated rather than implied: a column of dashes
+       beside a record says nothing about whether the market data is missing or the games were
+       never priced. *@
+    <PanelTitle>
+        @* Each club's crest before its name, at the large size a window title takes; the title is
+           the matchup, so the crest is its own most legible part. A fight draws none. *@
+        <ChildContent><TeamMark Sport="@_sport" Abbrev="@_awayAbbrev" Size="TeamMarkSize.Large" />@_awayName@(" vs ")<TeamMark Sport="@_sport" Abbrev="@_homeAbbrev" Size="TeamMarkSize.Large" />@_homeName</ChildContent>
+        <Detail>
+            <span>
+                @_rows.Count.ToString("N0") @(_rows.Count == 1 ? "meeting" : "meetings") ·
+                @_record for @_homeName ·
+                @_covered.ToString("N0") of @_rows.Count.ToString("N0") with a closing line
+            </span>
+        </Detail>
+    </PanelTitle>
+
+    @if (_covered == 0)
+    {
+        <Note>
+            None of these meetings has a stored closing line, so the market columns are empty.
+            Prices are kept only from the point this desk started watching a fixture.
+        </Note>
+    }
+
+    @* Sorting is the reason this is a grid rather than a list. A twenty-meeting record is only
+       a claim about the matchup once you can pull the covers together, or read it newest first. *@
+    <PanelSection Title="Meetings">
+    <div class="gridwrap">
+        <DeskGrid T="HeadToHeadRow" Items="_rows"
+                  EmptyText="No previous meeting on record between these sides.">
+
+            <PropertyColumn T="HeadToHeadRow" TProperty="DateTimeOffset" Property="r => r.StartsAt"
+                            Title="Date" InitialDirection="SortDirection.Descending">
+                <CellTemplate><span class="dim">@Day(context.Item.StartsAt)</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="HeadToHeadRow" TProperty="string" Property="r => r.HomeTeam" Title="Meeting">
+                <CellTemplate>
+                    <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
+                              OnClick="() => OpenGameAsync(context.Item.GameId)">
+                        <TeamMark Sport="@context.Item.SportKey" Abbrev="@context.Item.AwayAbbrev" />@context.Item.AwayTeam at <TeamMark Sport="@context.Item.SportKey" Abbrev="@context.Item.HomeAbbrev" />@context.Item.HomeTeam
+                    </DeskLink>
+                </CellTemplate>
+            </PropertyColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="Score" Align="Align.Right" Sortable="false">
+                <CellTemplate>
+                    <span class="mono">
+                        @(context.Item.HasScore ? $"{context.Item.AwayScore}-{context.Item.HomeScore}" : "—")
+                    </span>
+                </CellTemplate>
+            </TemplateColumn>
+
+            @* A meeting with no result sorts between the losses and the wins rather than with
+               either — it is not evidence for one side, and burying it with the losses would
+               make it read as one. *@
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Winner" Align="Align.Right"
+                            SortBy="@(r => r.SubjectWon is { } w ? (w ? 2 : 0) : 1)">
+                <CellTemplate>
+                    @if (ResultTag.Of(context.Item.SubjectWon, context.Item.HomeScore, context.Item.AwayScore) is { } result)
+                    {
+                        <ResultTag Result="@result">
+                            @(result switch { ResultKind.Win => _homeName, ResultKind.Loss => _awayName, _ => "Tie" })
+                        </ResultTag>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            @* Named for its market, as the Board and Every book name it: "Line" said nothing
+               about which line, beside a Total column that is also one. *@
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Spread" Align="Align.Right"
+                            SortBy="@(r => r.ClosingSpread ?? decimal.MinValue)">
+                <CellTemplate>
+                    <span class="mono">@(context.Item.ClosingSpread is { } s ? Line(s) : "—")</span>
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="ATS" Align="Align.Right"
+                            SortBy="@(r => r.AtsResult is { } a ? (int)a : int.MinValue)">
+                <CellTemplate>
+                    @if (context.Item.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
+                    {
+                        <ResultTag Result="@cover" Title="@($"{_homeName} against the closing spread")">
+                            @(ats == EntryResult.Win ? "Covered" : ats == EntryResult.Loss ? "Missed" : "Push")
+                        </ResultTag>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Total" Align="Align.Right"
+                            SortBy="@(r => r.TotalResult is { } t ? (int)t : int.MinValue)">
+                <CellTemplate>
+                    @if (context.Item.TotalResult is { } total && context.Item.ClosingTotal is { } line
+                         && ResultTag.Of(total) is { } over)
+                    {
+                        @* Graded from the over's point of view, so a win is an over. The number
+                           as a book prints it ("O 47.5"), not the column's scale ("47.50"). *@
+                        <ResultTag Result="@over">
+                            @(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @Bare(line)
+                        </ResultTag>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </DeskGrid>
+    </div>
+    </PanelSection>
+}
+
+@code {
+    protected override string LoadSubject => "The meetings";
+
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
+
+    // Only the games on screen and the upcoming one they are measured against: a score anywhere
+    // else in the database used to re-read every meeting. A bare games notice still reloads.
+    protected override IReadOnlyDictionary<string, IReadOnlySet<string>> WatchesIds => _held;
+
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _held = HeldGames([]);
+
+    /// <summary>
+    /// The ids <see cref="WatchesIds"/> narrows the games topic to. Built once per load and
+    /// swapped whole, because the base reads it on the publisher's thread.
+    /// </summary>
+    public static IReadOnlyDictionary<string, IReadOnlySet<string>> HeldGames(IEnumerable<int> gameIds)
+        => NoticeTokens.Narrow(gameIds, DataTopics.Games);
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    /// <summary>
+    /// The upcoming game whose two sides are being looked up. An id rather than an object so
+    /// the view can be hosted as a desk window.
+    /// </summary>
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    /// <summary>How far back to reach. Generous — this window exists to show the whole record.</summary>
+    [Parameter] public int Take { get; set; } = 40;
+
+    private IReadOnlyList<HeadToHeadRow> _rows = [];
+    private string _homeName = "Home";
+    private string _awayName = "Away";
+    private string? _sport;
+    private string? _homeAbbrev;
+    private string? _awayAbbrev;
+    private string _record = "0-0";
+    private int _covered;
+
+    /// <summary>
+    /// The load in flight, cancelled when the next starts: a window re-aimed at another game, or
+    /// refreshed, while a load ran let the slower, superseded one hand over last.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    protected override void OnDispose()
+    {
+        _reads.Cancel();
+        base.OnDispose();
+    }
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    /// <summary>
+    /// The meetings' record from the upcoming home side's point of view: "3-2", or "3-1-1" once a
+    /// tie is in it. A loss is a final that side scored fewer in. The service grades a final as
+    /// for &gt; against, so a level one arrives as "not won", and counting every "not won" as a
+    /// loss called a tie a loss above a grid that draws it T. The same rule as the Team window's
+    /// record (GameLogSplits.FormatRecord).
+    /// </summary>
+    public static string Record(IReadOnlyList<HeadToHeadRow> rows)
+    {
+        var wins = rows.Count(r => r.SubjectWon == true);
+        var ties = rows.Count(r => r.SubjectWon is not null && r.HomeScore == r.AwayScore);
+        var losses = rows.Count(r => r.SubjectWon == false) - ties;
+
+        return ties > 0 ? $"{wins}-{losses}-{ties}" : $"{wins}-{losses}";
+    }
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            // Before the reads, so a window moved to another game, or one whose load fails,
+            // still hears its own game.
+            _held = HeldGames(_rows.Select(r => r.GameId).Append(GameId));
+
+            // Taken inside the work so Try again, which repeats it, starts a read of its own.
+            var ct = _reads.Next();
+            var (gameId, take) = (GameId, Take);
+
+            // Read into locals and handed over at once, and only by the latest load: the names
+            // were written before the meetings were read, so a window re-aimed mid-load showed the
+            // old game's meetings under the new game's names. The reads share the scope's one
+            // context, so they stay one after another.
+            await LatestRead.HandOverAsync(ct, async () =>
+            {
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+                var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+                var row = await board.GetRowAsync(gameId, ct);
+                var meetings = await log.HeadToHeadAsync(gameId, take, ct);
+                return (Game: row?.Game, Meetings: meetings);
+            },
+            read =>
+            {
+                _homeName = read.Game?.HomeTeam?.Name ?? "Home";
+                _awayName = read.Game?.AwayTeam?.Name ?? "Away";
+                _sport = read.Game?.Sport?.Key;
+                _homeAbbrev = read.Game?.HomeTeam?.Abbrev;
+                _awayAbbrev = read.Game?.AwayTeam?.Abbrev;
+
+                _rows = read.Meetings;
+                _held = HeldGames(_rows.Select(r => r.GameId).Append(gameId));
+
+                // Read from the upcoming home team's perspective throughout, which is what the
+                // service already did — so the record and the column agree.
+                _record = Record(_rows);
+                _covered = _rows.Count(r => r.HasClosingLine);
+            });
+        },
+        settle: () => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
+        status: () => _rows.Count == 0 ? "no meetings" : $"{_rows.Count:N0} {(_rows.Count == 1 ? "meeting" : "meetings")}");
+    }
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+        if (await board.GetRowAsync(gameId) is { } row)
+            Manager.OpenGame(row.Game, WindowId);
+    }
+
+    /// <summary>A total as a book prints it: "47.5", "8". The stored column's scale printed "47.50".</summary>
+    public static string Bare(decimal total)
+        => Math.Abs(total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+}

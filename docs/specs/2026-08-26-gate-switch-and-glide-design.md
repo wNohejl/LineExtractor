@@ -36,7 +36,7 @@ copied:
   in every window.
 - When to use: 2–5 fixed positions. Past that, `select.field` stays the honest control.
 
-### The glide (`wwwroot/js/desk-glide.js` + CSS in `lineops.css`)
+### The glide (`wwwroot/js/desk-glide.js` + CSS in `xlines.css`)
 - Opt-in per container with `data-glide`; zero per-component wiring. Document-level
   delegation (`pointerover/out`, `focusin/out`) means Blazor re-renders cost nothing —
   a plate diffed away is rebuilt on next hover.

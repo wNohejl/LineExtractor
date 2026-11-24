@@ -3,7 +3,7 @@
 # or the development snapshot (data/personal/snapshots/lineops.dump, the owner's private clone)
 # for a first load.
 #
-#   ./restore.sh backups/lineops-2026-10-01T0400Z.dump
+#   ./restore.sh backups/xlines-2026-10-01T0400Z.dump
 #   ./restore.sh lineops.dump --force      # replace a database that already holds games
 #
 # The same steps as scripts/restore-data.ps1: the schema is dropped and recreated rather than

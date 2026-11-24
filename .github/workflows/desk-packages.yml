@@ -5,7 +5,7 @@ name: Desk packages
 # is the consumer's half).
 #
 # A `desk-v*` tag publishes: the tag names the Desk's version, and the job refuses a tag that
-# disagrees with LineOps.Desk.csproj, so a package can never claim a version its source does not.
+# disagrees with XLines.Desk.csproj, so a package can never claim a version its source does not.
 # Hosting, Testing and the template keep their own versions; when one has not moved, the feed
 # already holds it and the push skips it rather than failing. A push to main packs the same way and
 # publishes nothing, so a change that breaks packing is seen on the commit that made it, not on
@@ -37,10 +37,10 @@ jobs:
       - name: Check the tag names the Desk's version
         if: startsWith(github.ref, 'refs/tags/desk-v')
         run: |
-          declared=$(dotnet msbuild src/LineOps.Desk/LineOps.Desk.csproj -getProperty:Version)
+          declared=$(dotnet msbuild src/XLines.Desk/XLines.Desk.csproj -getProperty:Version)
           tagged="${GITHUB_REF_NAME#desk-v}"
           if [ "$declared" != "$tagged" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME names $tagged; LineOps.Desk.csproj declares $declared."
+            echo "::error::Tag $GITHUB_REF_NAME names $tagged; XLines.Desk.csproj declares $declared."
             exit 1
           fi
 
@@ -48,7 +48,7 @@ jobs:
       # own token push it and gives the package the repository's visibility.
       - name: Pack
         run: |
-          for project in src/LineOps.Desk src/LineOps.Desk.Hosting src/LineOps.Desk.Testing src/LineOps.Desk.Templates; do
+          for project in src/XLines.Desk src/XLines.Desk.Hosting src/XLines.Desk.Testing src/XLines.Desk.Templates; do
             dotnet pack "$project" --configuration Release --output out \
               -p:RepositoryUrl=${{ github.server_url }}/${{ github.repository }} \
               -p:RepositoryType=git \

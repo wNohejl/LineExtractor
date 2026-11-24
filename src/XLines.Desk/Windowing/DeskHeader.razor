@@ -1,0 +1,222 @@
+@using XLines.Desk.Windowing
+@implements IDisposable
+@inject WindowManager Manager
+@inject DeskBrand Brand
+@inject IDeskAlerts Alerts
+
+@*
+    Fixed header: identity, the windows, and the desk's own controls.
+
+    Two things live up here and they are not the same kind of thing, so they are not drawn
+    the same way:
+
+      · The windows — one strip, in its own recessed channel, spanning the bar. Every
+        window is in it exactly once, as a key that is lit while its window is open.
+        See WindowBar, which owns that rule.
+
+      · The desk's own controls — workspaces and column widths. These act on the desk
+        rather than being part of it, so they sit apart at the far end, after a hairline,
+        as plain buttons. A second channel would have said "another strip of windows",
+        which is what made the header read as two competing lists.
+
+    The Window manager used to have a button here as well as its key in the strip: the same
+    window, the same glyph, twice in one header. It has a key like everything else in the
+    catalogue, and when it is open its key is lit like any other, so the button is gone.
+
+    Destinations — an order, a customer, a product — are about a subject and are reached by
+    following a name in a panel, so they have no key here at all, open or not. Several can
+    exist at once and their names are long, and appending them is what made the strip
+    unreadable. They live where they already are, as columns on the desk.
+*@
+
+<header class="hdr">
+    @* The brand is the workflow control. A workspace is a whole-desk arrangement — it
+       replaces everything open — so it belongs to the desk rather than sitting in a cluster
+       of per-window controls at the far end. Putting it on the identity says the same thing
+       the arrangement does: this is the desk you are on, and this is how you change it. It
+       also returns the width the Workspaces button was spending to the strip, which is the
+       part of the header that actually has more to say. *@
+    <RailMenu @ref="_workspaces" Class="hdr__brand-menu" Trigger="brand"
+              Label="Workspaces — choose a desk arrangement">
+        <div class="launcher" data-glide>
+            <div class="launcher__group">Workspaces</div>
+            @foreach (var workspace in Manager.Catalog.Workspaces)
+            {
+                <button class="launcher__item" type="button" role="menuitem"
+                        @onclick="() => Apply(workspace)">
+                    <Glyph Icon="@Icons.Material.Filled.Dashboard" />
+                    <span>
+                        @workspace.Name
+                        <span class="launcher__desc">@workspace.Description</span>
+                    </span>
+                </button>
+            }
+
+            @if (Manager.UserWorkspaces.Count > 0)
+            {
+                <div class="launcher__group">Saved here</div>
+                @foreach (var workspace in Manager.UserWorkspaces)
+                {
+                    <button class="launcher__item" type="button" role="menuitem"
+                            @onclick="() => Apply(workspace)">
+                        <Glyph Icon="@Icons.Material.Filled.Bookmark" />
+                        <span>
+                            @workspace.Name
+                            <span class="launcher__desc">@workspace.Description</span>
+                        </span>
+                    </button>
+                }
+            }
+
+            @* Where a Mac app keeps Settings… — under its name — with the chord beside it. *@
+            <div class="launcher__group">Desk</div>
+            <button class="launcher__item" type="button" role="menuitem"
+                    aria-keyshortcuts="Control+Comma Meta+Comma" @onclick="OpenSettings">
+                <Glyph Icon="@Icons.Material.Filled.Tune" />
+                <span>Settings…<span class="launcher__desc">Ctrl+,</span></span>
+            </button>
+
+            <div class="launcher__group">Clear</div>
+            <button class="launcher__item" type="button" role="menuitem" @onclick="CloseAll">
+                <Glyph Icon="@Icons.Material.Filled.ClearAll" />
+                <span>Close all<span class="launcher__desc">Empty the desk.</span></span>
+            </button>
+        </div>
+    </RailMenu>
+
+    @if (Manager.OpenCount == 0)
+    {
+        <span class="hdr__sub">@Brand.Tagline</span>
+    }
+
+    <div class="bar">
+        <WindowBar />
+    </div>
+
+    @* The desk's notices, "Activities" to the operator (ADR 0028): a capsule in the stretch the
+       strip leaves free, layered horizontally, folding to its key alone where the stretch is
+       narrow. It takes only that stretch, never the strip's, the wordmark's or the keys'. *@
+    <XLines.Desk.Primitives.DeskToastStack />
+
+    <span class="hdr__divider" aria-hidden="true"></span>
+
+    @* What is left of the desk's own controls: both are about the row as a whole. Back and
+       Forward are not here any more: they moved onto each window's bar, where the direction
+       they go is the window they sit on (AppWindow). The desk's own undo — bring back what was
+       just closed — is the notice toast's Reopen key, Ctrl+Z, and the browser's Back. *@
+    <div class="hdr__tools" role="group" aria-label="Desk controls" data-glide>
+        <button class="rail__btn" type="button" title="Go to anything (Ctrl+K)"
+                aria-label="Go to anything" aria-keyshortcuts="Control+K Meta+K"
+                @onclick="Manager.RequestPalette">
+            <Glyph Icon="@Icons.Material.Filled.Search" />
+        </button>
+
+        <button class="rail__btn" type="button" title="Reset column widths"
+                aria-label="Reset column widths"
+                disabled="@(Manager.OpenCount == 0)"
+                @onclick="Manager.ResetWidths">
+            <Glyph Icon="@Icons.Material.Filled.ViewColumn" />
+        </button>
+
+        @* A window closed by its own key, or an open refused at the ceiling, is said as a toast
+           (DeskNoticeToasts), not here: a sentence beside the count covered the controls the
+           operator reaches for next (ADR 0028). *@
+
+        @* One figure: how many windows are open, tabbed ones included — "3 windows". It used
+           to read "2/2 +1 tabbed", columns against the limit and then the tabs, two numbers
+           nobody could put together. The columns are said in words to a screen reader and in
+           the sentence under the pointer, which also says where the next window would go. *@
+        <span class="hdr__count @(Manager.AtCeiling ? "hdr__count--full" : null)"
+              title="@CapacityTip">
+            <span class="num" aria-hidden="true">@WindowsLabel(Manager.OpenCount)</span>
+            <span class="sr-only">@CountSentence(Manager)</span>
+        </span>
+    </div>
+</header>
+
+@code {
+    private RailMenu? _workspaces;
+
+    // Owns its refresh: reads mutable manager state (open count, capacity), so it must
+    // re-render whenever the manager changes rather than waiting on a parent to. The desk's
+    // changes only: nothing the header draws itself is a window's status, and the bar inside it
+    // hears those on its own.
+    protected override void OnInitialized() => Manager.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Manager.Changed -= OnChanged;
+
+    /// <summary>
+    /// The count in words, and where the next window goes. Said before the click rather than
+    /// after, so a window landing in a tab is never a surprise.
+    /// </summary>
+    private string CapacityTip => CapacitySentence(Manager);
+
+    /// <summary>The header's figure: "1 window", "3 windows" — every open window, tabbed ones included.</summary>
+    public static string WindowsLabel(int open) => open == 1 ? "1 window" : $"{open} windows";
+
+    /// <summary>The figure in words: "3 windows open, in 2 of 2 columns".</summary>
+    public static string CountSentence(WindowManager manager)
+        => $"{WindowsLabel(manager.OpenCount)} open, in {manager.ColumnCount} of {manager.Settings.MaxConcurrentWindows} columns";
+
+    public static string CapacitySentence(WindowManager manager)
+    {
+        var columns = $"{manager.ColumnCount} of {manager.Settings.MaxConcurrentWindows} columns in use";
+        var windows = $"{manager.OpenCount} {(manager.OpenCount == 1 ? "window" : "windows")} open";
+
+        if (manager.AtCeiling)
+            return $"{columns}, {windows} — the most the desk holds. Close one to open another.";
+
+        return manager.NextTabTarget is { } target
+            ? $"{columns}, {windows}. The next window opens as a tab in {target.Showing.Title}."
+            : $"{columns}, {windows}.";
+    }
+
+
+    private void Apply(Workspace workspace)
+    {
+        Manager.ApplyWorkspace(workspace);
+        _workspaces?.Close();
+    }
+
+    /// <summary>
+    /// The notice toast's key (DeskNoticeToasts): "Reopen Log" for one window, "Reopen 2 windows" for several. The
+    /// manager keeps the titles beside its sentence (<see cref="WindowManager.NoticeTitles"/>),
+    /// so the key names what it brings back rather than offering a bare "Undo" to decode.
+    /// </summary>
+    public static string UndoLabel(IReadOnlyList<string> titles) => titles.Count switch
+    {
+        0 => "Undo",
+        1 => $"Reopen {titles[0]}",
+        _ => $"Reopen {titles.Count} windows"
+    };
+
+    private void OpenSettings()
+    {
+        Desk.OpenSettings(Manager);
+        _workspaces?.Close();
+    }
+
+    /// <summary>
+    /// Close all goes through the same question the close key asks: a window holding unsaved
+    /// input stops the lot, once, and only Discard empties the desk.
+    /// </summary>
+    private async Task CloseAll()
+    {
+        _workspaces?.Close();
+
+        if (Manager.TryCloseAll())
+            return;
+
+        var discard = await Alerts.ConfirmAsync(
+            "Discard unsaved changes and close every window?",
+            message: "A window has input that has not been saved.",
+            confirmLabel: "Discard",
+            cancelLabel: "Keep editing",
+            destructive: true);
+
+        if (discard)
+            Manager.CloseAll();
+    }
+}

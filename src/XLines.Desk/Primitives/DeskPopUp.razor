@@ -1,0 +1,171 @@
+@namespace XLines.Desk.Primitives
+@typeparam TValue
+
+@*
+    A pop-up button: a key that shows the current choice and opens the list it was chosen from.
+
+    The HIG's pop-up is for one value among mutually exclusive ones (a pull-down is for
+    commands), so the key's face is the choice itself, not a verb: its name, its figure and its
+    mark ("Best"), then the up-and-down chevron a pop-up wears. Opening it lists every option
+    with the same three things in the same places, the figures right-aligned in one column so
+    they compare down the list, and a secondary line and a second figure for what qualifies each.
+    The current one carries the check, and focus lands on it.
+
+    It is built from what is already here rather than beside it: the list is a radio DeskMenu
+    in a DeskPopover, so the one Tab stop, the arrows, Home and End, typeahead by name, Escape
+    and the outside press, the panel flipped or slid to stay inside its window, one popover at a
+    time and focus back on the key all come with it. Commands that are not options (the HIG's
+    "Custom" item, which leads somewhere to type a value the list does not hold) go in Commands,
+    after a hairline, and are heard as menu items, never as choices.
+
+    Two honest degradations. One option and no commands is not a choice: it draws as a plain
+    statement of that option, with no key and no chevron. Disabled, the key keeps its place and
+    its face (the placeholder) so the row does not jump when it becomes usable, and it is
+    described by the visible sentence that says why: a disabled key's title never shows.
+
+    The closed key draws no edge: it is a fill that deepens on hover, as macOS draws a pop-up
+    button, so it can sit inside a group or a card without framing a box inside a box.
+*@
+
+@if (IsStatement)
+{
+    var only = Options[0];
+
+    <span class="popup popup--statement @Class">
+        <span class="sr-only">@Label: </span>
+        <span class="popup__label">@only.Label</span>
+        @if (only.Mark is not null)
+        {
+            <Tag State="only.MarkState" Class="popup__mark">@only.Mark</Tag>
+        }
+        @if (only.Figure is not null && ShowFigure)
+        {
+            <span class="popup__figure num">@only.Figure</span>
+        }
+    </span>
+}
+else
+{
+    <DeskPopover Open="_open" OpenChanged="SetOpen" Align="Align" Class="@($"popup {Class}".Trim())">
+        <Anchor>
+            <button type="button"
+                    class="popup__key"
+                    aria-haspopup="menu"
+                    aria-expanded="@(_open ? "true" : "false")"
+                    aria-label="@KeyName"
+                    aria-describedby="@(Disabled ? DescribedBy : null)"
+                    data-popover-return="true"
+                    disabled="@Disabled"
+                    @onclick="Toggle">
+                <span class="popup__label">@(Chosen?.Label ?? Placeholder ?? Label)</span>
+                @if (Chosen?.Mark is { } mark)
+                {
+                    <Tag State="Chosen.MarkState" Class="popup__mark">@mark</Tag>
+                }
+                @if (Chosen?.Figure is { } figure && ShowFigure)
+                {
+                    <span class="popup__figure num">@figure</span>
+                }
+                <span class="popup__chevron" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.UnfoldMore" /></span>
+            </button>
+        </Anchor>
+        <ChildContent>
+            <DeskMenu Label="@Label" Radio="true" Class="popup__menu">
+                <DeskMenuGroup>
+                    @foreach (var option in Options)
+                    {
+                        <DeskMenuItem Label="@option.Label"
+                                      Figure="@option.Figure"
+                                      Mark="@option.Mark"
+                                      MarkState="option.MarkState"
+                                      Description="@option.Detail"
+                                      DetailFigure="@option.DetailFigure"
+                                      DetailFigureState="option.DetailFigureState"
+                                      AriaLabel="@option.Spoken"
+                                      Disabled="option.Disabled"
+                                      DisabledReason="@option.DisabledReason"
+                                      Checked="@IsChosen(option)"
+                                      OnClick="@(() => ChooseAsync(option))" />
+                    }
+                </DeskMenuGroup>
+                @if (Commands is not null)
+                {
+                    <DeskMenuGroup>@Commands</DeskMenuGroup>
+                }
+            </DeskMenu>
+            @if (Footer is not null)
+            {
+                @* Explanatory text below the list (HIG pop-up buttons): what the figures are
+                   measured against, said once rather than on every row. *@
+                <p class="popup__foot">@Footer</p>
+            }
+        </ChildContent>
+    </DeskPopover>
+}
+
+@code {
+    /// <summary>What is being chosen: the menu's accessible name, and the first word the key is heard with.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>The choices, in the order they are listed: the likeliest first.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<DeskPopUpOption<TValue>> Options { get; set; } = [];
+
+    [Parameter] public TValue? Value { get; set; }
+
+    [Parameter] public EventCallback<TValue> ValueChanged { get; set; }
+
+    /// <summary>How two values are compared; a case-blind comparer for keys typed in more than one case.</summary>
+    [Parameter] public IEqualityComparer<TValue>? Comparer { get; set; }
+
+    /// <summary>The key's face while nothing is chosen. Defaults to <see cref="Label"/>.</summary>
+    [Parameter] public string? Placeholder { get; set; }
+
+    /// <summary>
+    /// Command rows after the options, behind a hairline: <c>DeskMenuItem</c>s with
+    /// <c>Command="true"</c>, labelled with a trailing ellipsis when they lead somewhere to type.
+    /// With commands, one option is still a choice (it or the command), so the key is drawn.
+    /// </summary>
+    [Parameter] public RenderFragment? Commands { get; set; }
+
+    /// <summary>A sentence under the list saying what its figures are measured against.</summary>
+    [Parameter] public string? Footer { get; set; }
+
+    /// <summary>The key shows the chosen option's figure beside its name. On by default.</summary>
+    [Parameter] public bool ShowFigure { get; set; } = true;
+
+    /// <summary>Nothing can be chosen yet: the key keeps its place, dimmed, and never opens.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>The id of the visible sentence saying why the key is disabled.</summary>
+    [Parameter] public string? DescribedBy { get; set; }
+
+    [Parameter] public DeskPopoverAlign Align { get; set; } = DeskPopoverAlign.Start;
+
+    [Parameter] public string? Class { get; set; }
+
+    private bool _open;
+
+    private bool IsStatement => Options.Count == 1 && Commands is null && !Disabled;
+
+    private IEqualityComparer<TValue> Equal => Comparer ?? EqualityComparer<TValue>.Default;
+
+    private DeskPopUpOption<TValue>? Chosen
+        => Value is null ? null : Options.FirstOrDefault(IsChosen);
+
+    private bool IsChosen(DeskPopUpOption<TValue> option)
+        => Value is not null && Equal.Equals(option.Value, Value);
+
+    /// <summary>"Plan, Studio $24 Best": the label, then the choice as it is heard.</summary>
+    private string KeyName
+        => Chosen is { } chosen
+            ? $"{Label}, {chosen.Spoken ?? string.Join(' ', new[] { chosen.Label, chosen.Figure, chosen.Mark }.Where(p => p is { Length: > 0 }))}"
+            : Label;
+
+    private void Toggle() => _open = !Disabled && !_open;
+
+    private void SetOpen(bool open) => _open = open && !Disabled;
+
+    // The row closes the popover before it reports the choice, so this only reports it.
+    private Task ChooseAsync(DeskPopUpOption<TValue> option)
+        => option.Disabled ? Task.CompletedTask : ValueChanged.InvokeAsync(option.Value);
+}

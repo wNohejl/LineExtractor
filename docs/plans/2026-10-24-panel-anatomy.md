@@ -4,7 +4,7 @@
 
 **Goal:** Every window on the desk renders its parts in one fixed order — title, toolbar, note, metrics, sections, forms — with spacing owned by four new Desk components rather than by inline styles in twenty panels.
 
-**Architecture:** Four Razor components in `LineOps.Desk/Primitives` (`PanelTitle`, `PanelToolbar`, `PanelSection`, `PanelForm`) plus one CSS block in `lineops.css`. They take render fragments and strings only, and follow the existing splat rule (class/style held out and merged). Every panel in `LineOps.Web/Components/Panels` is then rewritten onto them in four small sweeps, each a commit, each checked in the browser.
+**Architecture:** Four Razor components in `XLines.Desk/Primitives` (`PanelTitle`, `PanelToolbar`, `PanelSection`, `PanelForm`) plus one CSS block in `xlines.css`. They take render fragments and strings only, and follow the existing splat rule (class/style held out and merged). Every panel in `XLines.Web/Components/Panels` is then rewritten onto them in four small sweeps, each a commit, each checked in the browser.
 
 **Tech Stack:** .NET 10, Blazor Server, MudBlazor 9.7, bUnit on `DeskTestContext`, Windows PowerShell for build/test.
 
@@ -14,16 +14,16 @@
 
 - Branch `LineX_Development`; one commit per task; developer identity only, **no `Co-Authored-By` trailer** (CLAUDE.md); push after every commit.
 - Commit subjects: `type(scope): what changed, as a sentence`; body says why.
-- `LineOps.Desk` references no domain type; the new components take `RenderFragment` and `string` only.
+- `XLines.Desk` references no domain type; the new components take `RenderFragment` and `string` only.
 - Splat rule: `class` and `style` are held out of `@attributes` and merged after the component's own, never substituted (see `DeskLayout.MergeStyle`, `DeskLayout.WithoutClassAndStyle`, `DeskLayout.ExtraClass`).
 - No new tokens. Spacing values are `--space-1..6`; type is `--text-title2`, `--text-subheadline`, `--text-footnote`; weights `--weight-semibold`; colours `--text-primary`, `--text-secondary`.
-- CSS: single-class, `.a + .b` or `.win__body > .a` selectors only; no `!important`; the block goes after the `.stack--end` rule (`lineops.css` ~line 2828) and before `.metrics`.
+- CSS: single-class, `.a + .b` or `.win__body > .a` selectors only; no `!important`; the block goes after the `.stack--end` rule (`xlines.css` ~line 2828) and before `.metrics`.
 - Spec slot order inside a panel: Title → Toolbar → Note → Metrics → Sections (forms inside a section). Toolbar order: pickers → search → message → actions; the one Filled button is last in actions.
 - Form footer order: `Destructive` far left, then Cancel, then the primary at the right edge.
 - No behaviour change in any panel: same queries, same handlers, same aria attributes.
 - Build/test commands (from repo root, PowerShell):
-  `dotnet build src/LineOps.Web`, `dotnet build tests/LineOps.Web.Tests`, `dotnet build tests/LineOps.Tests`, `dotnet test tests/LineOps.Web.Tests`.
-- A `LineOps.Web` process already runs on port 5264 from this checkout; it locks `bin/`. Before any `dotnet build`, stop it (`Get-Process LineOps.Web | Stop-Process`) and restart it after the task via `preview_start` name `lineops-web` (port 5263) for the browser check.
+  `dotnet build src/XLines.Web`, `dotnet build tests/XLines.Web.Tests`, `dotnet build tests/XLines.Tests`, `dotnet test tests/XLines.Web.Tests`.
+- A `XLines.Web` process already runs on port 5264 from this checkout; it locks `bin/`. Before any `dotnet build`, stop it (`Get-Process XLines.Web | Stop-Process`) and restart it after the task via `preview_start` name `xlines-web` (port 5263) for the browser check.
 
 ## Review Focus
 
@@ -38,9 +38,9 @@
 ### Task 1: `PanelTitle` and the anatomy CSS block
 
 **Files:**
-- Create: `src/LineOps.Desk/Primitives/PanelTitle.razor`
-- Modify: `src/LineOps.Desk/wwwroot/css/lineops.css` (insert after `.stack--end`, ~line 2828)
-- Test: `tests/LineOps.Web.Tests/PanelTitleTests.cs`
+- Create: `src/XLines.Desk/Primitives/PanelTitle.razor`
+- Modify: `src/XLines.Desk/wwwroot/css/xlines.css` (insert after `.stack--end`, ~line 2828)
+- Test: `tests/XLines.Web.Tests/PanelTitleTests.cs`
 
 **Interfaces:**
 - Produces: `PanelTitle` with parameters `RenderFragment? ChildContent` (the name), `RenderFragment? Tags`, `RenderFragment? Meta`, `RenderFragment? Keys`, `string? Class`, `string? Style`, `[Parameter(CaptureUnmatchedValues = true)] IReadOnlyDictionary<string, object>? Extra`.
@@ -78,20 +78,20 @@
 ```
 
 - [ ] **Step 2: Run to verify they fail**
-Run: `dotnet test tests/LineOps.Web.Tests --filter PanelTitleTests`
+Run: `dotnet test tests/XLines.Web.Tests --filter PanelTitleTests`
 Expected: build error, `PanelTitle` not found.
 
 - [ ] **Step 3: Create `PanelTitle.razor`** per the Interfaces block, with a header comment in the voice of `PanelHeader.razor` saying why titles stopped being section rules. Use `DeskLayout.WithoutClassAndStyle(Extra)` for the splat, `DeskLayout.ExtraClass(Extra)` folded into classes, and `Style` + splatted style appended (own style is empty here; mirror `MetricRow`'s `DeskAttributes.MergeStyle` if simpler).
 
-- [ ] **Step 4: Add the CSS block** to `lineops.css` with the rules above.
+- [ ] **Step 4: Add the CSS block** to `xlines.css` with the rules above.
 
 - [ ] **Step 5: Run tests**
-Run: `dotnet test tests/LineOps.Web.Tests --filter PanelTitleTests`
+Run: `dotnet test tests/XLines.Web.Tests --filter PanelTitleTests`
 Expected: 4 passed.
 
 - [ ] **Step 6: Commit**
 ```bash
-git add src/LineOps.Desk/Primitives/PanelTitle.razor src/LineOps.Desk/wwwroot/css/lineops.css tests/LineOps.Web.Tests/PanelTitleTests.cs
+git add src/XLines.Desk/Primitives/PanelTitle.razor src/XLines.Desk/wwwroot/css/xlines.css tests/XLines.Web.Tests/PanelTitleTests.cs
 git commit -m "feat(desk): a subject window names itself in a title, not a section rule"
 git push origin LineX_Development
 ```
@@ -101,9 +101,9 @@ git push origin LineX_Development
 ### Task 2: `PanelToolbar`
 
 **Files:**
-- Create: `src/LineOps.Desk/Primitives/PanelToolbar.razor`
-- Modify: `src/LineOps.Desk/wwwroot/css/lineops.css` (same block)
-- Test: `tests/LineOps.Web.Tests/PanelToolbarTests.cs`
+- Create: `src/XLines.Desk/Primitives/PanelToolbar.razor`
+- Modify: `src/XLines.Desk/wwwroot/css/xlines.css` (same block)
+- Test: `tests/XLines.Web.Tests/PanelToolbarTests.cs`
 
 **Interfaces:**
 - Produces: `PanelToolbar` with `RenderFragment? ChildContent` (pickers and search), `string? Message`, `RenderFragment? Actions`, `string? Class`, `string? Style`, splat `Extra`.
@@ -143,10 +143,10 @@ git push origin LineX_Development
 ### Task 3: `PanelSection`
 
 **Files:**
-- Create: `src/LineOps.Desk/Primitives/PanelSection.razor`
-- Modify: `src/LineOps.Desk/Primitives/PanelHeader.razor` (doc comment only: `Gap` is now the frame's job; keep the parameter)
-- Modify: `lineops.css` (same block)
-- Test: `tests/LineOps.Web.Tests/PanelSectionTests.cs`
+- Create: `src/XLines.Desk/Primitives/PanelSection.razor`
+- Modify: `src/XLines.Desk/Primitives/PanelHeader.razor` (doc comment only: `Gap` is now the frame's job; keep the parameter)
+- Modify: `xlines.css` (same block)
+- Test: `tests/XLines.Web.Tests/PanelSectionTests.cs`
 
 **Interfaces:**
 - Produces: `PanelSection` with `string? Title`, `RenderFragment? TitleContent` (when the heading needs markup, e.g. a link; wins over `Title`), `RenderFragment? Keys`, `RenderFragment? Meta`, `RenderFragment? ChildContent`, `string? Class`, `string? Style`, splat `Extra`. A `[CascadingParameter(Name = "PanelSectionDepth")] int Depth` (default 0) decides heading rank: `Level = Depth == 0 ? 3 : 4`; the body is wrapped in `<CascadingValue Name="PanelSectionDepth" Value="Depth + 1">`.
@@ -190,10 +190,10 @@ git push origin LineX_Development
 ### Task 4: `PanelForm`, MetricRow and Note frame margins, Parts bin Anatomy section
 
 **Files:**
-- Create: `src/LineOps.Desk/Primitives/PanelForm.razor`
-- Modify: `lineops.css` (same block, plus one `.metrics` and one `.note` margin rule)
-- Modify: `src/LineOps.Web/Components/Panels/PartsPanel.razor` (new first section, after the opening Note)
-- Test: `tests/LineOps.Web.Tests/PanelFormTests.cs`
+- Create: `src/XLines.Desk/Primitives/PanelForm.razor`
+- Modify: `xlines.css` (same block, plus one `.metrics` and one `.note` margin rule)
+- Modify: `src/XLines.Web/Components/Panels/PartsPanel.razor` (new first section, after the opening Note)
+- Test: `tests/XLines.Web.Tests/PanelFormTests.cs`
 
 **Interfaces:**
 - Produces: `PanelForm` with `string? Title`, `RenderFragment? ChildContent`, `RenderFragment? Footer` (Cancel then primary, in that order, written by the caller), `RenderFragment? Destructive`, `string? Class`, `string? Style`, splat `Extra`, and `string? Id` passed to the root (callers like BoardWager label regions by id).
@@ -225,8 +225,8 @@ git push origin LineX_Development
 - [ ] **Step 2: Run, expect build failure.**
 - [ ] **Step 3: Create `PanelForm.razor`, add CSS, adjust `.metrics`/`.note` margins.**
 - [ ] **Step 4: Add the Parts bin section.** Directly after the opening `<Note>` in `PartsPanel.razor`, a `<PanelSection Title="Anatomy">` whose body is: a one-paragraph `.empty` note naming the six slots in order; then a `PanelTitle` ("Mets at Braves", Tags: two `Tag`s, Meta: "Sat Oct 24 · 7:10 PM ET", Keys: a small `DeskSwitch` or two Plain `DeskButton`s); a `PanelToolbar` (a `DeskSelect`, a `DeskField` placeholder "Search…", Message "3 updated", Actions: a Plain key and one Filled "Sync stats"); a `MetricRow` of two `Metric`s; a nested `PanelSection Title="Recent games"` with Keys (a small Tinted key) and Meta ("12-9 · 8-10 ATS") and an `EmptyState` body; a `PanelForm Title="New entry"` with one `DeskField`, Destructive "Delete", Footer "Cancel" + Filled "Save changes". Remove the `PanelHeaderGap.Section` usages elsewhere in PartsPanel by wrapping each existing block in a `PanelSection` — optional in this task; required by Task 8.
-- [ ] **Step 5: Build Web, run tests.** Expected: `dotnet build src/LineOps.Web` clean; PanelFormTests 6 passed; full `dotnet test tests/LineOps.Web.Tests` green.
-- [ ] **Step 6: Browser check.** Stop the running web process, `preview_start` `lineops-web`, open Parts bin from the System menu, screenshot the Anatomy section at 1600 px wide. Confirm: title at 17px (`getComputedStyle` on `.ptitle__name`), Filled key at the toolbar's right edge, 24px between the two sections, form footer right-pinned.
+- [ ] **Step 5: Build Web, run tests.** Expected: `dotnet build src/XLines.Web` clean; PanelFormTests 6 passed; full `dotnet test tests/XLines.Web.Tests` green.
+- [ ] **Step 6: Browser check.** Stop the running web process, `preview_start` `xlines-web`, open Parts bin from the System menu, screenshot the Anatomy section at 1600 px wide. Confirm: title at 17px (`getComputedStyle` on `.ptitle__name`), Filled key at the toolbar's right edge, 24px between the two sections, form footer right-pinned.
 - [ ] **Step 7: Commit**
 ```bash
 git commit -m "feat(desk): an inset form with one footer order, and the anatomy shown in the Parts bin"
@@ -238,7 +238,7 @@ git push origin LineX_Development
 ### Task 5: Sweep — Ops, Runs, Players, Incidents (the toolbar rule)
 
 **Files:**
-- Modify: `src/LineOps.Web/Components/Panels/OpsPanel.razor`, `RunsPanel.razor`, `PlayersPanel.razor`, `IncidentsPanel.razor`
+- Modify: `src/XLines.Web/Components/Panels/OpsPanel.razor`, `RunsPanel.razor`, `PlayersPanel.razor`, `IncidentsPanel.razor`
 
 **Interfaces:** Consumes Tasks 1–4.
 
@@ -277,14 +277,14 @@ git push origin LineX_Development
 
 **Files:**
 - Modify: `JournalPanel.razor`, `BoardWager.razor`, `SlipPanel.razor`
-- Test: `tests/LineOps.Web.Tests/JournalPanelTests.cs`, `BoardWagerTests.cs` (existing — run, and update any selector that pointed at the old `div.stack` card)
+- Test: `tests/XLines.Web.Tests/JournalPanelTests.cs`, `BoardWagerTests.cs` (existing — run, and update any selector that pointed at the old `div.stack` card)
 
 - [ ] **Step 1: JournalPanel.** Order becomes: `PanelToolbar` (ChildContent: Status, Placed within, Sport, Book; Message: `_message`; Actions: Open slip, Settle finished games, Log entry — Log entry last, Tinted as today), then the firewall `Note` (no Style), then the entry `PanelForm` (Title "New entry"/"Edit entry"; body = existing fields; Footer = `Cancel` then Filled `Save changes` — **swap the current order**), then entries, then `<PanelSection Title="Parlays">`. The second filter row merges into the toolbar. Row `style="justify-content:flex-end; gap:4px"` inside grid cells → `<DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space1">`.
 Spec call 1 applies: BoardWager and Slip keep `.wsections`/`.wsection`/`.wgroup`; only the footer order changes there.
 
 - [ ] **Step 2: BoardWager.** Leave the `.wsection` structure and the `PanelHeader Tight id=…` rules alone. Find the row holding the Filled key (line ~124) and make it `<DeskRow Justify="DeskJustify.End">` with any Plain key before the Filled one. Loading `div.stack … style="gap:10px"` → `<DeskStack Gap="DeskSpace.Space2" Class="wager-loading" aria-busy="true">`.
 - [ ] **Step 3: SlipPanel.** Same: structure untouched; the row with the Filled key at ~149 becomes `<DeskRow Justify="DeskJustify.End">`, Plain keys first, Filled last. `div.row style="flex-wrap:wrap"` at line 20 → `<DeskRow>` (`.row` already wraps).
-- [ ] **Step 4: Build, run `dotnet test tests/LineOps.Web.Tests`.** Fix selectors in `JournalPanelTests`/`BoardWagerTests` that targeted the removed card markup; assertions about behaviour must not change.
+- [ ] **Step 4: Build, run `dotnet test tests/XLines.Web.Tests`.** Fix selectors in `JournalPanelTests`/`BoardWagerTests` that targeted the removed card markup; assertions about behaviour must not change.
 - [ ] **Step 5: Browser.** Open Journal, press Log entry; open Place wager from a Board row. Screenshot. Check footer order Cancel → Save at the right edge.
 - [ ] **Step 6: Commit**
 ```bash
@@ -305,9 +305,9 @@ git push origin LineX_Development
 - [ ] **Step 4: History.** Sources, Coverage, Run, Seasons, Recent days → `PanelSection`s. Run's control row holds the Filled action, so it stays the first row of the section body as `<DeskRow Justify="DeskJustify.Between">`: the destructive re-walk key first (far left), then a `<DeskRow>` holding Tag/Stop/Gather with the Filled key last (spec call 4). Drop `style="margin-bottom:8px"`; stacks → `DeskStack Gap`.
 - [ ] **Step 5: Window manager.** Access row → `PanelToolbar` (tag + sentence as ChildContent, the small Plain Sign in/out key as Actions — a toolbar may hold zero Filled keys, spec call 4). `MetricRow` and the two `Note`s lose their styles. Each `PanelHeader` + `div.row` pair → `PanelSection` with a `DeskRow` body; `div.row style="margin-top:10px"` → `DeskStack Gap="DeskSpace.Space2"` wrapping consecutive rows.
 - [ ] **Step 6: BoardAllBets, BoardForm.** `PanelHeader` per market / per team → `PanelSection`; `BoardForm`'s `PanelHeader Level=4 Gap=Nested Muted` → nested `PanelSection` (Muted colour: pass `Class="psection--subject"` and add `.psection--subject .panel-h { color: var(--text-primary); }` to the block). `EmptyState Style="padding:6px 0 12px"` stays (it is EmptyState's own business). `div.row style="margin-bottom:10px"` → `PanelToolbar`.
-- [ ] **Step 7: Parts bin.** Every remaining `PanelHeader Gap="PanelHeaderGap.Section"` block → `PanelSection`. No `PanelHeaderGap` usage remains anywhere in `src/LineOps.Web` (`Select-String PanelHeaderGap src/LineOps.Web -Recurse` is empty).
-- [ ] **Step 8: Sweep gate.** `Select-String 'style="(margin|gap|font-size)' src/LineOps.Web/Components/Panels/*.razor` returns only lines that are inside grid cell templates or that this plan explicitly kept; list each remaining one in the commit body.
-- [ ] **Step 9: Build all three projects, `dotnet test tests/LineOps.Web.Tests`, start the Worker (`dotnet run --project src/LineOps.Worker`, confirm it logs startup, stop it).**
+- [ ] **Step 7: Parts bin.** Every remaining `PanelHeader Gap="PanelHeaderGap.Section"` block → `PanelSection`. No `PanelHeaderGap` usage remains anywhere in `src/XLines.Web` (`Select-String PanelHeaderGap src/XLines.Web -Recurse` is empty).
+- [ ] **Step 8: Sweep gate.** `Select-String 'style="(margin|gap|font-size)' src/XLines.Web/Components/Panels/*.razor` returns only lines that are inside grid cell templates or that this plan explicitly kept; list each remaining one in the commit body.
+- [ ] **Step 9: Build all three projects, `dotnet test tests/XLines.Web.Tests`, start the Worker (`dotnet run --project src/XLines.Worker`, confirm it logs startup, stop it).**
 - [ ] **Step 10: Browser.** Open Board, Line movement, Performance, History, Window manager; screenshot each. Confirm the toolbar is the first row in each and metrics follow at 16px.
 - [ ] **Step 11: Commit**
 ```bash

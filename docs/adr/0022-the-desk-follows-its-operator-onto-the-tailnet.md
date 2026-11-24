@@ -68,7 +68,7 @@ exist, not what they say.
   spend nothing of their own; the snapshot workflow stays for working offline on the laptop.
 - The desktop must be on and running the desk. That is the price of not having a server.
 - `AllowedHosts` stays `*` by default. Serve passes the visitor's `Host` through, so setting it
-  to `localhost;<machine>.<tailnet>.ts.net` (or `LINEOPS_TAILNET_HOST` for the compose overlay)
+  to `localhost;<machine>.<tailnet>.ts.net` (or `XLINES_TAILNET_HOST` for the compose overlay)
   refuses any other name; it is configuration ASP.NET Core already reads, so no code was added.
 - Blazor's hub is same-origin and negotiates under the page's own URL. Serve terminates TLS and
   proxies the WebSocket upgrade as Caddy does, which ADR 0019 verified for the hosted case.

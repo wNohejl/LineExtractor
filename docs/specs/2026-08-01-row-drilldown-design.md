@@ -45,7 +45,7 @@ snippet stops being obviously attached to its row.
 
 ## Components
 
-### `RowAction` and `RowActions` — `src/LineOps.Web/Components/Desk/`
+### `RowAction` and `RowActions` — `src/XLines.Web/Components/Desk/`
 
 `RowActions` is the Board's inline action strip, extracted so Board, Slate, Team window and
 Game window all use one control.
@@ -86,13 +86,13 @@ inside a MudBlazor cell template, and the parameter written back by the parent n
 child again, so pressing an action set the state and rendered nothing. Callers pass
 `@key="<row id>"` so moving to another row is a new strip with nothing open.
 
-### `SnippetShell` — `src/LineOps.Web/Components/Desk/`
+### `SnippetShell` — `src/XLines.Web/Components/Desk/`
 
 Wraps snippet content with a consistent frame: a title, an optional coverage note, and the
 "Open window" button when `OpenWindow` is set. Snippets therefore contain only their own
 content and never re-implement the escape hatch.
 
-### Snippets — `src/LineOps.Web/Components/Snippets/`
+### Snippets — `src/XLines.Web/Components/Snippets/`
 
 Each is small, single-purpose, and takes ids rather than objects so it can be hosted anywhere:
 
@@ -145,7 +145,7 @@ The team-data block gains an `H2H` action.
 
 ## Data layer
 
-### `GameLogService` — `src/LineOps.Data/CrossReference/GameLogService.cs`
+### `GameLogService` — `src/XLines.Data/CrossReference/GameLogService.cs`
 
 Game-grain reads, kept separate from `MatchupCrossReference`. That class is 360 lines and
 exists to aggregate windows into form; reading individual games is the opposite job, and
@@ -171,7 +171,7 @@ Static filters over a loaded `IReadOnlyList<TeamGameLogRow>`: home, away, last N
 opponent. No database, so the split rules are unit-testable directly and the UI can toggle
 without a round trip.
 
-### `Grading` kernel extraction — `src/LineOps.Core/Analytics/Grading.cs`
+### `Grading` kernel extraction — `src/XLines.Core/Analytics/Grading.cs`
 
 `Grade` currently takes a `JournalEntry`, so the ATS/total rules cannot be applied to a
 `ClosingLine`. Extract the kernel:

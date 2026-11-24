@@ -8,7 +8,7 @@
     holds a code, only its PBKDF2 hash, so this prints the code once - keep it somewhere safe,
     because nothing can recover it - and the line to put in the server's .env.
 
-    The hash is the format LineOps.Desk.Hosting.DeskAccessCode checks:
+    The hash is the format XLines.Desk.Hosting.DeskAccessCode checks:
     pbkdf2-sha256.<iterations>.<salt>.<hash>, salt and hash in base64.
 
 .EXAMPLE
@@ -65,5 +65,5 @@ Write-Host "For the server's .env (deploy/.env.example):" -ForegroundColor Cyan
 Write-Host "  $variable=$stored"
 Write-Host ""
 Write-Host "Or for a host run from source (user-secrets, never appsettings):" -ForegroundColor Cyan
-Write-Host "  dotnet user-secrets --project src/LineOps.Web set $setting '$stored'"
+Write-Host "  dotnet user-secrets --project src/XLines.Web set $setting '$stored'"
 Write-Host ""

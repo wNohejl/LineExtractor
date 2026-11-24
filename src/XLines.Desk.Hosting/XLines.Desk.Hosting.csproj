@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What a desk needs from the host it runs in: the access gate (a code in, a cookie out) and the
+    edge headers. These are request-pipeline concerns, authentication, antiforgery, rate limiting
+    and response headers, so they live beside the Desk rather than in it. The Desk stays a
+    component library with no opinion about how its host is exposed (ADRs 0018 and 0019), and an
+    application that wants the gate references this package as well.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>XLines.Desk.Hosting</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    The package. As with the Desk, the XML documentation ships with it and CS1591 is off: the
+    documentation is written where a seam needs explaining, not on every public member.
+  -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>XLines.Desk.Hosting</PackageId>
+    <Version>0.1.1</Version>
+    <Description>The access gate and edge headers for a Desk on ASP.NET Core.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <!-- The decisions the gate and the edge embody travel with them, so a consumer can read why. -->
+    <None Include="..\..\docs\adr\0018-an-operator-and-visitors.md;..\..\docs\adr\0019-one-vm-caddy-in-front-the-worker-schedules.md"
+          Pack="true" PackagePath="docs\adr\" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\XLines.Desk\XLines.Desk.csproj" />
+  </ItemGroup>
+
+</Project>

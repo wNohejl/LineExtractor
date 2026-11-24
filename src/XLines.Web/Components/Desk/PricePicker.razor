@@ -1,0 +1,150 @@
+@namespace XLines.Web.Components.Desk
+@using XLines.Core.Analytics
+@using XLines.Web.Components.Panels
+@using XLines.Web.Services
+
+@*
+    The price a wager is taken at, chosen from every book quoting the side: one control
+    wherever a wager's price is chosen (the Board's take, the Place wager window).
+
+    It replaces two controls that did one job differently. The take had a segmented control of
+    two-letter monograms ("FD +100 | PN -102 | MG -105 | DK -108") that held five books at most,
+    said nothing about which was best or how far from fair, and became a bare <select> past five;
+    the wager window had a pop-up of book keys ("fanduel") with a line of description per row.
+    The HIG's answer to "one of many, chosen from data" is a pop-up button, so this is the
+    Desk's DeskPopUp, with the wagering read into it:
+
+    - The key's face is the book, by name, with "Best" when it is the best. The price itself is
+      the host's headline, drawn immediately before the key ("−128 DraftKings · Best"), at the
+      size the host gives its one number; the key does not repeat it (ShowFigure off), so the
+      figure is said once and the control does not shrink it into a chip.
+    - The list is every book quoting the side, best first, then the books on the best one's
+      number by price, then any on another number. Each row: the name, "Best" on the best, the
+      line and price right-aligned so prices compare down the column, and beneath, the edge
+      against the fair price where the side has one at that number (the value check's own
+      reading of it, Checks.Percent, in the check's own state: positive above zero, warning at
+      or below) and the age where the price is stale, or "Closing line".
+    - The footer says once what the edge is measured against, in the value check's words.
+    - Where the window offers a price typed by hand, "Custom price…" ends the list behind a
+      hairline and leads to that window's own typed-price path; there is no second way to type
+      one. It is a command, not a choice, so it is heard as one.
+*@
+
+<DeskPopUp TValue="string"
+           Label="Book"
+           Placeholder="Book"
+           Options="Options"
+           Value="Chosen"
+           ValueChanged="ChooseAsync"
+           Comparer="StringComparer.OrdinalIgnoreCase"
+           Footer="@Footer"
+           Disabled="Disabled"
+           DescribedBy="@DescribedBy"
+           Align="Align"
+           ShowFigure="false"
+           Commands="@(OnCustom.HasDelegate ? CustomItem : null)"
+           Class="price-picker" />
+
+@code {
+    /// <summary>The one name the typed-price path goes by, wherever a price is chosen.</summary>
+    public const string CustomLabel = "Custom price…";
+
+    public const string CustomDescription = "Type the price you got, at any book. The Journal tags it manual.";
+
+    /// <summary>Every book quoting the side (<see cref="WagerOffer.Books"/>); this orders them.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<WagerOffer> Books { get; set; } = [];
+
+    /// <summary>The book the price is from.</summary>
+    [Parameter] public string? Chosen { get; set; }
+
+    [Parameter] public EventCallback<string> OnChoose { get; set; }
+
+    /// <summary>The window's typed-price path. Bound, the list ends with <see cref="CustomLabel"/>.</summary>
+    [Parameter] public EventCallback OnCustom { get; set; }
+
+    /// <summary>No side chosen yet: the key keeps its place, dimmed, and never opens.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>The id of the visible sentence saying why the key is disabled.</summary>
+    [Parameter] public string? DescribedBy { get; set; }
+
+    [Parameter] public DeskPopoverAlign Align { get; set; } = DeskPopoverAlign.Start;
+
+    /// <summary>The clock a price's age is read against; the wall clock unless a test sets one.</summary>
+    [Parameter] public DateTimeOffset? Now { get; set; }
+
+    private DateTimeOffset At => Now ?? DateTimeOffset.UtcNow;
+
+    /// <summary>Best first; then the books on the best one's number, by what they pay; then any other number.</summary>
+    public static IReadOnlyList<WagerOffer> Order(IReadOnlyList<WagerOffer> books)
+    {
+        var best = books.FirstOrDefault(b => b.IsBest);
+
+        return books
+            .OrderByDescending(b => b.IsBest)
+            .ThenByDescending(b => best is not null && b.Line == best.Line)
+            .ThenByDescending(b => b.PriceAmerican == 0 ? 0m : OddsMath.ToDecimal(b.PriceAmerican))
+            .ToList();
+    }
+
+    private IReadOnlyList<DeskPopUpOption<string>> Options
+        => Order(Books).Select(Option).ToList();
+
+    private DeskPopUpOption<string> Option(WagerOffer offer)
+    {
+        var name = BookNames.Display(offer.Book);
+        var figure = Figure(offer);
+        var edge = Edge(offer);
+        var age = Age(offer);
+
+        var spoken = string.Join(", ", new[]
+        {
+            name, figure, offer.IsBest ? "best price" : null,
+            edge is null ? null : $"edge {edge}", age
+        }.Where(p => p is { Length: > 0 }));
+
+        return new DeskPopUpOption<string>(offer.Book, name)
+        {
+            Figure = figure,
+            Mark = offer.IsBest ? "Best" : null,
+            MarkState = DeskState.Positive,
+            Detail = age,
+            DetailFigure = edge,
+            DetailFigureState = offer.Ev > 0 ? DeskState.Positive : DeskState.Warning,
+            Spoken = spoken
+        };
+    }
+
+    /// <summary>"+3 +100" on a spread, "+100" on a moneyline: the number is part of the price.</summary>
+    public static string Figure(WagerOffer offer)
+        => (offer.Line is { } line ? OddsMath.FormatLine(line, offer.Outcome) + " " : "") + OddsMath.FormatPrice(offer.PriceAmerican);
+
+    /// <summary>The edge against the side's fair price, only where there is one at this book's number.</summary>
+    public static string? Edge(WagerOffer offer)
+        => offer.Fair is not null && offer.Ev is { } ev && !offer.IsClosing ? Checks.Percent(ev) : null;
+
+    /// <summary>Said only when it matters: a closing line, or a price older than <see cref="Checks.StaleAfter"/>.</summary>
+    private string? Age(WagerOffer offer)
+    {
+        if (offer.IsClosing)
+            return "Closing line";
+
+        var age = At - offer.CapturedAt;
+        return age >= Checks.StaleAfter ? $"Captured {Checks.Span(age)} ago" : null;
+    }
+
+    /// <summary>What the edges are measured against, in the value check's words.</summary>
+    private string? Footer
+        => Books.FirstOrDefault(b => b.Fair is not null && b.Ev is not null)?.Fair is { } fair
+            ? $"Edge against fair {OddsMath.FormatPrice(fair.PriceAmerican)} ({Checks.Basis(fair)}, no-vig)."
+              + (Books.Any(b => !b.IsClosing && Edge(b) is null) ? " A book on another number has no fair price to read." : "")
+            : null;
+
+    private Task ChooseAsync(string? book) => book is null ? Task.CompletedTask : OnChoose.InvokeAsync(book);
+
+    private Task CustomAsync() => OnCustom.InvokeAsync();
+
+    private RenderFragment CustomItem => @<DeskMenuItem Command="true" Label="@CustomLabel"
+                                                         Description="@CustomDescription"
+                                                         OnClick="CustomAsync" />;
+}

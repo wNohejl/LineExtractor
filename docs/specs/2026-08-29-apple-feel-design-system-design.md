@@ -9,7 +9,7 @@
 
 Two deliverables, built in sequence:
 
-1. **Evolve LineOps in place** to an Apple-style dark visual language — materials, motion,
+1. **Evolve XLines in place** to an Apple-style dark visual language — materials, motion,
    typography, and component conventions drawn from Apple's Human Interface Guidelines —
    replacing the current graphite/gloss system. Clean slate: the old semantic rules
    (gloss = pressable, hue = state) are dropped and every control and call site is
@@ -139,7 +139,7 @@ apple-mudblazor/
 │   ├── modality.md           — the sheet/alert/floating decision rule + recipes
 │   └── mudblazor-seam.md     — the three-file seam, :root:root trick, Mud gotchas
 └── templates/
-    ├── AppleTheme.cs         — generalized DeskTheme.cs (no LineOps names)
+    ├── AppleTheme.cs         — generalized DeskTheme.cs (no XLines names)
     ├── apple-tokens.css      — the :root token block
     ├── apple-bridge.css      — generalized mud-bridge.css
     ├── AppleButton.razor     — plus Sheet, Alert, Field, Switch templates
@@ -151,16 +151,16 @@ namespace → wire `MudThemeProvider` → apply the rules to the app's own compo
 Judgment calls (which action is Filled, when to be modal) are stated as rules, not
 left to taste. Templates are plain copyable source.
 
-**Constraint honored during LineOps work so extraction stays cheap:** every new file
-is marked template-able or LineOps-specific from day one, and template-able
-components reference only token names and MudBlazor APIs — no LineOps types, no
+**Constraint honored during XLines work so extraction stays cheap:** every new file
+is marked template-able or XLines-specific from day one, and template-able
+components reference only token names and MudBlazor APIs — no XLines types, no
 app-specific CSS hooks.
 
 ## Section 5 — Phasing, verification, risks
 
 **Phases** (each independently shippable; never two button languages at once):
 
-1. **Foundation** — token block in `lineops.css`, Inter bundled, rewritten
+1. **Foundation** — token block in `xlines.css`, Inter bundled, rewritten
    `DeskTheme.cs` + `mud-bridge.css`, core control restyle (buttons, fields,
    switches, selects). The `Tone` → `Emphasis`+`Role` change and full call-site
    sweep happen here — the compiler forces every site to be visited anyway.
@@ -199,5 +199,5 @@ When the skill proves out, point an LLM at this section:
   APIs by the constraint above.
 - The skill package remains the guidance layer on top of the library (rules and
   judgment don't compile); version the two together.
-- LineOps then consumes the package and deletes its local copies, becoming
+- XLines then consumes the package and deletes its local copies, becoming
   consumer #1 of the library exactly as it was consumer #1 of the skill.

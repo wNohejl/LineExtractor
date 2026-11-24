@@ -1,0 +1,275 @@
+@namespace XLines.Desk.Primitives
+@implements IDisposable
+
+@*
+    One row of a DeskMenu.
+
+    A label, and optionally what the row costs or holds (the trailing detail, in tabular
+    figures so a column of them lines up) and one line saying what it does. A row that cannot
+    run stays in the menu, dimmed, with the reason in place of its description: the HIG keeps
+    unavailable commands visible so the menu explains itself rather than shrinking, and a
+    reason in the row is read where a tooltip is not.
+
+    Dimmed is aria-disabled, never the disabled attribute: a disabled button cannot take
+    focus, and the arrows have to be able to land on the row for its reason to be announced.
+    The click is refused here instead.
+
+    A row that stands for something the menu lists rather than a command (a window among a
+    column's tabs) can be removable: Delete or Backspace on it, or the pointer's close glyph at
+    its trailing end, runs OnRemove and leaves the menu open. The glyph is a span, not a second
+    button — a menu item's children are presentational and a button in a button is not HTML —
+    so it is out of the accessibility tree and the key is how a reader removes the row
+    (aria-keyshortcuts says so). An attention dot says a row needs noticing; its words belong in
+    the row's own label or description, never the dot alone.
+*@
+
+<button @ref="_element"
+        type="button"
+        role="@Role"
+        class="@Classes"
+        tabindex="@TabIndex"
+        aria-disabled="@(Disabled ? "true" : null)"
+        aria-checked="@AriaChecked"
+        aria-label="@AriaLabel"
+        aria-keyshortcuts="@(CanRemove ? "Delete" : null)"
+        title="@(Disabled ? DisabledReason ?? Title : Title)"
+        data-tab-drag-id="@DragId"
+        @onclick="ActivateAsync">
+    @if (ShowsCheck)
+    {
+        @* The column is kept on every row of a radio menu, checked or not, so the labels
+           start at one edge. *@
+        <span class="menu__check" aria-hidden="true">
+            @if (IsChecked)
+            {
+                <Glyph Icon="@Icons.Material.Filled.Check" />
+            }
+        </span>
+    }
+
+    @if (Icon is not null)
+    {
+        <span class="menu__icon"><Glyph Icon="@Icon" /></span>
+    }
+
+    <span class="menu__text">
+        <span class="menu__row">
+            <span class="menu__label">@Label</span>
+            @if (Detail is not null)
+            {
+                <span class="menu__detail">@Detail</span>
+            }
+            @if (Mark is not null)
+            {
+                <Tag State="MarkState" Class="menu__mark">@Mark</Tag>
+            }
+            @if (Figure is not null)
+            {
+                <span class="menu__figure num">@Figure</span>
+            }
+        </span>
+
+        @if (DetailFigure is not null)
+        {
+            @* A second figure under the first, in the same trailing column, so a column of them
+               compares down the menu; its state is the value's ink, never the row's. *@
+            <span class="menu__row">
+                <span class="menu__desc">@Line</span>
+                <span class="menu__subfigure num @StateInk(DetailFigureState)">@DetailFigure</span>
+            </span>
+        }
+        else if (Line is not null)
+        {
+            <span class="menu__desc">@Line</span>
+        }
+    </span>
+
+    @if (AttentionClass is { } attention)
+    {
+        <span class="menu__attention @attention" aria-hidden="true"></span>
+    }
+
+    @if (CanRemove)
+    {
+        <span class="menu__remove"
+              aria-hidden="true"
+              title="@RemoveLabel"
+              @onclick="RemoveByPointerAsync"
+              @onclick:stopPropagation="true">
+            <Glyph Icon="@Icons.Material.Filled.Close" />
+        </span>
+    }
+</button>
+
+@code {
+    /// <summary>A verb first, no article: "Pull prices", not "The price pull".</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>Trailing and secondary — a cost, a count, a shortcut.</summary>
+    [Parameter] public string? Detail { get; set; }
+
+    /// <summary>A second line saying what the row does.</summary>
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>
+    /// A MudBlazor icon string. The HIG asks for icons on every item of a group or none, and
+    /// only where they tell the items apart, so leave it off rather than repeat one glyph.
+    /// </summary>
+    [Parameter] public string? Icon { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Why the row cannot run: shown in place of the description, and as the tooltip.</summary>
+    [Parameter] public string? DisabledReason { get; set; }
+
+    /// <summary>
+    /// A tooltip explaining the row — what it calls, what it costs. It adds to what the row says,
+    /// never replaces it: whatever must be known before the press is in the label or the detail.
+    /// A dimmed row's tooltip is its reason.
+    /// </summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Destroys something. Red, and the caller still confirms it.</summary>
+    [Parameter] public bool Destructive { get; set; }
+
+    /// <summary>The current choice, drawn with a leading check.</summary>
+    [Parameter] public bool Checked { get; set; }
+
+    /// <summary>
+    /// The value the row stands for, trailing at body size in tabular figures and right-aligned,
+    /// so a column of them reads down the menu. Where <see cref="Detail"/> is what a command
+    /// costs, this is what an option is.
+    /// </summary>
+    [Parameter] public string? Figure { get; set; }
+
+    /// <summary>A small state word before the figure ("Best", "New"), drawn as a <c>Tag</c>.</summary>
+    [Parameter] public string? Mark { get; set; }
+
+    [Parameter] public DeskState MarkState { get; set; } = DeskState.Positive;
+
+    /// <summary>A second figure under the first, on the description's line, in its state's ink.</summary>
+    [Parameter] public string? DetailFigure { get; set; }
+
+    [Parameter] public DeskState DetailFigureState { get; set; } = DeskState.Neutral;
+
+    /// <summary>
+    /// What the row is heard as, when its drawn words read badly aloud (a figure and a mark run
+    /// together). Everything it says is also drawn: this re-words, it never adds.
+    /// </summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    /// <summary>
+    /// A command in a menu of choices, such as "Other…" after a list of options. It stays a plain
+    /// menuitem, takes no check and is never the checked one, so it is not heard as an option.
+    /// </summary>
+    [Parameter] public bool Command { get; set; }
+
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    /// <summary>
+    /// Removes what the row stands for. Set, the row is removable: Delete or Backspace on it, or
+    /// its trailing close glyph, runs this and the menu stays open on the next row.
+    /// </summary>
+    [Parameter] public EventCallback OnRemove { get; set; }
+
+    /// <summary>What removing does, as a verb phrase ("Close Inbox"): the glyph's tooltip.</summary>
+    [Parameter] public string? RemoveLabel { get; set; }
+
+    /// <summary>
+    /// The row needs noticing: <see cref="DeskState.Warning"/> or <see cref="DeskState.Negative"/>
+    /// draw a dot in that state's hue; anything else draws none. Say the same in the label or
+    /// the description — the dot is never the only place it is said.
+    /// </summary>
+    [Parameter] public DeskState? Attention { get; set; }
+
+    [CascadingParameter] public DeskMenu? Menu { get; set; }
+
+    /// <summary>The DeskMenuGroup this row sits in, if any; the menu reads its arrow order through it.</summary>
+    [CascadingParameter] public DeskMenuGroup? Group { get; set; }
+
+    private ElementReference _element;
+
+    protected override void OnInitialized() => Menu?.Register(this, Group);
+
+    private bool Radio => Menu?.Radio == true && !Command;
+
+    private string Role => Radio ? "menuitemradio" : "menuitem";
+
+    // aria-checked belongs to the radio role; on a plain menuitem it is not allowed, so a
+    // checked command row carries the glyph alone.
+    private string? AriaChecked => Radio ? (IsChecked ? "true" : "false") : null;
+
+    // A command in a radio menu keeps the check column, empty, so its label starts where the
+    // options' labels do.
+    private bool ShowsCheck => Radio || Checked || (Command && Menu?.Radio == true);
+
+    /// <summary>The checked option: a command is never one.</summary>
+    internal bool IsChecked => Checked && !Command;
+
+    private static string? StateInk(DeskState state) => state switch
+    {
+        DeskState.Positive => "menu__subfigure--positive",
+        DeskState.Negative => "menu__subfigure--negative",
+        DeskState.Warning => "menu__subfigure--warning",
+        _ => null
+    };
+
+    private string? TabIndex => Menu is null ? null : Menu.IsTabStop(this) ? "0" : "-1";
+
+    private string? Line => Disabled && DisabledReason is not null ? DisabledReason : Description;
+
+    /// <summary>Extra classes on the row, for a menu that draws its rows in its own shape (a column's tabs).</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// A window id when the row stands for a window that can be dragged onto another one — a
+    /// row of a tab group's menu (WindowTabs, windowing.js). Null for every other menu.
+    /// </summary>
+    [Parameter] public string? DragId { get; set; }
+
+    private string Classes => $"{(Destructive ? "menu__item menu__item--destructive" : "menu__item")}{(string.IsNullOrEmpty(Class) ? null : $" {Class}")}";
+
+    /// <summary>Re-renders after the menu moved its Tab stop onto or off this row.</summary>
+    internal void Refresh() => StateHasChanged();
+
+    internal ValueTask FocusAsync() => _element.FocusAsync();
+
+    /// <summary>Whether the row can be removed from the menu (<see cref="OnRemove"/>).</summary>
+    internal bool CanRemove => OnRemove.HasDelegate && !Disabled;
+
+    private string? AttentionClass => Attention switch
+    {
+        DeskState.Warning => "menu__attention--warning",
+        DeskState.Negative => "menu__attention--negative",
+        _ => null
+    };
+
+    /// <summary>
+    /// The close glyph: through the menu's own remove, so focus moves to the next row exactly as
+    /// it does for Delete — a row removed under the pointer would otherwise take focus with it.
+    /// </summary>
+    private Task RemoveByPointerAsync() => Menu is not null ? Menu.RemoveAsync(this) : RemoveAsync();
+
+    /// <summary>Runs <see cref="OnRemove"/>; the menu, and the popover it sits in, stay open.</summary>
+    internal Task RemoveAsync() => CanRemove ? OnRemove.InvokeAsync() : Task.CompletedTask;
+
+    /// <summary>
+    /// Closes the menu before running the command, not after: a command can take a while (a
+    /// pull does), and a menu left standing over the desk while it runs reads as one that did
+    /// not take the choice.
+    /// </summary>
+    private async Task ActivateAsync()
+    {
+        if (Disabled)
+            return;
+
+        Menu?.Chose(this);
+
+        if (Menu?.Popover is { } popover)
+            await popover.CloseAsync();
+
+        await OnClick.InvokeAsync();
+    }
+
+    public void Dispose() => Menu?.Unregister(this, Group);
+}

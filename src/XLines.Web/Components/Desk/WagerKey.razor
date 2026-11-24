@@ -1,0 +1,132 @@
+@namespace XLines.Web.Components.Desk
+@using XLines.Core.Analytics
+
+@*
+    The key a wager is started or committed with: one component wherever the desk offers to
+    place, log, bank or add a wager, so the act reads the same in every window.
+
+    "A custom wager button" is read as a purpose-built key for wagering. The code gives the word
+    no other meaning (a hand-typed price is "your own price", "manual" in the Journal, and is
+    offered by the price picker's Custom price… item), so this is a key, not a new kind of bet.
+    What it fixes is that each window wrote its wager keys by hand: the take's Add to slip wore
+    a playlist glyph and the wager window's a receipt, the take's Log was Tinted and the
+    window's Filled with the same label, and "Place wager" was written three times.
+
+    The kind decides the label, the icon and the default emphasis; the state decides what the
+    label says now:
+
+    | Kind      | Label (ready)        | Busy        | Done      | Icon       | Default   |
+    |-----------|----------------------|-------------|-----------|------------|-----------|
+    | Place     | Place wager          |             |           | bolt       | Tinted    |
+    | Log       | Log $25 / Log wager  | Logging…    | Logged    | bolt       | Filled    |
+    | AddToSlip | Add to slip          |             | Added     | add to list| Plain     |
+    | AddLeg    | Add as leg           |             | Added     | link       | Plain     |
+
+    The bolt is the wager's mark on the desk: Place wager on the Board row and the Game window,
+    the take's bar, and Log in every window carry it, so "this records a bet" is one glyph.
+
+    Waiting (no stake yet, a closing line): the key is disabled and described by the KeyRow's
+    reason, the visible sentence beside it, never by a title a disabled key cannot show. Busy:
+    the key shimmers, takes no press, and says what it is doing. Done: the key says what it did,
+    with a check in place of the bolt, and takes no press until the next bet begins.
+
+    Which one is Filled is the window's to decide by the desk's rule (one per context, last in
+    its row); this gives each kind the emphasis it has in the commonest case.
+*@
+
+<DeskButton Emphasis="EffectiveEmphasis"
+            Size="Size"
+            Icon="@EffectiveIcon"
+            Busy="Busy"
+            Disabled="@(Disabled || Done)"
+            Title="@Title"
+            OnClick="OnClick"
+            Class="@($"wager-key {Class}".Trim())"
+            data-wager-key="@KindKey"
+            aria-describedby="@DescribedBy">
+    @Text
+    @if (Count is { } count)
+    {
+        <span class="slip-badge num" aria-label="@CountLabel">@count</span>
+    }
+</DeskButton>
+
+@code {
+    public const string PlaceLabel = "Place wager";
+
+    /// <summary>The wager's glyph: every key that records a bet, and the doors that open one, wear it.</summary>
+    public static readonly string Glyph = Icons.Material.Filled.Bolt;
+
+    [Parameter, EditorRequired] public WagerKind Kind { get; set; }
+
+    /// <summary>The stake a Log key commits, said in its label ("Log $25"); zero or none says "Log wager".</summary>
+    [Parameter] public decimal? Stake { get; set; }
+
+    /// <summary>A label of the caller's own, for a count the kind cannot know ("Log 3 wagers", "Add leg").</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>How loud. Left unset, the kind's default (see the table above).</summary>
+    [Parameter] public DeskEmphasis? Emphasis { get; set; }
+
+    [Parameter] public DeskKeySize Size { get; set; } = DeskKeySize.Medium;
+
+    [Parameter] public bool Busy { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Done: the key says what it did and takes no press until the next bet begins.</summary>
+    [Parameter] public bool Done { get; set; }
+
+    /// <summary>The id of the sentence that says why the key waits (KeyRow's Primary context).</summary>
+    [Parameter] public string? DescribedBy { get; set; }
+
+    /// <summary>A tooltip adding to the label, never replacing it.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>A count after the label, such as what the slip holds.</summary>
+    [Parameter] public int? Count { get; set; }
+
+    /// <summary>How the count is heard: "3 on the slip".</summary>
+    [Parameter] public string? CountLabel { get; set; }
+
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    private DeskEmphasis EffectiveEmphasis => Emphasis ?? Kind switch
+    {
+        WagerKind.Place => DeskEmphasis.Tinted,
+        WagerKind.Log => DeskEmphasis.Filled,
+        _ => DeskEmphasis.Plain
+    };
+
+    private string EffectiveIcon => Done
+        ? Icons.Material.Filled.Check
+        : Kind switch
+        {
+            WagerKind.AddToSlip => Icons.Material.Filled.PlaylistAdd,
+            WagerKind.AddLeg => Icons.Material.Filled.Link,
+            _ => Glyph
+        };
+
+    private string KindKey => Kind switch
+    {
+        WagerKind.Place => "place",
+        WagerKind.Log => "log",
+        WagerKind.AddToSlip => "slip",
+        _ => "leg"
+    };
+
+    /// <summary>What the key says now, by its kind and its state.</summary>
+    public string Text => Kind switch
+    {
+        WagerKind.Log when Done => "Logged",
+        WagerKind.Log when Busy => "Logging…",
+        WagerKind.AddToSlip or WagerKind.AddLeg when Done => "Added",
+        _ when Label is not null => Label,
+        WagerKind.Place => PlaceLabel,
+        WagerKind.Log => Stake is > 0 ? $"Log {OddsMath.Money(Stake.Value)}" : "Log wager",
+        WagerKind.AddToSlip => "Add to slip",
+        _ => "Add as leg"
+    };
+}

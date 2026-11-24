@@ -1,0 +1,302 @@
+@using XLines.Desk.Windowing
+@implements IAsyncDisposable
+@inject WindowManager Manager
+@inject IDeskAlerts Alerts
+@inject IJSRuntime JS
+
+@*
+    A tab group's title (ADR 0027, amended 2026-11-20): the window showing, as a pop-up key.
+
+    It is the title bar's title, not a strip and not a second bar. The key's face is what a plain
+    window's bar says — its icon and its name — followed by how many windows share the column, in
+    words ("2 tabs", so it is never read with the window's own figure beside it), and the
+    up-and-down chevron a pop-up wears. Behind it, an edge for each window behind (two at most)
+    steps out to the right, so the title reads as a stack before it is read at all (amended
+    2026-11-21). In the menu each tab is a key finished as the Desk's keys are, the one showing
+    selected in the accent's wash: the stack on the bar and the keys in the menu are one idea. The windows behind it are not drawn until asked for:
+    the strip that used to list them side by side spent the bar's width on tabs nobody was
+    looking at, and squeezed the title and the window's own keys to make room.
+
+    A pop-up rather than a pull-down, because what it chooses is one of several mutually
+    exclusive states — which window the column shows — and the key says the current one (HIG,
+    Pop-up buttons). Its two commands, Move to its own column and Close, sit after a hairline as
+    the pop-up's "Custom" items do, heard as commands and never as choices.
+
+    The menu lists the column's windows most recently shown first (the order the manager keeps),
+    each with its icon, its name, its status line and, for a warning or a breach, a dot whose words
+    are in the row's name. Choosing one brings it forward: it becomes first, the one that was
+    showing becomes second, and nothing unmounts. Delete on a row, or the pointer's close glyph at
+    its end, closes that window and leaves the menu open on the next. The keyboard is the menu
+    button's: Enter, Space, Down or Up open it on the window showing; arrows, Home, End and
+    typeahead walk it; Escape returns to the key.
+
+    While the menu is closed, a warning or a breach on any window behind is a dot on the key and
+    words on its name, so a column never hides a problem behind its title.
+*@
+
+@{
+    var showing = Column.Showing;
+    var hidden = Column.Tabs.Skip(1).ToList();
+    var loud = hidden.Where(t => Loud(t.Pulse)).ToList();
+}
+
+@* A wrapper carries the window-control mark, so a press on the key or in its menu is a press,
+   never the start of a column drag. *@
+<div class="wtabs @DepthClass(Column.Tabs.Count)" data-window-control @ondblclick:stopPropagation="true">
+    @* The windows behind, drawn as the key's own layers: an edge for each, stepped out to the
+       right and a little shorter, two at most — the toast stack's language (ADR 0027, 0028).
+       Before the key in the DOM, so the key paints over them without a z-index of its own. *@
+    @for (var depth = 1; depth <= Math.Min(2, Column.Tabs.Count - 1); depth++)
+    {
+        <span class="wtabs__layer wtabs__layer--@depth" aria-hidden="true"></span>
+    }
+    <DeskPopover Open="_open" OpenChanged="@(open => _open = open)" Class="wtabs__popover">
+        <Anchor>
+            <button @ref="_key"
+                    class="wtabs__key"
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded="@(_open ? "true" : "false")"
+                    aria-label="@KeyLabel(Column)"
+                    title="@(loud.Count > 0 ? KeyLabel(Column) : null)"
+                    data-popover-return="true"
+                    @onclick="Toggle"
+                    @onkeydown="OnKeyDown">
+                @if (!string.IsNullOrEmpty(showing.Definition.Icon))
+                {
+                    <span class="win__icon wtabs__icon" aria-hidden="true"><Glyph Icon="@showing.Definition.Icon" /></span>
+                }
+                <span class="win__title wtabs__title">@showing.Title</span>
+                <span class="wtabs__count" aria-hidden="true"><span class="num">@Column.Tabs.Count</span><span class="wtabs__count-word"> tabs</span></span>
+                <span class="wtabs__chevron" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.UnfoldMore" /></span>
+                @if (loud.Count > 0)
+                {
+                    <span class="wtabs__state @PulseClass(Worst(loud))" aria-hidden="true"></span>
+                }
+            </button>
+        </Anchor>
+        <ChildContent>
+            <DeskMenu Label="@MenuLabel" Radio="true" Class="menu--wide wtabs__menu">
+                <DeskMenuGroup Label="@GroupLabel">
+                    @foreach (var tab in Column.Tabs)
+                    {
+                        @* Each tab is a key of its own, finished as the Desk's keys are; the one
+                           showing is the selected key, in the accent's wash with its check. *@
+                        <DeskMenuItem @key="tab.Id"
+                                      Class="@(tab == showing ? "wtabs__tab wtabs__tab--showing" : "wtabs__tab")"
+                                      Title="@FullTitle(tab)"
+                                      Label="@tab.Title"
+                                      Description="@Detail(tab)"
+                                      Icon="@(string.IsNullOrEmpty(tab.Definition.Icon) ? null : tab.Definition.Icon)"
+                                      AriaLabel="@TabLabel(tab)"
+                                      Attention="@AttentionOf(tab)"
+                                      Checked="@(tab == showing)"
+                                      DragId="@tab.Id"
+                                      RemoveLabel="@($"Close {tab.Title}")"
+                                      OnRemove="() => CloseAsync(tab)"
+                                      OnClick="() => Select(tab)" />
+                    }
+                </DeskMenuGroup>
+                <DeskMenuGroup>
+                    <DeskMenuItem Command="true"
+                                  Label="@($"Move {showing.Title} to its own column")"
+                                  Disabled="@(!Manager.CanMoveToOwnColumn(showing.Id))"
+                                  DisabledReason="Every column is in use. Raise the column limit in the Window manager to make room."
+                                  OnClick="MoveShowing" />
+                    <DeskMenuItem Command="true"
+                                  Label="@($"Close {showing.Title}")"
+                                  OnClick="() => CloseAsync(showing)" />
+                </DeskMenuGroup>
+            </DeskMenu>
+        </ChildContent>
+    </DeskPopover>
+</div>
+
+@code {
+    /// <summary>The column this key heads. Its first tab is the window showing; never a group of one.</summary>
+    [Parameter, EditorRequired] public WindowColumn Column { get; set; } = default!;
+
+    private ElementReference _key;
+    private bool _open;
+    private bool _asking;
+    private IJSObjectReference? _module;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null)
+            return;
+
+        try
+        {
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    /// <summary>
+    /// The key takes focus when the window it names was brought forward from the keyboard: the
+    /// key that was pressed belonged to the window now behind, which has left the tab order.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Down and Up open the menu (OnKeyDown); the script keeps the browser from also scrolling
+        // the box the key sits in, which a C# handler cannot decide key by key.
+        if (firstRender)
+        {
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("popover.js"));
+                if (_module is not null)
+                    await _module.InvokeVoidAsync("opensOnArrows", _key);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (!Manager.TakeTabFocus(Column.Showing.Id))
+            return;
+
+        try
+        {
+            await _key.FocusAsync();
+        }
+        catch (InvalidOperationException)
+        {
+            // Not attached yet in a test renderer.
+        }
+    }
+
+    private string MenuLabel => $"Tabs in {Column.Showing.Title}'s column";
+
+    private string GroupLabel => $"{Column.Tabs.Count} tabs, most recent first";
+
+    /// <summary>
+    /// What the key is heard as: the window showing, its place among the column's tabs, and any
+    /// window behind that must be noticed — the dot on the key, said in words.
+    /// </summary>
+    public static string KeyLabel(WindowColumn column)
+    {
+        var showing = column.Showing;
+        var label = $"{showing.Title}, {column.Tabs.Count} tabs in this column";
+        var loud = column.Tabs.Skip(1).Where(t => Loud(t.Pulse)).ToList();
+
+        if (loud.Count > 0)
+        {
+            var worst = Worst(loud) == PulseState.Critical ? "needs attention" : "has a warning";
+            label = loud.Count == 1
+                ? $"{label}; {loud[0].Title} {worst}"
+                : $"{label}; {loud.Count} tabs behind it {(worst == "needs attention" ? "need attention" : "have warnings")}";
+        }
+
+        return $"{label} — show tabs";
+    }
+
+    /// <summary>The layers the key draws behind it: one edge per window behind, two at most.</summary>
+    private static string DepthClass(int tabs) => tabs switch
+    {
+        <= 1 => "",
+        2 => "wtabs--depth-1",
+        _ => "wtabs--depth-2"
+    };
+
+    private static string FullTitle(WindowInstance tab)
+        => string.IsNullOrEmpty(tab.StatusText) ? tab.Title : $"{tab.Title} — {tab.StatusText}";
+
+    /// <summary>The tab's name, then what it reports, then any state it needs noticing for — the dot said in words.</summary>
+    public static string TabLabel(WindowInstance tab)
+    {
+        var label = FullTitle(tab);
+
+        return tab.Pulse switch
+        {
+            PulseState.Critical => $"{label}, needs attention",
+            PulseState.Warn => $"{label}, warning",
+            _ => label
+        };
+    }
+
+    private static string? Detail(WindowInstance tab) => tab.Pulse switch
+    {
+        PulseState.Critical => string.IsNullOrEmpty(tab.StatusText) ? "Needs attention" : tab.StatusText,
+        PulseState.Warn => string.IsNullOrEmpty(tab.StatusText) ? "Warning" : tab.StatusText,
+        _ => string.IsNullOrEmpty(tab.StatusText) ? null : tab.StatusText
+    };
+
+    private static DeskState? AttentionOf(WindowInstance tab) => tab.Pulse switch
+    {
+        PulseState.Critical => DeskState.Negative,
+        PulseState.Warn => DeskState.Warning,
+        _ => null
+    };
+
+    /// <summary>A window behind carries a dot only for what must be noticed: a warning or a breach.</summary>
+    private static bool Loud(PulseState pulse) => pulse is PulseState.Warn or PulseState.Critical;
+
+    private static PulseState Worst(IEnumerable<WindowInstance> tabs)
+        => tabs.Any(t => t.Pulse == PulseState.Critical) ? PulseState.Critical : PulseState.Warn;
+
+    private static string PulseClass(PulseState pulse) => pulse switch
+    {
+        PulseState.Critical => "pulse--critical",
+        PulseState.Warn => "pulse--warn",
+        _ => "pulse--idle"
+    };
+
+    private void Toggle() => _open = !_open;
+
+    // Down and Up open the menu as a menu button's do; the menu then lands on the window showing.
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.CtrlKey || e.MetaKey || e.AltKey)
+            return;
+
+        if (e.Key is "ArrowDown" or "ArrowUp")
+            _open = true;
+    }
+
+    /// <summary>
+    /// Brings a tab's window forward. The key that was pressed goes behind with the window that
+    /// was showing, so the key of the window revealed is asked to take focus.
+    /// </summary>
+    private void Select(WindowInstance tab)
+    {
+        _open = false;
+
+        if (tab != Column.Showing)
+            Manager.RequestTabFocus(tab.Id);
+
+        Manager.Focus(tab.Id);
+    }
+
+    private void MoveShowing() => Manager.MoveToOwnColumn(Column.Showing.Id);
+
+    /// <summary>
+    /// Closes a tab's window without bringing it forward. Closing the one showing reveals the
+    /// next most recent, whose key takes focus; a group left with one window is a plain window
+    /// again, and the window itself takes it. Closing one behind leaves the menu open, the
+    /// keyboard on the next row.
+    /// </summary>
+    private async Task CloseAsync(WindowInstance tab)
+    {
+        if (_asking)
+            return;
+
+        var rest = Column.Tabs.Where(t => t != tab).ToList();
+        var takesFocus = tab == Column.Showing || rest.Count == 1;
+
+        _asking = true;
+
+        try
+        {
+            if (await WindowClosing.CloseAsync(Manager, Alerts, tab) && takesFocus && rest.Count > 0)
+                Manager.RequestTabFocus(rest[0].Id);
+        }
+        finally
+        {
+            _asking = false;
+        }
+    }
+}

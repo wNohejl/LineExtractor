@@ -34,7 +34,7 @@ The provider's v4 guide (<https://the-odds-api.com/liveapi/guides/v4/>, read 202
 new `IScoreSource` (final scores from `/scores?daysFrom=3`). It shares the odds adapter's key handling
 (the desk's runtime key first, then configuration), league keys and credit headers through
 `TheOddsApiKey`/`TheOddsApiWire`. It is registered only while ESPN is off — by configuration's key in
-`AddLineOpsIngestion`, or unconditionally by `AddRuntimeOddsKey` on a desk, where it says for itself
+`AddXLinesIngestion`, or unconditionally by `AddRuntimeOddsKey` on a desk, where it says for itself
 whether a key is held (`IStatsSource.IsConfigured`, which `SourceRegistry` now filters on as it does for
 odds sources). ESPN on: ESPN is the stats port exactly as before and this source is not registered at
 all. ESPN off with a key: this is the stats port. ESPN off, no key: nothing, and the desk asks for a

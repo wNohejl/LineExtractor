@@ -39,7 +39,7 @@ rows carry details and descriptions opens at least 320px wide (`menu--wide` on t
 
 ### The date-range popover
 
-`RangePullPopover` (LineOps.Web, Components/Desk), hosted by the Board toolbar's Date range key
+`RangePullPopover` (XLines.Web, Components/Desk), hosted by the Board toolbar's Date range key
 through `DeskPopover` (Align End). Inside, one grouped form, no card inside a card:
 
 - **League** — a `DeskSwitch` (segmented) when the enabled leagues are 2–5, a `DeskSelect` when
@@ -73,7 +73,7 @@ key (the popover already does this); Enter in a date field presses Pull when it 
 
 ## Packages
 
-### D — Desk (src/LineOps.Desk/**, tests/LineOps.Desk.Tests/**)
+### D — Desk (src/XLines.Desk/**, tests/XLines.Desk.Tests/**)
 - `DeskMenuGroup` primitive (`Label?`, `ChildContent`): heading + separator rules as above; keyboard
   order unaffected (items still register with the `DeskMenu`); typeahead skips headings.
 - `controls.css`: `.menu__heading`, the row no-wrap fix, `.menu--wide`.
@@ -82,8 +82,8 @@ key (the popover already does this); Enter in a date field presses Pull when it 
   `DeskMenuTests` (heading rendered, not focusable, arrows skip it, separator between groups) and
   `DeskJobMenuTests` (grouped order, ungrouped first).
 
-### W — Web (src/LineOps.Web/**, src/LineOps.Ingestion/Services/IngestionJobs.cs catalogue only,
-IngestionDeskJobs.cs, tests/LineOps.Web.Tests/**)
+### W — Web (src/XLines.Web/**, src/XLines.Ingestion/Services/IngestionJobs.cs catalogue only,
+IngestionDeskJobs.cs, tests/XLines.Web.Tests/**)
 - Catalogue: each `IngestionJob` names its `JobGroups` group; `IngestionDeskJobs.Describe` passes
   it through; the range entry is no longer appended.
 - `RangePullPopover.razor` as designed; Board toolbar gets the Date range key, its busy/progress
@@ -91,7 +91,7 @@ IngestionDeskJobs.cs, tests/LineOps.Web.Tests/**)
   `RangePullPopoverTests` (ready state, waits-and-says-why cases, quick ranges set the dates,
   Pull closes the popover and runs with the answers, key busy with the phrase, visitor sees no key).
 - `BoardToolbarTests`: the three keys, in order; Date range key absent for a visitor.
-- `lineops.css` only for the popover's two-field row if the Desk has no row for it.
+- `xlines.css` only for the popover's two-field row if the Desk has no row for it.
 
 ## Checklist (verifier)
 

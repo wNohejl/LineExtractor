@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    The desk, on its own: the window manager, the strip, the primitives, the theme and the
+    stylesheet. Nothing in here knows what an order, a customer or a price is. An application
+    supplies a window catalogue and a brand, and gets the desk described in ADRs 0007, 0013
+    and 0016 — which is what lets a second product start from the same chrome.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>XLines.Desk</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    The package. The assembly, the namespace and the _content/XLines.Desk path keep their
+    names, so a consumer's links and imports are the same whether it references the project or
+    the package. The XML documentation ships with it; CS1591 is off because the documentation
+    is written where a seam needs explaining, not on every public member.
+  -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>XLines.Desk</PackageId>
+    <Version>0.5.0</Version>
+    <Description>An Apple-HIG desk for Blazor Server on MudBlazor: windows, primitives, themes and a chosen accent, a window base class, a job menu over the host's named runs, and error and not-found pages.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <!-- The decisions the Desk embodies travel with it, so a consumer can read why. -->
+    <None Include="..\..\docs\adr\0007-window-manager-ui.md;..\..\docs\adr\0008-gloss-as-affordance-and-the-mudblazor-seam.md;..\..\docs\adr\0013-the-board-and-the-floating-layer.md;..\..\docs\adr\0016-apple-feel-design-system.md;..\..\docs\adr\0020-one-anatomy-for-every-window.md"
+          Pack="true" PackagePath="docs\adr\" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+</Project>

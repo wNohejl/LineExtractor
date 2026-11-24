@@ -1,0 +1,247 @@
+@using XLines.Core.Analytics
+@using XLines.Core.Entities
+@using XLines.Data.CrossReference
+@using XLines.Web.Components.Snippets
+
+@*
+    Where the market stands on one side of one game, read from what is stored.
+
+    Line movement used to open, for a game nobody had moved, on a table of "unmoved" and "seen
+    once" cells and the sentence "Every book is holding its opening number" — true, and nothing
+    to act on. A number that has not moved is still a number worth reading: what it is worth
+    against the fair price, which book pays the most on each side, and how long each book has
+    held it. So the window leads with those, and says plainly what could move them next. With
+    line polling on Manual (the desk's default) a price changes here only when lines are pulled,
+    so the pull for this league is offered with its cost, through the Line movement window's own
+    job menu and its confirm. Nothing here is estimated: a book with no fair price at its number
+    says so, and a game under way says its lines are closing lines that will not move again.
+*@
+
+<div class="standing">
+    <MetricRow>
+        @if (Side is { Fair: { } fair } side0)
+        {
+            <Metric Label="Fair" Value="@Figure(fair.PriceAmerican, side0.Line, side0.Outcome)" Numeric
+                    Note="@($"{SideName} ({Checks.Basis(fair)}, no-vig)")" />
+        }
+        else
+        {
+            @* Said, not left blank: no fair price is a fact about the books on this number. *@
+            <Metric Label="Fair" Value="—" Note="too few books on this number to read one" />
+        }
+
+        @if (Side is { } side)
+        {
+            <Metric Label="@($"Best {SideName}")" Value="@Figure(side.PriceAmerican, side.Line, side.Outcome)" Numeric
+                    State="@EdgeState(side.Ev)" Note="@BestNote(side)" />
+        }
+
+        @if (Other is { } other)
+        {
+            <Metric Label="@($"Best {OtherName}")" Value="@Figure(other.PriceAmerican, other.Line, other.Outcome)" Numeric
+                    State="@EdgeState(other.Ev)" Note="@BestNote(other)" />
+        }
+
+        @if (Newest(Rows) is { } newest)
+        {
+            @* Prices are written only when they change (ADR 0001): the newest one on record is
+               the last time any book on this side changed its number, not the last scan. *@
+            <Metric Label="Last change" Value="@OddsPanel.Ago(newest, At)"
+                    Note="@($"newest price on record, {DisplayTime.Stamp(newest)}")" />
+        }
+    </MetricRow>
+
+    @if (ShowBooks)
+    {
+        @* Every book on the side, by what it pays, against the fair price at its own number, and
+           how long it has held it. Replaces the movement columns, which for a side nobody has
+           moved were "unmoved" and "seen once" in every row. *@
+        @* Ranked on the whole market and capped at the top five, as every book table is (BookRanking),
+           the rest behind the key under it. *@
+        var books = BookRanking.Order(Books(Rows, Side), b => b.Book, Side, Other);
+        <div class="standing__books" id="@_booksId">
+        <DeskGrid T="BookStanding" Items="BookRanking.Visible(books, IsExpanded)" Resizable="false" EmptyText="No prices on this side.">
+            <PropertyColumn T="BookStanding" TProperty="string" Property="b => b.Book" Title="Book"
+                            Sortable="false" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+                <CellTemplate>
+                    @BookNames.Display(context.Item.Book)@(" ")
+                    @if (context.Item.IsBest)
+                    {
+                        <Tag State="DeskState.Positive">Best</Tag>
+                    }
+                </CellTemplate>
+            </PropertyColumn>
+
+            <TemplateColumn T="BookStanding" Title="Now" Align="Align.Right" Sortable="false"
+                            HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                <CellTemplate><span class="movement__quote">@OddsPanel.Quote(context.Item.Now)</span></CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="BookStanding" Title="Against fair" Align="Align.Right" Sortable="false"
+                            HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                <CellTemplate>
+                    @if (context.Item.Ev is { } ev)
+                    {
+                        <span class="standing__edge @(ev > 0 ? "standing__edge--up" : null) num">@Checks.Percent(ev)</span>
+                    }
+                    else
+                    {
+                        <span class="dim">no fair price at this number</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="BookStanding" Title="Held for" Align="Align.Right" Sortable="false"
+                            HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                <CellTemplate>
+                    <DeskTooltip Text="@($"This number since {DisplayTime.Stamp(context.Item.Since)}")">
+                        <span class="dim num" tabindex="0">@Held(context.Item.Since)</span>
+                    </DeskTooltip>
+                </CellTemplate>
+            </TemplateColumn>
+        </DeskGrid>
+        <MoreBooks Total="books.Count" Expanded="IsExpanded" ExpandedChanged="SetExpandedAsync" Controls="@_booksId" />
+        </div>
+    }
+
+    @* What could move these numbers next, in a sentence, and the pull that would, with its cost. *@
+    <p class="standing__next" role="note">
+        @if (Closing)
+        {
+            <text>These are closing lines: the game is under way, so they will not move again.</text>
+        }
+        else if (Scheduled)
+        {
+            <text>Lines are scanned on a schedule paced to the month's credits; a scan that finds a new number moves it here.</text>
+        }
+        else
+        {
+            <text>Line polling is Manual, so these numbers change only when lines are pulled: the next pull is the next chance for any of them to move.</text>
+        }
+        @if (!Closing && PullUnavailable is { Length: > 0 } why)
+        {
+            <text> @why</text>
+        }
+    </p>
+
+    @if (!Closing && PullLabel is { } pull)
+    {
+        <div class="standing__keys">
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.CloudDownload" OnClick="OnPull">
+                @pull
+            </DeskButton>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Every book's row on the side in focus (<see cref="OddsPanel.MovementRows"/>).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<OddsPanel.MovementRow> Rows { get; set; } = [];
+
+    /// <summary>The side in focus as the board reads it now: its best book, fair price and every book's rung.</summary>
+    [Parameter] public BestOffer? Side { get; set; }
+
+    /// <summary>The other side of the market, for its best price.</summary>
+    [Parameter] public BestOffer? Other { get; set; }
+
+    [Parameter] public string SideName { get; set; } = string.Empty;
+
+    [Parameter] public string OtherName { get; set; } = string.Empty;
+
+    /// <summary>Draw each book's standing: for a side nobody has moved, in place of the movement columns.</summary>
+    [Parameter] public bool ShowBooks { get; set; }
+
+    /// <summary>The game has started: its numbers are closing lines.</summary>
+    [Parameter] public bool Closing { get; set; }
+
+    /// <summary>Line polling runs on a schedule; otherwise it is Manual, the desk's default.</summary>
+    [Parameter] public bool Scheduled { get; set; }
+
+    /// <summary>"Pull NFL lines · 2 credits", where the reader may pull and the pull can run; null otherwise.</summary>
+    [Parameter] public string? PullLabel { get; set; }
+
+    /// <summary>Why this league's pull cannot run now, in the job's own words; said after the sentence.</summary>
+    [Parameter] public string? PullUnavailable { get; set; }
+
+    [Parameter] public EventCallback OnPull { get; set; }
+
+    /// <summary>The clock ages are read against; the wall clock unless a test sets one.</summary>
+    [Parameter] public DateTimeOffset? Now { get; set; }
+
+    private DateTimeOffset At => Now ?? DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Whether every book shows. Bound by Line movement, which keeps it per market for as long as
+    /// the window is open; unbound, the standing keeps it while it is drawn.
+    /// </summary>
+    [Parameter] public bool? Expanded { get; set; }
+
+    [Parameter] public EventCallback<bool> ExpandedChanged { get; set; }
+
+    private bool _expanded;
+
+    private bool IsExpanded => ExpandedChanged.HasDelegate ? Expanded ?? false : _expanded;
+
+    private async Task SetExpandedAsync(bool expanded)
+    {
+        _expanded = expanded;
+
+        if (ExpandedChanged.HasDelegate)
+            await ExpandedChanged.InvokeAsync(expanded);
+    }
+
+    private readonly string _booksId = "standing-" + Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>One book's standing on the side: its number now, its edge against fair there, and since when.</summary>
+    public sealed record BookStanding(string Book, OddsSnapshot Now, double? Ev, bool IsBest, DateTimeOffset Since);
+
+    /// <summary>
+    /// Every book on the side, best paying first. The edge is the board's reading of that book's
+    /// rung, taken only while the rung is the number stored here — a rung read off another number
+    /// would be an edge for a bet this row does not show. A book's number has stood since it was
+    /// last written (stored on change), which for a book seen once is its first reading.
+    /// </summary>
+    public static IReadOnlyList<BookStanding> Books(IReadOnlyList<OddsPanel.MovementRow> rows, BestOffer? side)
+        => rows
+            .Select(r =>
+            {
+                var rung = side?.Rungs.FirstOrDefault(b => string.Equals(b.Book, r.Book, StringComparison.OrdinalIgnoreCase)
+                                                           && b.PriceAmerican == r.Now.PriceAmerican && b.Line == r.Now.Line);
+                var best = side is not null && string.Equals(side.Book, r.Book, StringComparison.OrdinalIgnoreCase)
+                           && side.PriceAmerican == r.Now.PriceAmerican && side.Line == r.Now.Line;
+
+                return new BookStanding(r.Book, r.Now, rung?.Ev, best, r.Now.CapturedAt);
+            })
+            .OrderByDescending(b => b.IsBest)
+            // More is better on a spread and an Under (+3 over +2.5, Under 48 over Under 47.5); an Over
+            // wants the lower total (Over 47.5 over Over 48).
+            .ThenByDescending(b => (double)(b.Now.Line ?? 0m) * (IsOver(b.Now.Outcome) ? -1 : 1))
+            .ThenByDescending(b => OddsPanel.Cents(b.Now.PriceAmerican) ?? int.MinValue)
+            .ToList();
+
+    private static bool IsOver(string outcome) => string.Equals(outcome, "over", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The newest price written on the side, or null with none.</summary>
+    public static DateTimeOffset? Newest(IReadOnlyList<OddsPanel.MovementRow> rows)
+        => rows.Count == 0 ? null : rows.Max(r => r.Now.CapturedAt);
+
+    private string Held(DateTimeOffset since)
+    {
+        var age = At - since;
+        return age < TimeSpan.FromMinutes(1) ? "under a minute" : Checks.Span(age);
+    }
+
+    /// <summary>"+2.5 -105" on a handicap, "-128" on a moneyline.</summary>
+    private static string Figure(int price, decimal? line, string outcome)
+        => (line is { } l ? OddsMath.FormatLine(l, outcome) + " " : "") + OddsMath.FormatPrice(price);
+
+    /// <summary>"DraftKings · +2.7% against fair", or the book alone where its number has no fair price.</summary>
+    private static string BestNote(BestOffer offer)
+        => offer.Ev is { } ev && offer.Fair is not null
+            ? $"{BookNames.Display(offer.Book)} · {Checks.Percent(ev)} against fair"
+            : BookNames.Display(offer.Book);
+
+    /// <summary>The state goes on the figure it describes: positive where it beats fair, else none.</summary>
+    private static DeskState EdgeState(double? ev) => ev > 0 ? DeskState.Positive : DeskState.Neutral;
+}

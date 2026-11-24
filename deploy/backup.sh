@@ -10,11 +10,11 @@ set -u
 
 while true; do
     stamp=$(date -u +%Y-%m-%dT%H%MZ)
-    target="/backups/lineops-$stamp.dump"
+    target="/backups/xlines-$stamp.dump"
 
     if pg_dump -Fc -Z 6 -f "$target.partial" && mv "$target.partial" "$target"; then
         echo "backup: wrote $target ($(du -h "$target" | cut -f1))"
-        find /backups -name 'lineops-*.dump' -mtime +"${KEEP_DAYS:-14}" -print -delete \
+        find /backups -name 'xlines-*.dump' -mtime +"${KEEP_DAYS:-14}" -print -delete \
             | sed 's/^/backup: expired /'
     else
         echo "backup: FAILED at $stamp; earlier dumps kept" >&2

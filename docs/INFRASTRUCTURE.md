@@ -6,33 +6,33 @@ A definition of what actually runs, where it runs, and what it depends on, curre
 extend the stack without reading the whole design. [docs/README.md](README.md) says which
 other documents are current.
 
-The product is **XLines**; `LineOps` is the platform it is built on and the name in every
+The product is **XLines**; `XLines` is the platform it is built on and the name in every
 project, image, volume and command below (ADR 0031).
 
 ## Solution layout
 
 | Project | Role | Depends on |
 |---|---|---|
-| `LineOps.Core` | Entities, contracts (`IOddsSource`, `IStatsSource`), grading/analytics rules | nothing |
-| `LineOps.Data` | EF Core 10 model, migrations, cross-reference read services (Board, Matchup, GameLog) | Core |
-| `LineOps.Ingestion` | Provider adapters, scheduler, budget guard, entity resolution, backfill, settlement — a library, hostable by web or worker (ADR 0005) | Core, Data |
-| `LineOps.Reliability` | KPI rollups, freshness/success/volume alerting, incident log with enforced RCAs, runbook pinned to code | Core, Data |
-| `LineOps.Observability` | OpenTelemetry wiring (ASP.NET Core, HttpClient, runtime, Npgsql) + KPI metrics publisher (ADR 0015) | Reliability |
-| `LineOps.Desk` | The desk as a reusable Razor class library: windows, tokens, themes, controls, the MudBlazor seam | MudBlazor |
-| `LineOps.Desk.Hosting` | The access gate (ADR 0018), sign-in page and edge headers for a Desk app | Desk |
-| `LineOps.Desk.Templates` | `dotnet new deskapp`, packing the Desk's own skills; content only, and the app it makes references the Desk packages | — |
-| `LineOps.Desk.Testing` | bUnit bench, fakes and source conventions for an app built on the Desk | Desk |
-| `LineOps.Web` | Blazor Web App, global Interactive Server; the LineOps desk built on `LineOps.Desk` | everything above |
-| `LineOps.Worker` | Optional Worker-SDK host composing the ingestion library as its own process; also runs named jobs (`--job`) | Ingestion |
-| `LineOps.Tests` | xUnit: unit + adapter fixtures + Testcontainers integration (real PostgreSQL) | all |
-| `LineOps.Web.Tests` | bUnit and service tests for the desk's windows | Web |
-| `LineOps.Desk.Tests` / `LineOps.Desk.Hosting.Tests` | The Desk package, theme contrast, template; the access gate | Desk, Desk.Hosting |
+| `XLines.Core` | Entities, contracts (`IOddsSource`, `IStatsSource`), grading/analytics rules | nothing |
+| `XLines.Data` | EF Core 10 model, migrations, cross-reference read services (Board, Matchup, GameLog) | Core |
+| `XLines.Ingestion` | Provider adapters, scheduler, budget guard, entity resolution, backfill, settlement — a library, hostable by web or worker (ADR 0005) | Core, Data |
+| `XLines.Reliability` | KPI rollups, freshness/success/volume alerting, incident log with enforced RCAs, runbook pinned to code | Core, Data |
+| `XLines.Observability` | OpenTelemetry wiring (ASP.NET Core, HttpClient, runtime, Npgsql) + KPI metrics publisher (ADR 0015) | Reliability |
+| `XLines.Desk` | The desk as a reusable Razor class library: windows, tokens, themes, controls, the MudBlazor seam | MudBlazor |
+| `XLines.Desk.Hosting` | The access gate (ADR 0018), sign-in page and edge headers for a Desk app | Desk |
+| `XLines.Desk.Templates` | `dotnet new deskapp`, packing the Desk's own skills; content only, and the app it makes references the Desk packages | — |
+| `XLines.Desk.Testing` | bUnit bench, fakes and source conventions for an app built on the Desk | Desk |
+| `XLines.Web` | Blazor Web App, global Interactive Server; the XLines desk built on `XLines.Desk` | everything above |
+| `XLines.Worker` | Optional Worker-SDK host composing the ingestion library as its own process; also runs named jobs (`--job`) | Ingestion |
+| `XLines.Tests` | xUnit: unit + adapter fixtures + Testcontainers integration (real PostgreSQL) | all |
+| `XLines.Web.Tests` | bUnit and service tests for the desk's windows | Web |
+| `XLines.Desk.Tests` / `XLines.Desk.Hosting.Tests` | The Desk package, theme contrast, template; the access gate | Desk, Desk.Hosting |
 
 `desk-packages.yml` packs and publishes the four Desk packages; `images.yml` builds the web and
 worker container images.
 
 Package versions are centrally pinned in `Directory.Packages.props`
-(`ManagePackageVersionsCentrally` + transitive pinning). Solution file is `LineOps.slnx`.
+(`ManagePackageVersionsCentrally` + transitive pinning). Solution file is `XLines.slnx`.
 
 ## Runtime topology (Docker Compose)
 
@@ -126,7 +126,7 @@ SDK container: on Windows it reports line-ending noise.
 ## Local development
 
 - `scripts/setup.ps1` bootstraps certificate + `.env`; the README's Quick start, and the
-  `lineops-setup` agent skill, take a fresh clone to a running desk.
+  `xlines-setup` agent skill, take a fresh clone to a running desk.
 - `dotnet run` against `compose/dev.yml`'s published Postgres, or full stack via compose.
 - Purge scripts in `scripts/` (fixtures the retired demo source invented, exhibitions/orphans,
   preseason) are the only
@@ -143,17 +143,17 @@ Once, by hand: install Tailscale on each device and sign in to the same tailnet;
 console's DNS page turn on MagicDNS and HTTPS certificates; make an operator code with
 `scripts/new-access-code.ps1`.
 
-- **From source** (`dotnet run --project src/LineOps.Web --launch-profile http`): put
+- **From source** (`dotnet run --project src/XLines.Web --launch-profile http`): put
   `Hosting:BehindProxy = true` and `Access:Mode = Gated` with the operator hash in
-  `src/LineOps.Web/appsettings.Local.json` (`Get-Help scripts/serve-tailnet.ps1` shows the
+  `src/XLines.Web/appsettings.Local.json` (`Get-Help scripts/serve-tailnet.ps1` shows the
   file), then `./scripts/serve-tailnet.ps1`. It prints the URL; `-Off` stops serving.
 - **In containers**: add `TS_AUTHKEY` (admin console → Settings → Keys; not reusable, not
-  ephemeral, tagged `tag:lineops` — an untagged node's key expires in about 180 days) and
+  ephemeral, tagged `tag:xlines` — an untagged node's key expires in about 180 days) and
   `ACCESS_OPERATOR_CODE_HASH` to `.env`, then
   `docker compose -f docker-compose.yml -f compose/tailnet.yml up -d`. The node is named
-  `TS_HOSTNAME` (default `desk`); set `LINEOPS_TAILNET_HOST` to its full name to refuse
+  `TS_HOSTNAME` (default `desk`); set `XLINES_TAILNET_HOST` to its full name to refuse
   any other `Host`.
 
 Either way it is still the one desk and its one scheduler; nothing on the other device runs.
 
-**Or against the desktop's database.** The laptop can run its desk against the desktop's database instead of a restored copy ([ADR 0023](adr/0023-one-database-two-desks.md)). On the desktop: install Tailscale, put its address (`tailscale ip -4`) in `.env` as `TAILNET_IP`, and bring Postgres up with `docker compose -f docker-compose.yml -f compose/dev.yml -f compose/tailnet-db.yml up -d postgres`, which publishes it on the tailnet address beside loopback and nowhere else. On the laptop: join the same tailnet, put the desktop's `POSTGRES_PASSWORD` in its own `.env` as `REMOTE_POSTGRES_PASSWORD`, run `.\scripts\connect-remote-db.ps1 -Host <desktop>`, and start the desk as usual. The script switches the laptop's scheduler and evaluator off; the desk refuses to start against a remote database with either on unless `Ingestion:AllowRemoteScheduling=true` says so (`SchedulerPlacement`). The connection uses `SSL Mode=Disable` because the tailnet already encrypts it. With the desktop off the laptop's desk cannot start: `connect-remote-db.ps1 -Local` and `restore-data.ps1` are the fallback. Only the desktop migrates its database: a desk or a Worker `--job` on the laptop never migrates it, and refuses to start when the laptop's code and the database's migrations differ, naming them: newer code is migrated from the desktop, older code pulls the newer commit (`Data:AllowRemoteMigration=true` is the deliberate override). `restore-data.ps1` on the desktop brings Postgres back with `compose/tailnet-db.yml` whenever `.env` sets `TAILNET_IP` (`LINEOPS_COMPOSE_FILES` overrides the list).
+**Or against the desktop's database.** The laptop can run its desk against the desktop's database instead of a restored copy ([ADR 0023](adr/0023-one-database-two-desks.md)). On the desktop: install Tailscale, put its address (`tailscale ip -4`) in `.env` as `TAILNET_IP`, and bring Postgres up with `docker compose -f docker-compose.yml -f compose/dev.yml -f compose/tailnet-db.yml up -d postgres`, which publishes it on the tailnet address beside loopback and nowhere else. On the laptop: join the same tailnet, put the desktop's `POSTGRES_PASSWORD` in its own `.env` as `REMOTE_POSTGRES_PASSWORD`, run `.\scripts\connect-remote-db.ps1 -Host <desktop>`, and start the desk as usual. The script switches the laptop's scheduler and evaluator off; the desk refuses to start against a remote database with either on unless `Ingestion:AllowRemoteScheduling=true` says so (`SchedulerPlacement`). The connection uses `SSL Mode=Disable` because the tailnet already encrypts it. With the desktop off the laptop's desk cannot start: `connect-remote-db.ps1 -Local` and `restore-data.ps1` are the fallback. Only the desktop migrates its database: a desk or a Worker `--job` on the laptop never migrates it, and refuses to start when the laptop's code and the database's migrations differ, naming them: newer code is migrated from the desktop, older code pulls the newer commit (`Data:AllowRemoteMigration=true` is the deliberate override). `restore-data.ps1` on the desktop brings Postgres back with `compose/tailnet-db.yml` whenever `.env` sets `TAILNET_IP` (`XLINES_COMPOSE_FILES` overrides the list).

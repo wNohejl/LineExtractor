@@ -1,0 +1,163 @@
+@namespace XLines.Desk.Primitives
+@using XLines.Desk.Theming
+
+@*
+    The theme picker: every family as a tile, in one grid that wraps to the width it has. It is
+    read from DeskThemeFamilies.Catalog and nothing else, so a family added there is a tile here
+    without anyone touching this file.
+
+    Each tile is a patch of its family, not a picture of it: it carries the family's data-theme in
+    the appearance showing — and the accent that family was last given — so its ground, raised
+    panel, ink and accent resolve against the very blocks choosing it would apply. The chosen tile
+    says so three ways, none of them hue alone: a ring, a tick in its corner, and its name in the
+    primary ink at a heavier weight.
+
+    The catalogue's plain headings (DeskThemeGroups) used to divide the grid into shelves, and the
+    shelves were ragged — two tiles, then five, then nine, then one — under floating grey headings.
+    They are a filter now, not a layout: Group narrows the one grid to one heading's families, and
+    the caller draws the choice of heading (the Window manager's is a segmented control in the
+    Theme card's header bar, ThemeFilters below). Null shows every family.
+
+    One choice among many, so it is one radiogroup: one Tab stop, arrows move the choice and the
+    focus through the tiles showing, in reading order; Home and End reach the first and the last
+    showing, and the ends do not wrap — a grid of twenty tiles has a first and a last, unlike a
+    ring of five hues. The Tab stop is the chosen tile; when the filter hides it, the first tile
+    showing holds the stop, so the group is never one the keyboard cannot enter.
+*@
+
+<div class="themes swatches @Class" role="radiogroup" aria-label="@Label" data-roving @onkeydown="OnKeyDownAsync" @attributes="Extra">
+    @for (var i = 0; i < Showing.Count; i++)
+    {
+        var index = i;
+        var info = Showing[index];
+        var selected = info.Family == Value;
+
+        <button type="button"
+                class="radio radio--drawn @(selected ? "radio--on" : null)"
+                role="radio"
+                aria-checked="@(selected ? "true" : "false")"
+                tabindex="@(index == TabStop ? "0" : "-1")"
+                @key="info.Family"
+                @ref="_refs[info.Family]"
+                @onclick="() => SelectAsync(index)">
+            <span class="swatch @(selected ? "swatch--on" : null)"
+                  data-theme="@DeskThemeFamilies.Attribute(info.Family, IsDark)"
+                  data-accent="@AccentFor?.Invoke(info.Family)">
+                <span class="swatch__panel" aria-hidden="true">
+                    <span class="swatch__ink"></span>
+                    <span class="swatch__ink swatch__ink--secondary"></span>
+                    <span class="swatch__marks">
+                        <span class="swatch__pill"></span>
+                        <span class="swatch__dot swatch__dot--positive"></span>
+                        <span class="swatch__dot swatch__dot--warning"></span>
+                        <span class="swatch__dot swatch__dot--negative"></span>
+                    </span>
+                </span>
+                @if (selected)
+                {
+                    <span class="swatch__tick" aria-hidden="true"></span>
+                }
+                <span class="swatch__name">@info.Name</span>
+            </span>
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The family showing, which is the one ticked. The Window manager passes
+    /// ThemeService.ShowingFamily, so a desk the machine put in High contrast ticks that tile, and
+    /// pressing another — Standard included — is a choice that reaches ValueChanged.
+    /// </summary>
+    [Parameter] public DeskThemeFamily Value { get; set; } = DeskThemeFamily.Standard;
+
+    [Parameter] public EventCallback<DeskThemeFamily> ValueChanged { get; set; }
+
+    /// <summary>
+    /// The heading (one of <see cref="DeskThemeFamilies.Groups"/>) whose families are shown, or null
+    /// — or a heading the catalogue does not hold — for every family.
+    /// </summary>
+    [Parameter] public string? Group { get; set; }
+
+    /// <summary>Which desk every tile is drawn on — every family has a dark and a light one.</summary>
+    [Parameter] public bool IsDark { get; set; } = true;
+
+    /// <summary>
+    /// The <c>data-accent</c> each family's tile carries — the accent that family was last given —
+    /// or null for its own. ThemeService.AccentAttributeOf, in the Window manager.
+    /// </summary>
+    [Parameter] public Func<DeskThemeFamily, string?>? AccentFor { get; set; }
+
+    /// <summary>The accessible name of the whole group.</summary>
+    [Parameter] public string Label { get; set; } = "Theme";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    /// <summary>
+    /// The segments a filter over the picker offers, for a <see cref="DeskSwitch{TValue}"/> bound
+    /// to <see cref="Group"/>: All (the empty string, which shows every family), then each of the
+    /// catalogue's headings in its order.
+    /// </summary>
+    public static IReadOnlyList<DeskSwitchOption<string>> ThemeFilters { get; } =
+        [new(string.Empty, "All", "Every theme"), .. DeskThemeFamilies.Groups.Select(g => new DeskSwitchOption<string>(g, g))];
+
+    /// <summary>The heading a family is filed under — where a filter opens so the chosen tile is in view.</summary>
+    public static string GroupOf(DeskThemeFamily family) => DeskThemeFamilies.Info(family).Group;
+
+    /// <summary>The tiles drawn, in the catalogue's reading order — the order the arrows travel.</summary>
+    private IReadOnlyList<DeskThemeFamilyInfo> Showing { get; set; } = DeskThemeFamilies.Catalog;
+
+    // By family, not by place: a filter moves a tile's place, and a tile Blazor keeps across the
+    // change (@key) is not captured again, so a reference held by place would go stale.
+    private readonly Dictionary<DeskThemeFamily, ElementReference> _refs = [];
+
+    protected override void OnParametersSet()
+    {
+        Showing = string.IsNullOrEmpty(Group) || !DeskThemeFamilies.Groups.Contains(Group)
+            ? DeskThemeFamilies.Catalog
+            : DeskThemeFamilies.Catalog.Where(f => f.Group == Group).ToList();
+    }
+
+    /// <summary>Where the chosen tile sits among those showing; -1 when the filter hides it.</summary>
+    private int Selected
+    {
+        get
+        {
+            for (var i = 0; i < Showing.Count; i++)
+            {
+                if (Showing[i].Family == Value)
+                    return i;
+            }
+
+            return -1;
+        }
+    }
+
+    private int TabStop => Math.Max(Selected, 0);
+
+    private async Task SelectAsync(int index)
+    {
+        // A radio is not unchosen by a second press, and choosing what is chosen is not news.
+        if (index == Selected)
+            return;
+
+        await ValueChanged.InvokeAsync(Showing[index].Family);
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        // From a hidden choice the arrows start before the first tile showing, so the first press
+        // lands on it — the tile that already holds the Tab stop — rather than skipping past it.
+        var current = Selected;
+
+        if (Roving.Next(current, Showing.Count, e, wrap: false) is not { } next || next == current)
+            return;
+
+        await SelectAsync(next);
+        await _refs[Showing[next].Family].FocusAsync();
+    }
+}

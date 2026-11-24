@@ -1,0 +1,89 @@
+@using XLines.Core.Analytics
+@using XLines.Data.Gamecast
+
+@*
+    A list of plays, as a league's play-by-play prints them: when, then the down and the spot
+    over what happened, then what it was worth. A scoring play's words carry the weight.
+
+    The order is the caller's — newest first for a game that is on, from the kickoff down for one
+    that is over — and so is the grouping: the Gamecast gives it one drive at a time, or every
+    play of a game the feed wrote no drives for. Each row is keyed by the play's id, so a play
+    appended is an insert and a play corrected is its own row redrawn, never a rewrite of the list.
+    Past VirtualizeAt rows the list is virtualised.
+*@
+
+<ol class="gc__log">
+    @if (Plays.Count > VirtualizeAt)
+    {
+        @* SpacerElement: inside an <ol> the spacers must be list items too. *@
+        <Virtualize Items="Plays" Context="play" ItemSize="48" SpacerElement="li">
+            @Row(play)
+        </Virtualize>
+    }
+    else
+    {
+        @foreach (var play in Plays)
+        {
+            @Row(play)
+        }
+    }
+</ol>
+
+@code {
+    /// <summary>The plays, in the order they are to be read.</summary>
+    [Parameter, EditorRequired] public ICollection<GamecastPlay> Plays { get; set; } = [];
+
+    /// <summary>The league's key, for how a period is marked beside the clock.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    /// <summary>Past this many rows the list is virtualised.</summary>
+    [Parameter] public int VirtualizeAt { get; set; } = 150;
+
+    private RenderFragment Row(GamecastPlay play) => @<text>
+        <li class="gc__play @(play.IsScoring ? "gc__play--score" : null)" @key="play.Id" data-seq="@play.Sequence" data-play="@play.Id">
+            <span class="gc__when">@When(Sport, play)</span>
+            <span class="gc__body">
+                @if (play.Start?.DownDistanceText is { Length: > 0 } dd)
+                {
+                    <span class="gc__dd">@dd</span>
+                }
+                <span class="gc__text">@(play.Text ?? play.Type ?? "Play")</span>
+            </span>
+            <span class="gc__trail">
+                @if (play.IsScoring)
+                {
+                    <Tag State="DeskState.Positive">Score</Tag>
+                }
+                @if (play.IsTurnover)
+                {
+                    <Tag State="DeskState.Negative">Turnover</Tag>
+                }
+                @if (play.IsPenalty)
+                {
+                    <Tag State="DeskState.Warning">Penalty</Tag>
+                }
+                @if (play.Yardage is { } yards && !play.IsPenalty)
+                {
+                    <span class="gc__yards @(yards > 0 ? "up" : yards < 0 ? "down" : null)">@Yards(yards)</span>
+                }
+            </span>
+        </li>
+    </text>;
+
+    /// <summary>When a play happened, as its row stamps it: "Q2 5:00", the mark or the clock alone, or nothing.</summary>
+    public static string When(string? sport, GamecastPlay play)
+        => (play.Period is { } period ? Periods.Mark(sport, period) : null, play.Clock) switch
+        {
+            ({ } mark, { Length: > 0 } clock) => $"{mark} {clock}",
+            ({ } mark, _) => mark,
+            (_, { Length: > 0 } clock) => clock,
+            _ => string.Empty
+        };
+
+    private static string Yards(int yards) => yards switch
+    {
+        > 0 => $"+{yards}",
+        < 0 => $"−{-yards}",
+        _ => "0"
+    };
+}

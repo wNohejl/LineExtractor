@@ -36,17 +36,17 @@
 #
 # One-time, by hand: install Tailscale on each device, enable MagicDNS and HTTPS certificates
 # in the admin console (DNS page), and make an auth key (Settings → Keys; reusable off,
-# ephemeral off, pre-approved on, tagged tag:lineops). Put it in .env as TS_AUTHKEY. It is used
-# once, at first sign-in; the node's identity then lives on the lineops-tailscale volume.
+# ephemeral off, pre-approved on, tagged tag:xlines). Put it in .env as TS_AUTHKEY. It is used
+# once, at first sign-in; the node's identity then lives on the xlines-tailscale volume.
 services:
   web:
     environment:
       ASPNETCORE_URLS: "http://+:8080"
       Hosting__BehindProxy: "true"
-      # "*" until you know the node's name; then set LINEOPS_TAILNET_HOST in .env to
+      # "*" until you know the node's name; then set XLINES_TAILNET_HOST in .env to
       # <TS_HOSTNAME>.<tailnet>.ts.net and anything else is refused with a 400. Serve passes
       # the visitor's Host through unchanged.
-      AllowedHosts: ${LINEOPS_TAILNET_HOST:-*}
+      AllowedHosts: ${XLINES_TAILNET_HOST:-*}
       Access__Mode: Gated
       Access__OperatorCodeHash: ${ACCESS_OPERATOR_CODE_HASH:?make one with scripts/new-access-code.ps1}
       Access__GuestCodeHash: ${ACCESS_GUEST_CODE_HASH:-}
@@ -57,7 +57,7 @@ services:
 
   tailscale:
     image: tailscale/tailscale:stable
-    container_name: lineops-tailscale
+    container_name: xlines-tailscale
     hostname: ${TS_HOSTNAME:-desk}
     restart: unless-stopped
     depends_on:
@@ -73,8 +73,8 @@ services:
       # desk would drop off the tailnet; a tagged node also cannot be shared with another
       # person's tailnet, which is the licence constraint enforced by Tailscale itself. The auth
       # key must be created with this tag, and the tailnet policy must name its owner:
-      #   "tagOwners": { "tag:lineops": ["autogroup:admin"] }
-      TS_EXTRA_ARGS: --advertise-tags=${TS_TAG:-tag:lineops}
+      #   "tagOwners": { "tag:xlines": ["autogroup:admin"] }
+      TS_EXTRA_ARGS: --advertise-tags=${TS_TAG:-tag:xlines}
       # Userspace networking: no /dev/net/tun, no NET_ADMIN. Serve still terminates TLS here,
       # and nothing on this node routes into the compose network.
       TS_USERSPACE: "true"
@@ -82,7 +82,7 @@ services:
       # Not an exit node, advertises no routes, accepts none.
       TS_ACCEPT_DNS: "false"
     volumes:
-      - lineops-tailscale:/var/lib/tailscale
+      - xlines-tailscale:/var/lib/tailscale
       # The directory, not the file: the container watches it for changes, and a single-file
       # bind mount hides an edited file from that watch.
       - ./deploy/tailnet:/config:ro
@@ -99,4 +99,4 @@ services:
           memory: 128M
 
 volumes:
-  lineops-tailscale:
+  xlines-tailscale:

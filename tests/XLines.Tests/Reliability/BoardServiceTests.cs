@@ -1,0 +1,850 @@
+using XLines.Core.Analytics;
+using XLines.Core.Entities;
+using XLines.Data;
+using XLines.Data.CrossReference;
+using Microsoft.EntityFrameworkCore;
+
+namespace XLines.Tests.Reliability;
+
+/// <summary>
+/// Which book has the best number.
+///
+/// This is the one piece of arithmetic on the desk that directly recommends an action, so it
+/// is the one where being confidently wrong costs money. In particular "best" is not "biggest
+/// number": on a handicap the line outranks the price, and which line is better depends on
+/// which side you are taking.
+/// </summary>
+[Collection(PostgresCollection.Name)]
+public class BoardServiceTests(PostgresFixture fixture)
+{
+    private sealed record Scaffold(Sport Sport, Game Game, Source Source, Team Home, Team Away);
+
+    private static async Task<Scaffold> SeedAsync(XLinesDbContext db)
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+
+        var sport = new Sport { Key = $"bd-{suffix}", Name = "TEST" };
+        db.Sports.Add(sport);
+        await db.SaveChangesAsync();
+
+        var home = new Team { SportId = sport.Id, Name = $"Home {suffix}", Abbrev = "HOM" };
+        var away = new Team { SportId = sport.Id, Name = $"Away {suffix}", Abbrev = "AWY" };
+        db.Teams.AddRange(home, away);
+
+        var source = new Source
+        {
+            Key = $"bd-src-{suffix}",
+            Name = "Test odds",
+            Kind = SourceKind.Odds,
+            BaseUrl = "local://test"
+        };
+        db.Sources.Add(source);
+        await db.SaveChangesAsync();
+
+        var game = new Game
+        {
+            SportId = sport.Id,
+            HomeTeamId = home.Id,
+            AwayTeamId = away.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddHours(4),
+            Status = GameStatus.Scheduled
+        };
+        db.Games.Add(game);
+        await db.SaveChangesAsync();
+
+        return new Scaffold(sport, game, source, home, away);
+    }
+
+    private static OddsSnapshot Price(
+        Scaffold s, string book, string market, string outcome, int american, decimal? line = null)
+        => new()
+        {
+            GameId = s.Game.Id,
+            SourceId = s.Source.Id,
+            Book = book,
+            Market = market,
+            Outcome = outcome,
+            Line = line,
+            PriceAmerican = american,
+            CapturedAt = DateTimeOffset.UtcNow,
+            IngestionRunId = 0
+        };
+
+    private static async Task<BoardRow> LoadAsync(XLinesDbContext db, Scaffold s)
+    {
+        var rows = await new BoardService(db).GetAsync(s.Sport.Key, TimeSpan.FromHours(24));
+        return Assert.Single(rows);
+    }
+
+    /// <summary>
+    /// The Board's quarterback, read end to end: the club's last game was Murray's, the injury
+    /// report has him out, and Wentz started an earlier game this season without him — so the
+    /// row names Wentz, and the basis says why. Once the report has not repeated Murray's status
+    /// for two weeks it no longer holds, and the row goes back to the last game's passer.
+    /// </summary>
+    [Fact]
+    public async Task A_quarterback_ruled_out_gives_the_board_row_to_the_one_who_started_without_him()
+    {
+        await using var db = fixture.CreateContext();
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+
+        // The starter is read for the NFL only, so the test's games are NFL games; the read is
+        // the slate's, and the row is found by this test's own game among whatever else is on it.
+        var nfl = await db.Sports.FirstOrDefaultAsync(s => s.Key == "nfl")
+                  ?? db.Sports.Add(new Sport { Key = "nfl", Name = "NFL" }).Entity;
+        await db.SaveChangesAsync();
+
+        var vikings = new Team { SportId = nfl.Id, Name = $"Vikings {suffix}", Abbrev = "MIN" };
+        var bills = new Team { SportId = nfl.Id, Name = $"Bills {suffix}", Abbrev = "BUF" };
+        var other = new Team { SportId = nfl.Id, Name = $"Other {suffix}", Abbrev = "OTH" };
+        var source = new Source { Key = $"qb-{suffix}", Name = "Box scores", Kind = SourceKind.Stats, BaseUrl = "local://qb" };
+        db.Teams.AddRange(vikings, bills, other);
+        db.Sources.Add(source);
+        await db.SaveChangesAsync();
+
+        var now = DateTimeOffset.UtcNow;
+        Game Played(int daysAgo) => new()
+        {
+            SportId = nfl.Id,
+            HomeTeamId = vikings.Id,
+            AwayTeamId = other.Id,
+            StartsAt = now.AddDays(-daysAgo),
+            Status = GameStatus.Final,
+            SeasonYear = 2026
+        };
+
+        var weekTwo = Played(50);
+        var lastWeek = Played(8);
+        var tonight = new Game
+        {
+            SportId = nfl.Id,
+            HomeTeamId = vikings.Id,
+            AwayTeamId = bills.Id,
+            StartsAt = now.AddHours(4),
+            Status = GameStatus.Scheduled,
+            SeasonYear = 2026
+        };
+        db.Games.AddRange(weekTwo, lastWeek, tonight);
+
+        var murray = new Player
+        {
+            SportId = nfl.Id,
+            TeamId = vikings.Id,
+            FullName = $"Kyler Murray {suffix}",
+            InjuryStatus = "Out",
+            InjuryNote = "Murray (hamstring) has been ruled out.",
+            InjuryUpdatedAt = now.AddHours(-2)
+        };
+        var wentz = new Player
+        {
+            SportId = nfl.Id,
+            TeamId = vikings.Id,
+            FullName = $"Carson Wentz {suffix}",
+            InjuryStatus = "Active",
+            InjuryUpdatedAt = now.AddHours(-2)
+        };
+        db.Players.AddRange(murray, wentz);
+        await db.SaveChangesAsync();
+
+        PlayerGameStat Passing(Player p, Game g, string catt) => new()
+        {
+            PlayerId = p.Id,
+            GameId = g.Id,
+            SourceId = source.Id,
+            TeamId = vikings.Id,
+            StatLine = $"{{\"C/ATT\":\"{catt}\"}}",
+            CapturedAt = g.StartsAt
+        };
+
+        db.PlayerGameStats.AddRange(
+            Passing(wentz, weekTwo, "11/20"),
+            Passing(murray, lastWeek, "17/29"));
+        await db.SaveChangesAsync();
+
+        async Task<BoardRow> RowAsync()
+            => (await new BoardService(db).GetAsync("nfl", TimeSpan.FromHours(24))).Single(r => r.Game.Id == tonight.Id);
+
+        var ruledOut = await RowAsync();
+        Assert.Equal(wentz.FullName, ruledOut.HomeQuarterback);
+        Assert.Equal(
+            $"{murray.FullName} is out; {wentz.FullName} started the last game the club played without him. "
+            + "Murray (hamstring) has been ruled out.",
+            ruledOut.HomeQuarterbackBasis);
+
+        // A fortnight without the report naming him again: the status no longer holds.
+        murray.InjuryUpdatedAt = now - Player.InjuryStatusLife - TimeSpan.FromHours(1);
+        await db.SaveChangesAsync();
+
+        var aged = await RowAsync();
+        Assert.Equal(murray.FullName, aged.HomeQuarterback);
+        Assert.Equal(Starters.LastGameBasis, aged.HomeQuarterbackBasis);
+
+        // Kick-off. The game is under way with Wentz in its box score: the row reads tonight's
+        // passer from tonight's game, whatever the report or the last game said.
+        tonight.StartsAt = now.AddHours(-1);
+        tonight.Status = GameStatus.Live;
+        db.PlayerGameStats.Add(Passing(wentz, tonight, "7/19"));
+        await db.SaveChangesAsync();
+
+        var live = (await new BoardService(db).GetAsync("nfl", TimeSpan.FromHours(24))).Single(r => r.Game.Id == tonight.Id);
+        Assert.Equal(wentz.FullName, live.HomeQuarterback);
+        Assert.Equal(Starters.ThisGameBasis, live.HomeQuarterbackBasis);
+    }
+
+    [Fact]
+    public async Task TheMoneylineBestIsTheOneThatPaysMost()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 120),
+            Price(s, "fanduel", Markets.Moneyline, s.Home.Name, 135),
+            Price(s, "bet365", Markets.Moneyline, s.Home.Name, 128),
+            Price(s, "betmgm", Markets.Moneyline, s.Home.Name, -105));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+        var best = row.Moneyline.First!;
+
+        Assert.Equal("fanduel", best.Book);
+        Assert.Equal(135, best.PriceAmerican);
+        Assert.Equal(4, best.Rungs.Count);
+    }
+
+    [Fact]
+    public async Task OnAHandicapTheLineOutranksThePrice()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // The trap: -105 is the better *price*, but +1.5 is the better *bet*. A comparator
+        // that sorted on price alone would recommend the worse one with total confidence.
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Spread, s.Away.Name, -105, 1.0m),
+            Price(s, "fanduel", Markets.Spread, s.Away.Name, -110, 1.5m));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+        var best = row.Spread.Second!;
+
+        Assert.Equal("fanduel", best.Book);
+        Assert.Equal(1.5m, best.Line);
+    }
+
+    [Fact]
+    public async Task PriceBreaksATieOnTheSameLine()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Spread, s.Home.Name, -115, -1.5m),
+            Price(s, "bet365", Markets.Spread, s.Home.Name, -104, -1.5m),
+            Price(s, "betmgm", Markets.Spread, s.Home.Name, -110, -1.5m));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.Equal("bet365", row.Spread.First!.Book);
+    }
+
+    [Fact]
+    public async Task AnOverWantsTheLowestTotalAndAnUnderTheHighest()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Total, "over", -110, 8.5m),
+            Price(s, "fanduel", Markets.Total, "over", -110, 9.0m),
+            Price(s, "draftkings", Markets.Total, "under", -110, 8.5m),
+            Price(s, "fanduel", Markets.Total, "under", -110, 9.0m));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        // The asymmetry that makes this a per-market comparator rather than one sort.
+        Assert.Equal(8.5m, row.Total.First!.Line);
+        Assert.Equal("draftkings", row.Total.First.Book);
+
+        Assert.Equal(9.0m, row.Total.Second!.Line);
+        Assert.Equal("fanduel", row.Total.Second.Book);
+    }
+
+    [Fact]
+    public async Task TheEdgeIsTheGapBetweenBestAndWorst()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 100),
+            Price(s, "fanduel", Markets.Moneyline, s.Home.Name, 120));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        // +100 implies 50.0%, +120 implies 45.5% — about 4.5 points of implied probability,
+        // which is what shopping is worth on this line.
+        Assert.Equal(4.5, row.Moneyline.First!.EdgePoints!.Value, precision: 1);
+    }
+
+    [Fact]
+    public async Task BooksThatAgreeShowNoEdge()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Moneyline, s.Home.Name, -110),
+            Price(s, "fanduel", Markets.Moneyline, s.Home.Name, -110));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        // The rail collapses and the cell says so, rather than implying a choice worth making.
+        Assert.Equal(0, row.Moneyline.First!.EdgePoints!.Value, precision: 3);
+    }
+
+    [Fact]
+    public async Task ADifferingLineIsReportedEvenWhenEveryPriceMatches()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // The case a price-only comparison calls "books agree" and gets exactly backwards:
+        // identical prices on three different totals is the largest real difference there is.
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Total, "over", -110, 7m),
+            Price(s, "fanduel", Markets.Total, "over", -110, 8m),
+            Price(s, "bet365", Markets.Total, "over", -110, 9m));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+        var best = row.Total.First!;
+
+        Assert.True(best.LinesVary);
+        Assert.Equal(0, best.EdgePoints!.Value, precision: 3);
+
+        // And the best over is still the lowest total.
+        Assert.Equal(7m, best.Line);
+    }
+
+    [Fact]
+    public async Task MatchingLinesAndPricesAreReportedAsAgreement()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Total, "over", -110, 8.5m),
+            Price(s, "fanduel", Markets.Total, "over", -110, 8.5m));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.False(row.Total.First!.LinesVary);
+    }
+
+    [Fact]
+    public async Task OnlyTheNewestObservationPerBookCounts()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        var stale = Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 200);
+        stale.CapturedAt = DateTimeOffset.UtcNow.AddHours(-2);
+
+        db.OddsSnapshots.AddRange(stale, Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 110));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        // The scan tier is append-only, so "current" is the latest row. A board that ranked
+        // stale prices would send you to a book that has already moved.
+        Assert.Equal(110, row.Moneyline.First!.PriceAmerican);
+        Assert.Single(row.Moneyline.First.Rungs);
+    }
+
+    [Fact]
+    public async Task AnUnpricedGameStillAppearsAndSaysWhy()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        var row = await LoadAsync(db, s);
+
+        // A game nobody has priced yet is information — it is on the slate and not yet
+        // shoppable — so it belongs on the board rather than being filtered out of it.
+        Assert.False(row.HasPrices);
+        Assert.False(row.Moneyline.IsPriced);
+
+        // And a row of dashes is ambiguous between a broken feed, a fixture nobody quoted and
+        // a game already under way. Only one is worth acting on, so the row states which.
+        Assert.NotNull(row.Unpriced);
+        Assert.Contains("no odds scan", row.Unpriced!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AFixtureTheScanMissedIsDistinguishedFromNoScanAtAll()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // A second fixture in the same window that *did* get priced proves the feed is alive,
+        // so the unpriced one is a coverage gap rather than an outage — which is the difference
+        // between "pull data" and "the provider does not carry this game".
+        var other = new Game
+        {
+            SportId = s.Sport.Id,
+            HomeTeamId = s.Away.Id,
+            AwayTeamId = s.Home.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddHours(6),
+            Status = GameStatus.Scheduled
+        };
+        db.Games.Add(other);
+        await db.SaveChangesAsync();
+
+        db.OddsSnapshots.Add(new OddsSnapshot
+        {
+            GameId = other.Id,
+            SourceId = s.Source.Id,
+            Book = "draftkings",
+            Market = Markets.Moneyline,
+            Outcome = s.Away.Name,
+            PriceAmerican = -110,
+            CapturedAt = DateTimeOffset.UtcNow,
+            IngestionRunId = 0
+        });
+        await db.SaveChangesAsync();
+
+        var rows = await new BoardService(db).GetAsync(s.Sport.Key, TimeSpan.FromHours(24));
+        var unpriced = rows.Single(r => r.Game.Id == s.Game.Id);
+
+        Assert.Contains("did not cover", unpriced.Unpriced!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PriceAgeIsReportedSoStalenessIsVisible()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        var snapshot = Price(s, "draftkings", Markets.Moneyline, s.Home.Name, -110);
+        snapshot.CapturedAt = DateTimeOffset.UtcNow.AddMinutes(-40);
+
+        db.OddsSnapshots.Add(snapshot);
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.Null(row.Unpriced);
+        Assert.True(row.Age > TimeSpan.FromMinutes(30));
+    }
+
+    // ---- The close, once the scan tier has let go of the game ----------------------------
+    //
+    // ADR 0010 deletes scans for a game that has started and keeps one closing line per book.
+    // The board only read the scan tier, so every game in play went blank — sixteen empty rows
+    // on a nineteen-game slate — and explained itself by describing the retention policy. The
+    // close is the number worth having: it is what the market concluded, and it is what CLV is
+    // measured against. These pin that it is shown, that it is labelled as a close, and that it
+    // never displaces a live market.
+
+    private static ClosingLine Close(
+        Scaffold s, string book, string market, string outcome, int american, decimal? line = null)
+        => new()
+        {
+            GameId = s.Game.Id,
+            SourceId = s.Source.Id,
+            Book = book,
+            Market = market,
+            Outcome = outcome,
+            Line = line,
+            PriceAmerican = american,
+            CapturedAt = s.Game.StartsAt.AddMinutes(-30),
+            PromotedAt = s.Game.StartsAt.AddMinutes(10)
+        };
+
+    /// <summary>A game that has already been played, with its result on record.</summary>
+    private static async Task<Scaffold> SeedPlayedAsync(XLinesDbContext db)
+    {
+        var s = await SeedAsync(db);
+
+        s.Game.StartsAt = DateTimeOffset.UtcNow.AddHours(-4);
+        s.Game.Status = GameStatus.Final;
+        s.Game.AwayScore = 3;
+        s.Game.HomeScore = 5;
+
+        await db.SaveChangesAsync();
+        return s;
+    }
+
+    private static async Task<BoardRow> LoadPlayedAsync(XLinesDbContext db, Scaffold s)
+    {
+        var rows = await new BoardService(db).GetAsync(
+            s.Sport.Key, TimeSpan.FromHours(24), TimeSpan.FromHours(14));
+
+        return Assert.Single(rows);
+    }
+
+    [Fact]
+    public async Task AGameThatHasStartedKeepsItsClosingLine()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        db.ClosingLines.AddRange(
+            Close(s, "draftkings", Markets.Moneyline, s.Home.Name, -115),
+            Close(s, "fanduel", Markets.Moneyline, s.Home.Name, -105));
+        await db.SaveChangesAsync();
+
+        var row = await LoadPlayedAsync(db, s);
+
+        // Not a dash and not an explanation: the number the market finished on.
+        Assert.True(row.HasPrices);
+        Assert.Null(row.Unpriced);
+        Assert.Equal(-105, row.Moneyline.First!.PriceAmerican);
+        Assert.Equal("fanduel", row.Moneyline.First.Book);
+
+        // And it is marked, so the cell can mute it and say what it is on hover rather than
+        // letting it read as a price still on offer.
+        Assert.True(row.PricesAreClosing);
+        Assert.True(row.Moneyline.First.IsClosing);
+    }
+
+    [Fact]
+    public async Task AClosingRowReportsNoAgeBecauseAClosedLineCannotBeStale()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        db.ClosingLines.Add(Close(s, "draftkings", Markets.Moneyline, s.Home.Name, -110));
+        await db.SaveChangesAsync();
+
+        var row = await LoadPlayedAsync(db, s);
+
+        // The header reads the oldest age as "quietest line unmoved". A close is old by
+        // construction and will never move again, so counting it there would report a settled
+        // number as a still market and send an operator chasing it.
+        Assert.NotNull(row.PricedAt);
+        Assert.Null(row.Age);
+    }
+
+    [Fact]
+    public async Task TheLiveMarketOutranksTheClose()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Both tiers hold this game — which happens between promotion and the prune that
+        // follows it. The scan is the truth while one exists; the close is the fallback.
+        db.OddsSnapshots.Add(Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 140));
+        db.ClosingLines.Add(Close(s, "fanduel", Markets.Moneyline, s.Home.Name, 999));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.False(row.PricesAreClosing);
+        Assert.Equal(140, row.Moneyline.First!.PriceAmerican);
+        Assert.Single(row.Moneyline.First.Rungs);
+    }
+
+    [Fact]
+    public async Task AStartedGameWithNoCloseSaysThatRatherThanQuotingThePolicy()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        var row = await LoadPlayedAsync(db, s);
+
+        Assert.False(row.HasPrices);
+
+        // The old wording — "pre-match prices are dropped once a game starts" — was said of
+        // every started game, including the ones whose close was sitting unread in the
+        // permanent record. It described storage rather than this fixture.
+        Assert.NotNull(row.Unpriced);
+        Assert.Contains("no closing line", row.Unpriced!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AGameThatHasBeenPlayedIsStillOnTheBoard()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        // The default three-hour reach is a live-market window. A surface an operator also
+        // asks "how did tonight go" of has to hold the evening, so the lookback is a parameter.
+        var narrow = await new BoardService(db).GetAsync(s.Sport.Key, TimeSpan.FromHours(24));
+        Assert.Empty(narrow);
+
+        var wide = await LoadPlayedAsync(db, s);
+
+        Assert.Equal(GameStatus.Final, wide.Game.Status);
+        Assert.True(wide.HasScore);
+        Assert.Equal("AWY 3–5 HOM", Scoreline.Format(wide.Game));
+    }
+
+    [Fact]
+    public async Task OneGameLoadedByIdFallsBackToTheCloseTheSameWay()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        db.ClosingLines.Add(Close(s, "draftkings", Markets.Total, "over", -110, 8.5m));
+        await db.SaveChangesAsync();
+
+        // The follow-up views load by id rather than being handed a row, so they have to make
+        // the same choice — otherwise opening "Every book" on a played game shows nothing.
+        var row = await new BoardService(db).GetRowAsync(s.Game.Id);
+
+        Assert.NotNull(row);
+        Assert.True(row!.PricesAreClosing);
+        Assert.Equal(8.5m, row.Total.First!.Line);
+    }
+
+    [Fact]
+    public async Task AGameLoadedByIdDoesNotClaimTheFeedHasNeverRun()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Another fixture priced in the same database proves the feed is alive. Opening the
+        // unpriced game used to report "no odds scan has run yet" regardless, which reads as a
+        // broken platform on a desk that is in fact holding a full slate of prices.
+        var other = new Game
+        {
+            SportId = s.Sport.Id,
+            HomeTeamId = s.Away.Id,
+            AwayTeamId = s.Home.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddHours(6),
+            Status = GameStatus.Scheduled
+        };
+        db.Games.Add(other);
+        await db.SaveChangesAsync();
+
+        db.OddsSnapshots.Add(new OddsSnapshot
+        {
+            GameId = other.Id,
+            SourceId = s.Source.Id,
+            Book = "draftkings",
+            Market = Markets.Moneyline,
+            Outcome = s.Away.Name,
+            PriceAmerican = -110,
+            CapturedAt = DateTimeOffset.UtcNow,
+            IngestionRunId = 0
+        });
+        await db.SaveChangesAsync();
+
+        var row = await new BoardService(db).GetRowAsync(s.Game.Id);
+
+        Assert.NotNull(row);
+        Assert.Contains("did not cover", row!.Unpriced!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ---- Fair value -------------------------------------------------------------------
+    // The best price is not the same as a good price; these pin the board's reading of which
+    // is which, through the same query the desk runs.
+
+    [Fact]
+    public async Task PinnacleSetsTheFairPriceAndTheBestOfferIsScoredAgainstIt()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Pinnacle -105 both ways: a fair coin. DraftKings hangs +110 on the home side.
+        db.OddsSnapshots.AddRange(
+            Price(s, "pinnacle", Markets.Moneyline, s.Home.Name, -105),
+            Price(s, "pinnacle", Markets.Moneyline, s.Away.Name, -105),
+            Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 110),
+            Price(s, "draftkings", Markets.Moneyline, s.Away.Name, -130));
+        await db.SaveChangesAsync();
+
+        var home = (await LoadAsync(db, s)).Moneyline.First!;
+
+        Assert.Equal("draftkings", home.Book);
+        Assert.Equal(FairValue.SharpBook, home.Fair!.Basis);
+        Assert.Equal(0.5, home.Fair.Probability, precision: 9);
+        Assert.Equal(0.05, home.Ev!.Value, precision: 4);
+        Assert.Equal(FairValue.Hold(110, -130), home.Rungs.Single(r => r.Book == "draftkings").Hold!.Value, precision: 9);
+    }
+
+    [Fact]
+    public async Task AMarketWithOneOrdinaryBookHasNoFairPrice()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 110),
+            Price(s, "draftkings", Markets.Moneyline, s.Away.Name, -130));
+        await db.SaveChangesAsync();
+
+        var home = (await LoadAsync(db, s)).Moneyline.First!;
+
+        Assert.Null(home.Fair);
+        Assert.Null(home.Ev);
+        Assert.NotNull(home.Rungs.Single().Hold);
+    }
+
+    [Fact]
+    public async Task AnExtraHalfPointRanksFirstButHasNoValueReading()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // FanDuel's +2.5 is the best line, and nobody else priced 2.5, so it cannot be scored;
+        // DraftKings' +1.5 is on Pinnacle's number and can.
+        db.OddsSnapshots.AddRange(
+            Price(s, "pinnacle", Markets.Spread, s.Home.Name, -110, -1.5m),
+            Price(s, "pinnacle", Markets.Spread, s.Away.Name, -110, 1.5m),
+            Price(s, "draftkings", Markets.Spread, s.Away.Name, 105, 1.5m),
+            Price(s, "fanduel", Markets.Spread, s.Away.Name, -160, 2.5m));
+        await db.SaveChangesAsync();
+
+        var away = (await LoadAsync(db, s)).Spread.Second!;
+
+        Assert.Equal("fanduel", away.Book);
+        Assert.Null(away.Ev);
+        Assert.Equal("draftkings", away.BestValue!.Book);
+        Assert.True(away.BestValue.Ev > 0);
+    }
+
+    [Fact]
+    public async Task ASlateNobodyHasPricedDoesNotClaimTheFeedHasNeverRun()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Last week's game in the same league was priced; today's slate has not been yet.
+        var lastWeek = new Game
+        {
+            SportId = s.Sport.Id,
+            HomeTeamId = s.Away.Id,
+            AwayTeamId = s.Home.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddDays(-7),
+            Status = GameStatus.Final
+        };
+        db.Games.Add(lastWeek);
+        await db.SaveChangesAsync();
+
+        db.OddsSnapshots.Add(new OddsSnapshot
+        {
+            GameId = lastWeek.Id,
+            SourceId = s.Source.Id,
+            Book = "draftkings",
+            Market = Markets.Moneyline,
+            Outcome = s.Away.Name,
+            PriceAmerican = -110,
+            CapturedAt = DateTimeOffset.UtcNow.AddDays(-8),
+            IngestionRunId = 0
+        });
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.DoesNotContain("no odds scan", row.Unpriced!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No lines pulled in 8 days", row.Unpriced!);
+    }
+
+    [Fact]
+    public async Task AnotherLeaguesScansSayNothingAboutThisOne()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+        var other = await SeedAsync(db);
+
+        db.OddsSnapshots.Add(Price(other, "draftkings", Markets.Moneyline, other.Home.Name, -110));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.Contains("no odds scan", row.Unpriced!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ALeaguesLastPullIsReadFromTheRunLogOnceItsScansArePromoted()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // A manual pull three days ago; every game it priced has since started and had its
+        // scans promoted away, so the scan tier holds nothing for the league.
+        db.IngestionRuns.Add(new IngestionRun
+        {
+            SourceId = s.Source.Id,
+            JobKey = BoardService.OddsLinesJobPrefix + s.Sport.Key,
+            StartedAt = DateTimeOffset.UtcNow.AddDays(-3),
+            FinishedAt = DateTimeOffset.UtcNow.AddDays(-3),
+            Status = RunStatus.Success
+        });
+        await db.SaveChangesAsync();
+
+        var listed = await LoadAsync(db, s);
+        var byId = await new BoardService(db).GetRowAsync(s.Game.Id);
+
+        Assert.Contains("No lines pulled in 3 days", listed.Unpriced!);
+        Assert.Contains("No lines pulled in 3 days", byId!.Unpriced!);
+    }
+
+    [Fact]
+    public async Task ARowsBestValueIsReadAcrossEveryBookNotOnlyTheBestPrice()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // FanDuel's +2.5 is the away side's best line and cannot be scored; DraftKings' +1.5 on
+        // Pinnacle's number is worth taking, and that is the row's value.
+        db.OddsSnapshots.AddRange(
+            Price(s, "pinnacle", Markets.Spread, s.Home.Name, -110, -1.5m),
+            Price(s, "pinnacle", Markets.Spread, s.Away.Name, -110, 1.5m),
+            Price(s, "draftkings", Markets.Spread, s.Away.Name, 105, 1.5m),
+            Price(s, "fanduel", Markets.Spread, s.Away.Name, -160, 2.5m));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.Equal(FairValue.Ev(0.5, 105), row.BestEv!.Value, precision: 9);
+    }
+
+    [Fact]
+    public async Task ARowWithNothingToScoreHasNoValueReading()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.Add(Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 110));
+        await db.SaveChangesAsync();
+
+        Assert.Null((await LoadAsync(db, s)).BestEv);
+    }
+
+    /// <summary>
+    /// A door that opens the wager window on one book's price must be able to say how old that
+    /// book's number is, not the best book's.
+    /// </summary>
+    [Fact]
+    public async Task EveryRungCarriesWhenItsBookWasCaptured()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        var early = DateTimeOffset.UtcNow.AddMinutes(-50);
+        var late = DateTimeOffset.UtcNow.AddMinutes(-5);
+
+        var dk = Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 120);
+        dk.CapturedAt = early;
+        var fd = Price(s, "fanduel", Markets.Moneyline, s.Home.Name, 135);
+        fd.CapturedAt = late;
+
+        db.OddsSnapshots.AddRange(dk, fd);
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+        var rungs = row.Moneyline.First!.Rungs;
+
+        Assert.Equal(early, rungs.Single(r => r.Book == "draftkings").CapturedAt!.Value, TimeSpan.FromMilliseconds(1));
+        Assert.Equal(late, rungs.Single(r => r.Book == "fanduel").CapturedAt!.Value, TimeSpan.FromMilliseconds(1));
+    }
+}

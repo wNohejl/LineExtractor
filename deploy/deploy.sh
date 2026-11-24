@@ -28,7 +28,7 @@ docker image prune -f >/dev/null
 
 # Asked from outside, through Caddy, so the answer covers DNS, the certificate, the proxy and
 # the database — everything a visitor's request crosses. /ready is anonymous in every mode.
-host=$(grep -E '^LINEOPS_HOST=' .env | cut -d= -f2- | tr -d '"'"'"' \r')
+host=$(grep -E '^XLINES_HOST=' .env | cut -d= -f2- | tr -d '"'"'"' \r')
 echo "deploy: waiting for https://$host/ready ..."
 for _ in $(seq 1 45); do
     if curl -fsS --max-time 5 "https://$host/ready" >/dev/null 2>&1; then

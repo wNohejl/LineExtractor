@@ -6,7 +6,7 @@
 
 **Architecture:** Blazor-free rules live in plain classes (`WagerSlip`, `WagerOffer`, `SelectionChoice`, `Checks`) that are unit-tested without rendering. The windows (`BoardWager`, new `SlipPanel`) inherit `PanelBase`, read and write through one small data seam (`IWagerData`, production implementation over `BoardService`, `JournalService` and `IngestionJobs`) so bUnit can render them against a fake, and share two new components (`SelectionChips`, `StakeRow`) plus a `CheckList`. Writes go through `JournalService`, whose single `SaveChangesAsync` per log is atomic and is announced to every window by the existing `ChangeNotifier` interceptor.
 
-**Tech Stack:** .NET 10, Blazor Interactive Server, MudBlazor 9.7 behind the `LineOps.Desk` primitives, EF Core 10 + Npgsql, xunit 2.9, bUnit 1.40, Testcontainers.PostgreSql 4.15.
+**Tech Stack:** .NET 10, Blazor Interactive Server, MudBlazor 9.7 behind the `XLines.Desk` primitives, EF Core 10 + Npgsql, xunit 2.9, bUnit 1.40, Testcontainers.PostgreSql 4.15.
 
 **Spec:** `docs/specs/2026-09-26-slip-and-advisory-checks-design.md` (read it before starting; section numbers below refer to it).
 
@@ -19,7 +19,7 @@
 - One Filled key per window: **Log** on the wager window and on the slip. Add to slip, Start over and quick keys are Plain; the slip card's × is Plain with `Role="DeskRole.Destructive"`.
 - A disabled key says what it is waiting for, under the key, in warning text (`<div class="warnc …">`).
 - Check sentences state a fact and, where there is one, the consequence. They never instruct.
-- The scope sentence (LineOps records bets placed elsewhere) appears once per window, at the bottom.
+- The scope sentence (XLines records bets placed elsewhere) appears once per window, at the bottom.
 - The closing line is the only check that disables Log. Everything else advises.
 - Stale threshold: **30 minutes** (`Checks.StaleAfter`). Duplicate window: **7 days** (`Checks.DuplicateWindow`). Constants, not configuration.
 - Slip window: key `slip`, title **Slip**, group `Data`, icon `Icons.Material.Filled.Receipt`, `Singleton = true`, `DefaultWeight = 0.9`, `MinWidth = 380`, `RequiresSubject = false`.
@@ -32,7 +32,7 @@
 
 The engineer does not need to re-litigate these; they are recorded so a reviewer knows they were deliberate.
 
-1. **Test project for pure Web classes.** `tests/LineOps.Tests` does not reference `LineOps.Web`, so `WagerSlipTests` and `AdvisoryChecksTests` go in `tests/LineOps.Web.Tests` as plain xunit classes (no bUnit base). `SlipLoggingIntegrationTests` stays in `tests/LineOps.Tests` and exercises the `JournalService` methods the slip calls.
+1. **Test project for pure Web classes.** `tests/XLines.Tests` does not reference `XLines.Web`, so `WagerSlipTests` and `AdvisoryChecksTests` go in `tests/XLines.Web.Tests` as plain xunit classes (no bUnit base). `SlipLoggingIntegrationTests` stays in `tests/XLines.Tests` and exercises the `JournalService` methods the slip calls.
 2. **Combined price.** `JournalPanel` computes no combined price, and the reprice-after-push lives in `ParlayGrading.Grade` (Core), which `SettlementService` calls. Rounding a payout multiplier to a whole American price would change settled payouts, so `OddsMath` gains `CombinedDecimal` (used by `ParlayGrading`) and `CombinedAmerican` on top of it (used by the slip).
 3. **`WagerSlip.Touch`.** `SlipItem` is an immutable record, so `Action<SlipItem>` cannot edit it. The signature is `Touch(Guid id, Func<SlipItem, SlipItem> edit)`.
 4. **"One transaction."** `ChangeNotifier` documents that the app uses no explicit transactions (retry-on-failure rules them out). A log is one `SaveChangesAsync`, which EF runs in its own implicit transaction: all rows or none.
@@ -57,46 +57,46 @@ The engineer does not need to re-litigate these; they are recorded so a reviewer
 
 | File | Status | Responsibility |
 |---|---|---|
-| `src/LineOps.Core/Analytics/OddsMath.cs` | modify | `CombinedDecimal`, `CombinedAmerican` |
-| `src/LineOps.Core/Analytics/ParlayGrading.cs` | modify | reprice via `CombinedDecimal` |
-| `src/LineOps.Data/CrossReference/BoardService.cs` | modify | `BookPrice.CapturedAt` |
-| `src/LineOps.Ingestion/Services/JournalService.cs` | modify | `SaveEntriesAsync`, `LatestOnSideAsync` |
-| `src/LineOps.Web/Services/SelectionText.cs` | create | "ML · Chiefs -2.5" wording, one definition |
-| `src/LineOps.Web/Services/WagerSlip.cs` | create | `WagerSlip`, `SlipItem`, `SlipMode` |
-| `src/LineOps.Web/Services/WagerOffer.cs` | create | the one price a wager is logged against |
-| `src/LineOps.Web/Services/SelectionChoice.cs` | create | the six sides of a row, and where a door lands |
-| `src/LineOps.Web/Services/WagerData.cs` | create | `IWagerData` seam + production `WagerData` |
-| `src/LineOps.Web/Components/Desk/Checks.cs` | create | `Check`, `CheckActions`, pure `Checks` builder |
-| `src/LineOps.Web/Components/Desk/CheckList.razor` | create | renders a list of `Check` rows |
-| `src/LineOps.Web/Components/Desk/SelectionChips.razor` | create | the six-chip strip |
-| `src/LineOps.Web/Components/Desk/StakeRow.razor` | create | stake field, quick keys, Returns |
-| `src/LineOps.Web/Components/Desk/PriceCell.razor` | modify | `OnTake` (Door 2) |
-| `src/LineOps.Web/Components/Panels/BoardWager.razor` | rewrite | panel, doors, checks, Add to slip |
-| `src/LineOps.Web/Components/Panels/SlipPanel.razor` | create | the Slip window |
-| `src/LineOps.Web/Components/Panels/BoardPanel.razor` | modify | price cells open the wager window |
-| `src/LineOps.Web/Components/Panels/BoardAllBets.razor` | modify | rungs open the wager window (Door 3) |
-| `src/LineOps.Web/Components/Panels/JournalPanel.razor` | modify | parlay form retires, Open slip, `StakeRow`, duplicate check |
-| `src/LineOps.Web/Windowing/WindowCatalog.cs` | modify | `Slip` entry |
-| `src/LineOps.Desk/Windowing/FollowUpLauncher.cs` | modify | multi-parameter `Launch` overload |
-| `src/LineOps.Desk/wwwroot/css/lineops.css` | modify | offer block, checks, slip, badge, takeable price |
-| `src/LineOps.Web/Program.cs` | modify | register `WagerSlip`, `IWagerData` |
+| `src/XLines.Core/Analytics/OddsMath.cs` | modify | `CombinedDecimal`, `CombinedAmerican` |
+| `src/XLines.Core/Analytics/ParlayGrading.cs` | modify | reprice via `CombinedDecimal` |
+| `src/XLines.Data/CrossReference/BoardService.cs` | modify | `BookPrice.CapturedAt` |
+| `src/XLines.Ingestion/Services/JournalService.cs` | modify | `SaveEntriesAsync`, `LatestOnSideAsync` |
+| `src/XLines.Web/Services/SelectionText.cs` | create | "ML · Chiefs -2.5" wording, one definition |
+| `src/XLines.Web/Services/WagerSlip.cs` | create | `WagerSlip`, `SlipItem`, `SlipMode` |
+| `src/XLines.Web/Services/WagerOffer.cs` | create | the one price a wager is logged against |
+| `src/XLines.Web/Services/SelectionChoice.cs` | create | the six sides of a row, and where a door lands |
+| `src/XLines.Web/Services/WagerData.cs` | create | `IWagerData` seam + production `WagerData` |
+| `src/XLines.Web/Components/Desk/Checks.cs` | create | `Check`, `CheckActions`, pure `Checks` builder |
+| `src/XLines.Web/Components/Desk/CheckList.razor` | create | renders a list of `Check` rows |
+| `src/XLines.Web/Components/Desk/SelectionChips.razor` | create | the six-chip strip |
+| `src/XLines.Web/Components/Desk/StakeRow.razor` | create | stake field, quick keys, Returns |
+| `src/XLines.Web/Components/Desk/PriceCell.razor` | modify | `OnTake` (Door 2) |
+| `src/XLines.Web/Components/Panels/BoardWager.razor` | rewrite | panel, doors, checks, Add to slip |
+| `src/XLines.Web/Components/Panels/SlipPanel.razor` | create | the Slip window |
+| `src/XLines.Web/Components/Panels/BoardPanel.razor` | modify | price cells open the wager window |
+| `src/XLines.Web/Components/Panels/BoardAllBets.razor` | modify | rungs open the wager window (Door 3) |
+| `src/XLines.Web/Components/Panels/JournalPanel.razor` | modify | parlay form retires, Open slip, `StakeRow`, duplicate check |
+| `src/XLines.Web/Windowing/WindowCatalog.cs` | modify | `Slip` entry |
+| `src/XLines.Desk/Windowing/FollowUpLauncher.cs` | modify | multi-parameter `Launch` overload |
+| `src/XLines.Desk/wwwroot/css/xlines.css` | modify | offer block, checks, slip, badge, takeable price |
+| `src/XLines.Web/Program.cs` | modify | register `WagerSlip`, `IWagerData` |
 | `scripts/sql/seed-test-bets.sql` | fix + commit | dev-only test bets |
-| `tests/LineOps.Tests/Analytics/OddsMathTests.cs` | modify | combined price tests |
-| `tests/LineOps.Tests/Reliability/BoardServiceTests.cs` | modify | rung capture time |
-| `tests/LineOps.Tests/Reliability/SlipLoggingIntegrationTests.cs` | create | Testcontainers |
-| `tests/LineOps.Web.Tests/Support/*.cs` | create | `Repo`, `BoardRows`, `FakeWagerData`, `FakeAlerts`, `WagerTestContext` |
-| `tests/LineOps.Web.Tests/WagerSlipTests.cs` | create | |
-| `tests/LineOps.Web.Tests/AdvisoryChecksTests.cs` | create | |
-| `tests/LineOps.Web.Tests/SharedControlsTests.cs` | create | `SelectionChips`, `StakeRow` |
-| `tests/LineOps.Web.Tests/SelectionGuardTests.cs` | create | §7 guard |
-| `tests/LineOps.Web.Tests/BoardWagerTests.cs` | create | |
-| `tests/LineOps.Web.Tests/SlipPanelTests.cs` | create | |
-| `tests/LineOps.Web.Tests/PriceCellTests.cs` | modify | take action |
-| `tests/LineOps.Web.Tests/FollowUpLauncherTests.cs` | modify | overload |
-| `tests/LineOps.Web.Tests/BoardAllBetsTests.cs` | create | Door 3 |
-| `tests/LineOps.Web.Tests/JournalPanelTests.cs` | create | |
+| `tests/XLines.Tests/Analytics/OddsMathTests.cs` | modify | combined price tests |
+| `tests/XLines.Tests/Reliability/BoardServiceTests.cs` | modify | rung capture time |
+| `tests/XLines.Tests/Reliability/SlipLoggingIntegrationTests.cs` | create | Testcontainers |
+| `tests/XLines.Web.Tests/Support/*.cs` | create | `Repo`, `BoardRows`, `FakeWagerData`, `FakeAlerts`, `WagerTestContext` |
+| `tests/XLines.Web.Tests/WagerSlipTests.cs` | create | |
+| `tests/XLines.Web.Tests/AdvisoryChecksTests.cs` | create | |
+| `tests/XLines.Web.Tests/SharedControlsTests.cs` | create | `SelectionChips`, `StakeRow` |
+| `tests/XLines.Web.Tests/SelectionGuardTests.cs` | create | §7 guard |
+| `tests/XLines.Web.Tests/BoardWagerTests.cs` | create | |
+| `tests/XLines.Web.Tests/SlipPanelTests.cs` | create | |
+| `tests/XLines.Web.Tests/PriceCellTests.cs` | modify | take action |
+| `tests/XLines.Web.Tests/FollowUpLauncherTests.cs` | modify | overload |
+| `tests/XLines.Web.Tests/BoardAllBetsTests.cs` | create | Door 3 |
+| `tests/XLines.Web.Tests/JournalPanelTests.cs` | create | |
 
-All commands are PowerShell, run from `C:\Deploy\LineOps`. Testcontainers tests need Docker Desktop running.
+All commands are PowerShell, run from `C:\Deploy\XLines`. Testcontainers tests need Docker Desktop running.
 
 ---
 
@@ -121,9 +121,9 @@ git commit -m "docs(slip): the slip and advisory checks design, and the plan tha
 ### Task 1: A parlay's combined price has one definition
 
 **Files:**
-- Modify: `src/LineOps.Core/Analytics/OddsMath.cs` (append after `PayoutOnWin`, line 51)
-- Modify: `src/LineOps.Core/Analytics/ParlayGrading.cs:55`
-- Test: `tests/LineOps.Tests/Analytics/OddsMathTests.cs`
+- Modify: `src/XLines.Core/Analytics/OddsMath.cs` (append after `PayoutOnWin`, line 51)
+- Modify: `src/XLines.Core/Analytics/ParlayGrading.cs:55`
+- Test: `tests/XLines.Tests/Analytics/OddsMathTests.cs`
 
 **Interfaces:**
 - Produces: `public static double OddsMath.CombinedDecimal(IEnumerable<int> legsAmerican)`; `public static int OddsMath.CombinedAmerican(IEnumerable<int> legsAmerican)`. Both throw `ArgumentException` on no legs and `ArgumentOutOfRangeException` on a zero price (via `ToDecimal`).
@@ -157,7 +157,7 @@ git commit -m "docs(slip): the slip and advisory checks design, and the plan tha
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Tests --filter "FullyQualifiedName~OddsMathTests"`
+Run: `dotnet test tests/XLines.Tests --filter "FullyQualifiedName~OddsMathTests"`
 Expected: build error `'OddsMath' does not contain a definition for 'CombinedAmerican'`.
 
 - [ ] **Step 3: Implement** — append to `OddsMath` after `PayoutOnWin`:
@@ -207,13 +207,13 @@ with:
 
 - [ ] **Step 4: Run to verify they pass, and that grading is unchanged**
 
-Run: `dotnet test tests/LineOps.Tests --filter "FullyQualifiedName~OddsMathTests|FullyQualifiedName~ParlayGradingTests"`
+Run: `dotnet test tests/XLines.Tests --filter "FullyQualifiedName~OddsMathTests|FullyQualifiedName~ParlayGradingTests"`
 Expected: all PASS.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/LineOps.Core/Analytics/OddsMath.cs src/LineOps.Core/Analytics/ParlayGrading.cs tests/LineOps.Tests/Analytics/OddsMathTests.cs
+git add src/XLines.Core/Analytics/OddsMath.cs src/XLines.Core/Analytics/ParlayGrading.cs tests/XLines.Tests/Analytics/OddsMathTests.cs
 git commit -m "feat(analytics): a parlay's combined price has one definition" -m "The slip quotes a parlay's price from its legs, and settlement reprices a parlay after a push the same way. Both now read OddsMath: CombinedDecimal is the unrounded product settlement pays on, CombinedAmerican the whole price the slip shows (-128 and -105 make +248)."
 ```
 
@@ -222,8 +222,8 @@ git commit -m "feat(analytics): a parlay's combined price has one definition" -m
 ### Task 2: A rung carries when its book was captured
 
 **Files:**
-- Modify: `src/LineOps.Data/CrossReference/BoardService.cs` (the `BookPrice` record, line 538; the rung projection, lines 403-412)
-- Test: `tests/LineOps.Tests/Reliability/BoardServiceTests.cs`
+- Modify: `src/XLines.Data/CrossReference/BoardService.cs` (the `BookPrice` record, line 538; the rung projection, lines 403-412)
+- Test: `tests/XLines.Tests/Reliability/BoardServiceTests.cs`
 
 **Interfaces:**
 - Produces: `BookPrice.CapturedAt` — `public DateTimeOffset? CapturedAt { get; init; }`. Null only on hand-built test values.
@@ -262,7 +262,7 @@ git commit -m "feat(analytics): a parlay's combined price has one definition" -m
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `dotnet test tests/LineOps.Tests --filter "FullyQualifiedName~BoardServiceTests.EveryRungCarriesWhenItsBookWasCaptured"`
+Run: `dotnet test tests/XLines.Tests --filter "FullyQualifiedName~BoardServiceTests.EveryRungCarriesWhenItsBookWasCaptured"`
 Expected: build error `'BookPrice' does not contain a definition for 'CapturedAt'`.
 
 - [ ] **Step 3: Implement.** In `BookPrice` add, after `Hold`:
@@ -287,13 +287,13 @@ In `Best(...)`, the rung projection's initializer becomes:
 
 - [ ] **Step 4: Run the Board tests**
 
-Run: `dotnet test tests/LineOps.Tests --filter "FullyQualifiedName~BoardServiceTests"`
+Run: `dotnet test tests/XLines.Tests --filter "FullyQualifiedName~BoardServiceTests"`
 Expected: all PASS.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/LineOps.Data/CrossReference/BoardService.cs tests/LineOps.Tests/Reliability/BoardServiceTests.cs
+git add src/XLines.Data/CrossReference/BoardService.cs tests/XLines.Tests/Reliability/BoardServiceTests.cs
 git commit -m "feat(board): every book's price carries when it was captured" -m "The wager window is about to open on one book's rung rather than always on the best offer, and a price-age check on that window has to read the age of the number shown. The best offer already carried its own capture time; each rung now carries its book's."
 ```
 
@@ -302,8 +302,8 @@ git commit -m "feat(board): every book's price carries when it was captured" -m 
 ### Task 3: The journal logs a slip in one save, and names the last bet on a side
 
 **Files:**
-- Modify: `src/LineOps.Ingestion/Services/JournalService.cs` (add two methods after `SaveParlayAsync`, line 239)
-- Test: `tests/LineOps.Tests/Reliability/SlipLoggingIntegrationTests.cs` (create)
+- Modify: `src/XLines.Ingestion/Services/JournalService.cs` (add two methods after `SaveParlayAsync`, line 239)
+- Test: `tests/XLines.Tests/Reliability/SlipLoggingIntegrationTests.cs` (create)
 
 **Interfaces:**
 - Produces:
@@ -311,16 +311,16 @@ git commit -m "feat(board): every book's price carries when it was captured" -m 
   - `Task<JournalEntry?> JournalService.LatestOnSideAsync(int gameId, string market, string outcome, string book, DateTimeOffset since, CancellationToken ct = default)` — newest straight bet (not a parlay leg) with `PlacedAt >= since` on that game, market, outcome and book; outcome and book case-insensitive.
   - Existing, unchanged, relied on by the slip: `SaveParlayAsync(ParlayDraft)`.
 
-- [ ] **Step 1: Write the failing tests** — create `tests/LineOps.Tests/Reliability/SlipLoggingIntegrationTests.cs`:
+- [ ] **Step 1: Write the failing tests** — create `tests/XLines.Tests/Reliability/SlipLoggingIntegrationTests.cs`:
 
 ```csharp
-using LineOps.Core.Entities;
-using LineOps.Data;
-using LineOps.Ingestion.Services;
+using XLines.Core.Entities;
+using XLines.Data;
+using XLines.Ingestion.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace LineOps.Tests.Reliability;
+namespace XLines.Tests.Reliability;
 
 /// <summary>
 /// What the slip writes, against real Postgres: straight bets in one save, a parlay as one row
@@ -330,10 +330,10 @@ namespace LineOps.Tests.Reliability;
 [Collection(PostgresCollection.Name)]
 public class SlipLoggingIntegrationTests(PostgresFixture fixture)
 {
-    private static JournalService Service(LineOpsDbContext db)
+    private static JournalService Service(XLinesDbContext db)
         => new(db, new SettlementService(db, NullLogger<SettlementService>.Instance));
 
-    private static async Task<(Game Game, Team Home, Team Away)> ScheduledGameAsync(LineOpsDbContext db)
+    private static async Task<(Game Game, Team Home, Team Away)> ScheduledGameAsync(XLinesDbContext db)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var sport = new Sport { Key = $"sl-{suffix}", Name = "TEST" };
@@ -469,7 +469,7 @@ public class SlipLoggingIntegrationTests(PostgresFixture fixture)
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Tests --filter "FullyQualifiedName~SlipLoggingIntegrationTests"`
+Run: `dotnet test tests/XLines.Tests --filter "FullyQualifiedName~SlipLoggingIntegrationTests"`
 Expected: build error `'JournalService' does not contain a definition for 'SaveEntriesAsync'`.
 
 - [ ] **Step 3: Implement** — add to `JournalService` after `SaveParlayAsync`:
@@ -526,13 +526,13 @@ Expected: build error `'JournalService' does not contain a definition for 'SaveE
 
 - [ ] **Step 4: Run to verify they pass, and the journal suite is unchanged**
 
-Run: `dotnet test tests/LineOps.Tests --filter "FullyQualifiedName~SlipLoggingIntegrationTests|FullyQualifiedName~JournalServiceTests"`
+Run: `dotnet test tests/XLines.Tests --filter "FullyQualifiedName~SlipLoggingIntegrationTests|FullyQualifiedName~JournalServiceTests"`
 Expected: all PASS.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/LineOps.Ingestion/Services/JournalService.cs tests/LineOps.Tests/Reliability/SlipLoggingIntegrationTests.cs
+git add src/XLines.Ingestion/Services/JournalService.cs tests/XLines.Tests/Reliability/SlipLoggingIntegrationTests.cs
 git commit -m "feat(journal): a slip of straight bets is logged in one save, and a side's last bet can be named" -m "The slip logs several wagers with one press; SaveEntriesAsync writes them in a single SaveChanges so a failure leaves nothing half-logged. LatestOnSideAsync is the one query behind the wager window's duplicate check: the newest straight bet on a game, market, side and book within a window, legs left out."
 ```
 
@@ -541,26 +541,26 @@ git commit -m "feat(journal): a slip of straight bets is logged in one save, and
 ### Task 4: `WagerSlip` — the slip and its rules
 
 **Files:**
-- Create: `src/LineOps.Web/Services/SelectionText.cs`
-- Create: `src/LineOps.Web/Services/WagerSlip.cs`
-- Modify: `src/LineOps.Web/Program.cs` (beside `AddScoped<…IDeskSearch, …AppDeskSearch>()`, line 61)
-- Test: `tests/LineOps.Web.Tests/WagerSlipTests.cs` (create)
+- Create: `src/XLines.Web/Services/SelectionText.cs`
+- Create: `src/XLines.Web/Services/WagerSlip.cs`
+- Modify: `src/XLines.Web/Program.cs` (beside `AddScoped<…IDeskSearch, …AppDeskSearch>()`, line 61)
+- Test: `tests/XLines.Web.Tests/WagerSlipTests.cs` (create)
 
 **Interfaces:**
-- Consumes: `OddsMath.CombinedAmerican` (Task 1); `EntryDraft`, `ParlayDraft` (`LineOps.Ingestion.Services`).
-- Produces (namespace `LineOps.Web.Services`):
+- Consumes: `OddsMath.CombinedAmerican` (Task 1); `EntryDraft`, `ParlayDraft` (`XLines.Ingestion.Services`).
+- Produces (namespace `XLines.Web.Services`):
   - `static class SelectionText { string MarketName(string market); string Short(string outcome); string Of(string market, string outcome, decimal? line); }` — `Of("h2h","Kansas City Chiefs",null)` = `"ML · Chiefs"`; `Of("spread","Buffalo Bills",2.5m)` = `"Spread · Bills +2.5"`.
   - `enum SlipMode { Straight, Parlay }`
   - `sealed record SlipItem(Guid Id, int GameId, string Matchup, DateTimeOffset StartsAt, string SportKey, string Market, string Outcome, decimal? Line, string Book, int PriceAmerican, DateTimeOffset CapturedAt, bool IsClosing, decimal Stake, string? Note, FairPrice? Fair, double? Ev)` with `string Selection` ("ML · Chiefs -128") and `EntryDraft ToDraft(decimal stake)`.
   - `sealed class WagerSlip` with `Items`, `Mode`, `ParlayStake`, `ParlayPriceQuoted`, `ParlayBook`, `event Action? Changed`, `SlipItem Add(SlipItem)`, `void Remove(Guid)`, `void Clear()`, `void SetMode(SlipMode)`, `void SetParlay(decimal, int?, string?)`, `void Touch(Guid, Func<SlipItem, SlipItem>)`, `bool CanLog(SlipItem)`, `IReadOnlyList<SlipItem> Ready`, `IReadOnlyList<SlipItem> Legs`, `int? CombinedPrice`, `bool HasTwin(SlipItem)`, `IReadOnlyList<EntryDraft> StraightDrafts()`, `ParlayDraft ToParlayDraft()`, `void Logged(IEnumerable<Guid> ids)`.
 
-- [ ] **Step 1: Write the failing tests** — create `tests/LineOps.Web.Tests/WagerSlipTests.cs`:
+- [ ] **Step 1: Write the failing tests** — create `tests/XLines.Web.Tests/WagerSlipTests.cs`:
 
 ```csharp
-using LineOps.Core.Entities;
-using LineOps.Web.Services;
+using XLines.Core.Entities;
+using XLines.Web.Services;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// The slip's rules, owned by one class so no window has to remember them: a closing price is
@@ -771,16 +771,16 @@ public class WagerSlipTests
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~WagerSlipTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~WagerSlipTests"`
 Expected: build error `The type or namespace name 'WagerSlip' could not be found`.
 
-- [ ] **Step 3: Implement.** Create `src/LineOps.Web/Services/SelectionText.cs` (the wording moves here from `BoardWager.Short`/`LineOf`, so a chip, a slip card and a check sentence name a side identically):
+- [ ] **Step 3: Implement.** Create `src/XLines.Web/Services/SelectionText.cs` (the wording moves here from `BoardWager.Short`/`LineOf`, so a chip, a slip card and a check sentence name a side identically):
 
 ```csharp
-using LineOps.Core.Analytics;
-using LineOps.Core.Entities;
+using XLines.Core.Analytics;
+using XLines.Core.Entities;
 
-namespace LineOps.Web.Services;
+namespace XLines.Web.Services;
 
 /// <summary>
 /// A side named the way the desk writes it: "ML · Chiefs", "Spread · Bills +2.5". One
@@ -810,13 +810,13 @@ public static class SelectionText
 }
 ```
 
-Create `src/LineOps.Web/Services/WagerSlip.cs`:
+Create `src/XLines.Web/Services/WagerSlip.cs`:
 
 ```csharp
-using LineOps.Core.Analytics;
-using LineOps.Ingestion.Services;
+using XLines.Core.Analytics;
+using XLines.Ingestion.Services;
 
-namespace LineOps.Web.Services;
+namespace XLines.Web.Services;
 
 public enum SlipMode { Straight, Parlay }
 
@@ -981,23 +981,23 @@ public sealed class WagerSlip
 }
 ```
 
-In `src/LineOps.Web/Program.cs`, after the `AddScoped<…IDeskSearch, …AppDeskSearch>()` line add:
+In `src/XLines.Web/Program.cs`, after the `AddScoped<…IDeskSearch, …AppDeskSearch>()` line add:
 
 ```csharp
 // The slip: one per desk session. Scoped is circuit-scoped under Interactive Server, so every
 // window on this desk shares it and it goes with the circuit (spec §3.1).
-builder.Services.AddScoped<LineOps.Web.Services.WagerSlip>();
+builder.Services.AddScoped<XLines.Web.Services.WagerSlip>();
 ```
 
 - [ ] **Step 4: Run to verify they pass**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~WagerSlipTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~WagerSlipTests"`
 Expected: all PASS.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/LineOps.Web/Services/SelectionText.cs src/LineOps.Web/Services/WagerSlip.cs src/LineOps.Web/Program.cs tests/LineOps.Web.Tests/WagerSlipTests.cs
+git add src/XLines.Web/Services/SelectionText.cs src/XLines.Web/Services/WagerSlip.cs src/XLines.Web/Program.cs tests/XLines.Web.Tests/WagerSlipTests.cs
 git commit -m "feat(slip): a slip that belongs to the desk session, and the rules it owns" -m "WagerSlip holds the wagers banked this session and is the only owner of the list, so its rules need no window to remember them: a closing price stays but never logs, a straight bet needs a stake, a parlay's legs are what the market still offers, and the combined price is the legs multiplied unless the book quoted its own. Circuit-scoped and unpersisted by design."
 ```
 
@@ -1006,28 +1006,28 @@ git commit -m "feat(slip): a slip that belongs to the desk session, and the rule
 ### Task 5: The advisory checks, as a pure builder
 
 **Files:**
-- Create: `src/LineOps.Web/Services/WagerOffer.cs`
-- Create: `src/LineOps.Web/Components/Desk/Checks.cs`
-- Test: `tests/LineOps.Web.Tests/AdvisoryChecksTests.cs` (create)
+- Create: `src/XLines.Web/Services/WagerOffer.cs`
+- Create: `src/XLines.Web/Components/Desk/Checks.cs`
+- Test: `tests/XLines.Web.Tests/AdvisoryChecksTests.cs` (create)
 
 **Interfaces:**
 - Consumes: `SlipItem`, `SelectionText` (Task 4); `BookPrice.CapturedAt` (Task 2).
 - Produces:
-  - `LineOps.Web.Services.WagerOffer(string Market, string Outcome, decimal? Line, string Book, int PriceAmerican, DateTimeOffset CapturedAt, bool IsClosing, FairPrice? Fair, double? Ev, int BooksQuoting, bool IsBest)` with `Label`, `static WagerOffer Best(string market, BestOffer offer)`, `static WagerOffer? AtBook(string market, BestOffer offer, string book)`, `EntryDraft ToDraft(int gameId, decimal stake, string? note)`, `SlipItem ToSlipItem(Game game, string matchup, decimal stake, string? note)`.
-  - `LineOps.Web.Components.Desk.Check(DeskState State, string Text, string? Remedy = null, Func<Task>? Act = null)`
-  - `LineOps.Web.Components.Desk.CheckActions(string? PullLabel = null, Func<Task>? Pull = null, Func<Task>? OpenJournal = null)`
+  - `XLines.Web.Services.WagerOffer(string Market, string Outcome, decimal? Line, string Book, int PriceAmerican, DateTimeOffset CapturedAt, bool IsClosing, FairPrice? Fair, double? Ev, int BooksQuoting, bool IsBest)` with `Label`, `static WagerOffer Best(string market, BestOffer offer)`, `static WagerOffer? AtBook(string market, BestOffer offer, string book)`, `EntryDraft ToDraft(int gameId, decimal stake, string? note)`, `SlipItem ToSlipItem(Game game, string matchup, decimal stake, string? note)`.
+  - `XLines.Web.Components.Desk.Check(DeskState State, string Text, string? Remedy = null, Func<Task>? Act = null)`
+  - `XLines.Web.Components.Desk.CheckActions(string? PullLabel = null, Func<Task>? Pull = null, Func<Task>? OpenJournal = null)`
   - `static class Checks { TimeSpan StaleAfter; TimeSpan DuplicateWindow; const string OpenJournal; IReadOnlyList<Check> Build(WagerOffer offer, DateTimeOffset startsAt, DateTimeOffset now, bool priorRead, JournalEntry? prior, decimal stake, CheckActions? actions = null); Check Value(WagerOffer, decimal); Check Age(WagerOffer, DateTimeOffset, CheckActions); Check Closing(DateTimeOffset, DateTimeOffset, CheckActions); Check Duplicate(bool, JournalEntry?, CheckActions); string Span(TimeSpan); }`. `Build` returns three rows in order: value, price age (or closing line when `offer.IsClosing`), duplicate.
 
-- [ ] **Step 1: Write the failing tests** — create `tests/LineOps.Web.Tests/AdvisoryChecksTests.cs`:
+- [ ] **Step 1: Write the failing tests** — create `tests/XLines.Web.Tests/AdvisoryChecksTests.cs`:
 
 ```csharp
-using LineOps.Core.Analytics;
-using LineOps.Core.Entities;
-using LineOps.Desk.Primitives;
-using LineOps.Web.Components.Desk;
-using LineOps.Web.Services;
+using XLines.Core.Analytics;
+using XLines.Core.Entities;
+using XLines.Desk.Primitives;
+using XLines.Web.Components.Desk;
+using XLines.Web.Services;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// The checks the wager window runs before Log. Pure: an offer, a clock and a journal reading in,
@@ -1167,11 +1167,11 @@ public class AdvisoryChecksTests
     public void A_rung_at_another_book_is_that_books_price_and_age()
     {
         var captured = Now.AddMinutes(-40);
-        var best = new LineOps.Data.CrossReference.BestOffer("Kansas City Chiefs", "draftkings", -128, null, Now.AddMinutes(-12),
+        var best = new XLines.Data.CrossReference.BestOffer("Kansas City Chiefs", "draftkings", -128, null, Now.AddMinutes(-12),
             null, false, false,
             [
-                new LineOps.Data.CrossReference.BookPrice("draftkings", -128, null, 0.56) { Ev = 0.027 },
-                new LineOps.Data.CrossReference.BookPrice("fanduel", -135, null, 0.574) { Ev = -0.01, CapturedAt = captured }
+                new XLines.Data.CrossReference.BookPrice("draftkings", -128, null, 0.56) { Ev = 0.027 },
+                new XLines.Data.CrossReference.BookPrice("fanduel", -135, null, 0.574) { Ev = -0.01, CapturedAt = captured }
             ]) { Fair = Pinnacle, Ev = 0.027 };
 
         var rung = WagerOffer.AtBook(Markets.Moneyline, best, "FanDuel")!;
@@ -1188,18 +1188,18 @@ public class AdvisoryChecksTests
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~AdvisoryChecksTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~AdvisoryChecksTests"`
 Expected: build error `The type or namespace name 'WagerOffer' could not be found`.
 
-- [ ] **Step 3: Implement.** Create `src/LineOps.Web/Services/WagerOffer.cs`:
+- [ ] **Step 3: Implement.** Create `src/XLines.Web/Services/WagerOffer.cs`:
 
 ```csharp
-using LineOps.Core.Analytics;
-using LineOps.Core.Entities;
-using LineOps.Data.CrossReference;
-using LineOps.Ingestion.Services;
+using XLines.Core.Analytics;
+using XLines.Core.Entities;
+using XLines.Data.CrossReference;
+using XLines.Ingestion.Services;
 
-namespace LineOps.Web.Services;
+namespace XLines.Web.Services;
 
 /// <summary>
 /// The one price a wager is logged against: a side's best offer, or one book's rung of it when
@@ -1252,16 +1252,16 @@ public sealed record WagerOffer(
 }
 ```
 
-Create `src/LineOps.Web/Components/Desk/Checks.cs`:
+Create `src/XLines.Web/Components/Desk/Checks.cs`:
 
 ```csharp
 using System.Globalization;
-using LineOps.Core.Analytics;
-using LineOps.Core.Entities;
-using LineOps.Desk.Primitives;
-using LineOps.Web.Services;
+using XLines.Core.Analytics;
+using XLines.Core.Entities;
+using XLines.Desk.Primitives;
+using XLines.Web.Services;
 
-namespace LineOps.Web.Components.Desk;
+namespace XLines.Web.Components.Desk;
 
 /// <summary>One advisory row: a state, one sentence, and optionally a remedy key on the same row.</summary>
 public sealed record Check(DeskState State, string Text, string? Remedy = null, Func<Task>? Act = null);
@@ -1392,13 +1392,13 @@ public static class Checks
 
 - [ ] **Step 4: Run to verify they pass**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~AdvisoryChecksTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~AdvisoryChecksTests"`
 Expected: all PASS.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/LineOps.Web/Services/WagerOffer.cs src/LineOps.Web/Components/Desk/Checks.cs tests/LineOps.Web.Tests/AdvisoryChecksTests.cs
+git add src/XLines.Web/Services/WagerOffer.cs src/XLines.Web/Components/Desk/Checks.cs tests/XLines.Web.Tests/AdvisoryChecksTests.cs
 git commit -m "feat(wager): the checks worth having before Log, as one pure builder" -m "Value against the fair price, how old the price is, whether the side is already in the journal, and whether the price is a close that could not have been taken. Pure, so the thresholds are tested at their edges (29 against 30 minutes, no fair price, a closing line) without rendering anything. Only the closing line blocks; the rest advise. WagerOffer is the one price a wager is logged against, the best offer or a named book's rung."
 ```
 
@@ -1407,24 +1407,24 @@ git commit -m "feat(wager): the checks worth having before Log, as one pure buil
 ### Task 6: Shared primitives — `SelectionChips` and `StakeRow`
 
 **Files:**
-- Create: `src/LineOps.Web/Services/SelectionChoice.cs`
-- Create: `src/LineOps.Web/Components/Desk/SelectionChips.razor`
-- Create: `src/LineOps.Web/Components/Desk/StakeRow.razor`
-- Create: `tests/LineOps.Web.Tests/Support/Repo.cs`, `tests/LineOps.Web.Tests/Support/BoardRows.cs`
-- Test: `tests/LineOps.Web.Tests/SharedControlsTests.cs`, `tests/LineOps.Web.Tests/SelectionGuardTests.cs` (create)
+- Create: `src/XLines.Web/Services/SelectionChoice.cs`
+- Create: `src/XLines.Web/Components/Desk/SelectionChips.razor`
+- Create: `src/XLines.Web/Components/Desk/StakeRow.razor`
+- Create: `tests/XLines.Web.Tests/Support/Repo.cs`, `tests/XLines.Web.Tests/Support/BoardRows.cs`
+- Test: `tests/XLines.Web.Tests/SharedControlsTests.cs`, `tests/XLines.Web.Tests/SelectionGuardTests.cs` (create)
 
 **Interfaces:**
 - Consumes: `WagerOffer` (Task 5), `SelectionText` (Task 4).
 - Produces:
-  - `LineOps.Web.Services.SelectionChoice(string Market, BestOffer Offer)` with `Label`, `static IReadOnlyList<SelectionChoice> All(BoardRow? row)`, `static WagerOffer? Land(BoardRow? row, string? market, string? outcome, string? book)` — with `market`+`outcome` lands on that side (the named book's rung if `book` is quoted there, else the best); otherwise the most value, then the widest edge (today's `BoardWager` default).
+  - `XLines.Web.Services.SelectionChoice(string Market, BestOffer Offer)` with `Label`, `static IReadOnlyList<SelectionChoice> All(BoardRow? row)`, `static WagerOffer? Land(BoardRow? row, string? market, string? outcome, string? book)` — with `market`+`outcome` lands on that side (the named book's rung if `book` is quoted there, else the best); otherwise the most value, then the widest edge (today's `BoardWager` default).
   - `<SelectionChips Row Market Outcome OnChoose />` — `OnChoose` is `EventCallback<SelectionChoice>`. Renders `div.selection-chips` of small `DeskButton`s, the chosen one Tinted with `aria-pressed="true"`.
   - `<StakeRow Stake StakeChanged PriceAmerican />` — `decimal Stake`, `EventCallback<decimal> StakeChanged`, `int? PriceAmerican`. Renders the stake field (`placeholder="Stake"`, `Immediate`, `Mono`, `type=number step=5 min=0`), quick keys $25/$50/$100, and `span.stake-row__returns` when a price and a stake are set.
   - Test support: `Repo.Root()`; `BoardRows.Row(...)`, `BoardRows.Offer(...)`, `BoardRows.Rung(...)`, constants `GameId = 7`, `Home = "Kansas City Chiefs"`, `Away = "Buffalo Bills"`, `FairHomeMl`.
 
-- [ ] **Step 1: Write the test support.** Create `tests/LineOps.Web.Tests/Support/Repo.cs`:
+- [ ] **Step 1: Write the test support.** Create `tests/XLines.Web.Tests/Support/Repo.cs`:
 
 ```csharp
-namespace LineOps.Web.Tests.Support;
+namespace XLines.Web.Tests.Support;
 
 /// <summary>The repository root, for tests that read source rather than render it.</summary>
 public static class Repo
@@ -1433,23 +1433,23 @@ public static class Repo
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "LineOps.slnx")))
+            if (File.Exists(Path.Combine(dir.FullName, "XLines.slnx")))
                 return dir.FullName;
         }
 
-        throw new InvalidOperationException("LineOps.slnx not found above the test output.");
+        throw new InvalidOperationException("XLines.slnx not found above the test output.");
     }
 }
 ```
 
-Create `tests/LineOps.Web.Tests/Support/BoardRows.cs`:
+Create `tests/XLines.Web.Tests/Support/BoardRows.cs`:
 
 ```csharp
-using LineOps.Core.Analytics;
-using LineOps.Core.Entities;
-using LineOps.Data.CrossReference;
+using XLines.Core.Analytics;
+using XLines.Core.Entities;
+using XLines.Data.CrossReference;
 
-namespace LineOps.Web.Tests.Support;
+namespace XLines.Web.Tests.Support;
 
 /// <summary>
 /// A board row to render the wager window and the slip against. The standard row is an NFL game,
@@ -1518,17 +1518,17 @@ public static class BoardRows
 }
 ```
 
-- [ ] **Step 2: Write the failing tests.** Create `tests/LineOps.Web.Tests/SharedControlsTests.cs`:
+- [ ] **Step 2: Write the failing tests.** Create `tests/XLines.Web.Tests/SharedControlsTests.cs`:
 
 ```csharp
 using Bunit;
-using LineOps.Core.Analytics;
-using LineOps.Core.Entities;
-using LineOps.Web.Components.Desk;
-using LineOps.Web.Services;
-using LineOps.Web.Tests.Support;
+using XLines.Core.Analytics;
+using XLines.Core.Entities;
+using XLines.Web.Components.Desk;
+using XLines.Web.Services;
+using XLines.Web.Tests.Support;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>The selection strip and the stake row: one definition each, shared by every window that logs.</summary>
 public class SharedControlsTests : DeskTestContext
@@ -1612,12 +1612,12 @@ public class SharedControlsTests : DeskTestContext
 }
 ```
 
-Create `tests/LineOps.Web.Tests/SelectionGuardTests.cs`:
+Create `tests/XLines.Web.Tests/SelectionGuardTests.cs`:
 
 ```csharp
-using LineOps.Web.Tests.Support;
+using XLines.Web.Tests.Support;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// One control, one definition (spec §7). The selection strip and the stake row were drawn three
@@ -1634,22 +1634,22 @@ public class SelectionGuardTests
         var files = Directory.EnumerateFiles(Path.Combine(Repo.Root(), "src"), name + ".razor", SearchOption.AllDirectories).ToList();
 
         var only = Assert.Single(files);
-        Assert.EndsWith(Path.Combine("LineOps.Web", "Components", "Desk", name + ".razor"), only);
+        Assert.EndsWith(Path.Combine("XLines.Web", "Components", "Desk", name + ".razor"), only);
     }
 }
 ```
 
 - [ ] **Step 3: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~SharedControlsTests|FullyQualifiedName~SelectionGuardTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~SharedControlsTests|FullyQualifiedName~SelectionGuardTests"`
 Expected: build error `The type or namespace name 'SelectionChips' could not be found`.
 
-- [ ] **Step 4: Implement.** Create `src/LineOps.Web/Services/SelectionChoice.cs`:
+- [ ] **Step 4: Implement.** Create `src/XLines.Web/Services/SelectionChoice.cs`:
 
 ```csharp
-using LineOps.Data.CrossReference;
+using XLines.Data.CrossReference;
 
-namespace LineOps.Web.Services;
+namespace XLines.Web.Services;
 
 /// <summary>One side of one market on a board row: what a selection chip stands for.</summary>
 public sealed record SelectionChoice(string Market, BestOffer Offer)
@@ -1704,11 +1704,11 @@ public sealed record SelectionChoice(string Market, BestOffer Offer)
 }
 ```
 
-Create `src/LineOps.Web/Components/Desk/SelectionChips.razor`:
+Create `src/XLines.Web/Components/Desk/SelectionChips.razor`:
 
 ```razor
-@using LineOps.Data.CrossReference
-@using LineOps.Web.Services
+@using XLines.Data.CrossReference
+@using XLines.Web.Services
 
 @*
     The six-chip selection strip: every priced side of a game, one chip each.
@@ -1746,10 +1746,10 @@ Create `src/LineOps.Web/Components/Desk/SelectionChips.razor`:
 }
 ```
 
-Create `src/LineOps.Web/Components/Desk/StakeRow.razor`:
+Create `src/XLines.Web/Components/Desk/StakeRow.razor`:
 
 ```razor
-@using LineOps.Core.Analytics
+@using XLines.Core.Analytics
 
 @*
     The stake: a field, three quick keys, and what it returns.
@@ -1795,13 +1795,13 @@ Create `src/LineOps.Web/Components/Desk/StakeRow.razor`:
 
 - [ ] **Step 5: Run to verify they pass**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~SharedControlsTests|FullyQualifiedName~SelectionGuardTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~SharedControlsTests|FullyQualifiedName~SelectionGuardTests"`
 Expected: all PASS.
 
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add src/LineOps.Web/Services/SelectionChoice.cs src/LineOps.Web/Components/Desk/SelectionChips.razor src/LineOps.Web/Components/Desk/StakeRow.razor tests/LineOps.Web.Tests/Support/Repo.cs tests/LineOps.Web.Tests/Support/BoardRows.cs tests/LineOps.Web.Tests/SharedControlsTests.cs tests/LineOps.Web.Tests/SelectionGuardTests.cs
+git add src/XLines.Web/Services/SelectionChoice.cs src/XLines.Web/Components/Desk/SelectionChips.razor src/XLines.Web/Components/Desk/StakeRow.razor tests/XLines.Web.Tests/Support/Repo.cs tests/XLines.Web.Tests/Support/BoardRows.cs tests/XLines.Web.Tests/SharedControlsTests.cs tests/XLines.Web.Tests/SelectionGuardTests.cs
 git commit -m "feat(desk): the selection strip and the stake row have one definition each" -m "The wager window, the slip and the Journal's manual entry each drew their own stake field, and the wager window its own chip strip. SelectionChips and StakeRow are the one copy of each, with a guard test that they stay single. SelectionChoice.Land is where a door opens the wager window: the side it names at the book it names, or the most value."
 ```
 
@@ -1810,17 +1810,17 @@ git commit -m "feat(desk): the selection strip and the stake row have one defini
 ### Task 7: The wager window becomes a panel, opened on the side a door names
 
 **Files:**
-- Create: `src/LineOps.Web/Services/WagerData.cs`
-- Rewrite: `src/LineOps.Web/Components/Panels/BoardWager.razor`
-- Modify: `src/LineOps.Web/Program.cs` (next to the `WagerSlip` registration from Task 4)
-- Modify: `src/LineOps.Desk/wwwroot/css/lineops.css` (append)
-- Create: `tests/LineOps.Web.Tests/Support/FakeWagerData.cs`, `Support/FakeAlerts.cs`, `Support/WagerTestContext.cs`
-- Test: `tests/LineOps.Web.Tests/BoardWagerTests.cs` (create)
+- Create: `src/XLines.Web/Services/WagerData.cs`
+- Rewrite: `src/XLines.Web/Components/Panels/BoardWager.razor`
+- Modify: `src/XLines.Web/Program.cs` (next to the `WagerSlip` registration from Task 4)
+- Modify: `src/XLines.Desk/wwwroot/css/xlines.css` (append)
+- Create: `tests/XLines.Web.Tests/Support/FakeWagerData.cs`, `Support/FakeAlerts.cs`, `Support/WagerTestContext.cs`
+- Test: `tests/XLines.Web.Tests/BoardWagerTests.cs` (create)
 
 **Interfaces:**
 - Consumes: `SelectionChoice.Land`, `SelectionChips`, `StakeRow` (Task 6); `WagerOffer` (Task 5); `JournalService.SaveEntriesAsync`, `LatestOnSideAsync` (Task 3).
 - Produces:
-  - `LineOps.Web.Services.IWagerData`:
+  - `XLines.Web.Services.IWagerData`:
     ```csharp
     Task<BoardRow?> RowAsync(int gameId, CancellationToken ct = default);
     Task<JournalEntry?> LatestOnSideAsync(int gameId, string market, string outcome, string book, DateTimeOffset since, CancellationToken ct = default);
@@ -1833,15 +1833,15 @@ git commit -m "feat(desk): the selection strip and the stake row have one defini
   - Markup hooks used by tests: `.wager-offer__price`, `.wager-offer__book`, `.wager-why`, `.wager-logged`, the Log key is the only `button.desk-btn--filled`.
   - Test support: `FakeWagerData`, `FakeAlerts`, `WagerTestContext` (registers the fake as `IWagerData`, `WagerSlip`, `DeskToasts`, `IDeskAlerts`).
 
-- [ ] **Step 1: Write the test support.** Create `tests/LineOps.Web.Tests/Support/FakeWagerData.cs`:
+- [ ] **Step 1: Write the test support.** Create `tests/XLines.Web.Tests/Support/FakeWagerData.cs`:
 
 ```csharp
-using LineOps.Core.Entities;
-using LineOps.Data.CrossReference;
-using LineOps.Ingestion.Services;
-using LineOps.Web.Services;
+using XLines.Core.Entities;
+using XLines.Data.CrossReference;
+using XLines.Ingestion.Services;
+using XLines.Web.Services;
 
-namespace LineOps.Web.Tests.Support;
+namespace XLines.Web.Tests.Support;
 
 /// <summary>The data seam, in memory: a row to price, a journal reading, and a record of what was written.</summary>
 public sealed class FakeWagerData : IWagerData
@@ -1907,12 +1907,12 @@ public sealed class FakeWagerData : IWagerData
 }
 ```
 
-Create `tests/LineOps.Web.Tests/Support/FakeAlerts.cs`:
+Create `tests/XLines.Web.Tests/Support/FakeAlerts.cs`:
 
 ```csharp
-using LineOps.Desk.Primitives;
+using XLines.Desk.Primitives;
 
-namespace LineOps.Web.Tests.Support;
+namespace XLines.Web.Tests.Support;
 
 /// <summary>A confirm that answers as told and counts the questions.</summary>
 public sealed class FakeAlerts : IDeskAlerts
@@ -1929,14 +1929,14 @@ public sealed class FakeAlerts : IDeskAlerts
 }
 ```
 
-Create `tests/LineOps.Web.Tests/Support/WagerTestContext.cs`:
+Create `tests/XLines.Web.Tests/Support/WagerTestContext.cs`:
 
 ```csharp
-using LineOps.Desk.Primitives;
-using LineOps.Web.Services;
+using XLines.Desk.Primitives;
+using XLines.Web.Services;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LineOps.Web.Tests.Support;
+namespace XLines.Web.Tests.Support;
 
 /// <summary>The desk bench plus what a window that logs wagers needs: the data seam, the slip, toasts and confirms.</summary>
 public abstract class WagerTestContext : DeskTestContext
@@ -1956,16 +1956,16 @@ public abstract class WagerTestContext : DeskTestContext
 }
 ```
 
-- [ ] **Step 2: Write the failing tests.** Create `tests/LineOps.Web.Tests/BoardWagerTests.cs`:
+- [ ] **Step 2: Write the failing tests.** Create `tests/XLines.Web.Tests/BoardWagerTests.cs`:
 
 ```csharp
 using AngleSharp.Dom;
 using Bunit;
-using LineOps.Core.Entities;
-using LineOps.Web.Components.Panels;
-using LineOps.Web.Tests.Support;
+using XLines.Core.Entities;
+using XLines.Web.Components.Panels;
+using XLines.Web.Tests.Support;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// The Place wager window: opened on the side a door names, the price that side's book shows, a
@@ -2061,17 +2061,17 @@ public class BoardWagerTests : WagerTestContext
 
 - [ ] **Step 3: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~BoardWagerTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~BoardWagerTests"`
 Expected: build error `The type or namespace name 'IWagerData' could not be found` (and `BoardWager` has no `Market` parameter).
 
-- [ ] **Step 4: Implement the seam.** Create `src/LineOps.Web/Services/WagerData.cs`:
+- [ ] **Step 4: Implement the seam.** Create `src/XLines.Web/Services/WagerData.cs`:
 
 ```csharp
-using LineOps.Core.Entities;
-using LineOps.Data.CrossReference;
-using LineOps.Ingestion.Services;
+using XLines.Core.Entities;
+using XLines.Data.CrossReference;
+using XLines.Ingestion.Services;
 
-namespace LineOps.Web.Services;
+namespace XLines.Web.Services;
 
 /// <summary>
 /// What the windows that log wagers read and write, in one seam: a board row, the journal's last
@@ -2136,18 +2136,18 @@ public sealed class WagerData(IServiceScopeFactory scopes, IngestionJobs jobs) :
 }
 ```
 
-In `src/LineOps.Web/Program.cs`, below the `WagerSlip` registration:
+In `src/XLines.Web/Program.cs`, below the `WagerSlip` registration:
 
 ```csharp
-builder.Services.AddScoped<LineOps.Web.Services.IWagerData, LineOps.Web.Services.WagerData>();
+builder.Services.AddScoped<XLines.Web.Services.IWagerData, XLines.Web.Services.WagerData>();
 ```
 
-- [ ] **Step 5: Rewrite `src/LineOps.Web/Components/Panels/BoardWager.razor`** in full:
+- [ ] **Step 5: Rewrite `src/XLines.Web/Components/Panels/BoardWager.razor`** in full:
 
 ```razor
-@using LineOps.Core.Analytics
-@using LineOps.Data.CrossReference
-@using LineOps.Web.Services
+@using XLines.Core.Analytics
+@using XLines.Data.CrossReference
+@using XLines.Web.Services
 @inherits PanelBase
 @inject IWagerData Data
 @inject DeskToasts Toasts
@@ -2228,7 +2228,7 @@ builder.Services.AddScoped<LineOps.Web.Services.IWagerData, LineOps.Web.Services
 
             <p class="empty" style="padding:0">
                 Logged against the price shown; CLV resolves once the game starts and the close is
-                recorded. LineOps records bets placed elsewhere; nothing here reaches a sportsbook.
+                recorded. XLines records bets placed elsewhere; nothing here reaches a sportsbook.
             </p>
         }
         else
@@ -2368,7 +2368,7 @@ builder.Services.AddScoped<LineOps.Web.Services.IWagerData, LineOps.Web.Services
 
 Note: the old private `Price(int)` and `Short`/`LineOf` helpers are gone — `PanelBase.Price` and `SelectionText` replace them.
 
-- [ ] **Step 6: Append the offer-block styles** to the end of `src/LineOps.Desk/wwwroot/css/lineops.css`:
+- [ ] **Step 6: Append the offer-block styles** to the end of `src/XLines.Desk/wwwroot/css/xlines.css`:
 
 ```css
 /* ---- The wager window, its advisory checks, and the slip ------------------------------ */
@@ -2386,13 +2386,13 @@ Note: the old private `Price(int)` and `Short`/`LineOf` helpers are gone — `Pa
 
 - [ ] **Step 7: Run to verify they pass, and nothing else in the Web suite broke**
 
-Run: `dotnet test tests/LineOps.Web.Tests`
+Run: `dotnet test tests/XLines.Web.Tests`
 Expected: all PASS.
 
 - [ ] **Step 8: Commit**
 
 ```powershell
-git add src/LineOps.Web/Services/WagerData.cs src/LineOps.Web/Components/Panels/BoardWager.razor src/LineOps.Web/Program.cs src/LineOps.Desk/wwwroot/css/lineops.css tests/LineOps.Web.Tests/Support/FakeWagerData.cs tests/LineOps.Web.Tests/Support/FakeAlerts.cs tests/LineOps.Web.Tests/Support/WagerTestContext.cs tests/LineOps.Web.Tests/BoardWagerTests.cs
+git add src/XLines.Web/Services/WagerData.cs src/XLines.Web/Components/Panels/BoardWager.razor src/XLines.Web/Program.cs src/XLines.Desk/wwwroot/css/xlines.css tests/XLines.Web.Tests/Support/FakeWagerData.cs tests/XLines.Web.Tests/Support/FakeAlerts.cs tests/XLines.Web.Tests/Support/WagerTestContext.cs tests/XLines.Web.Tests/BoardWagerTests.cs
 git commit -m "feat(wager): the wager window is a panel, and opens on the side a door names" -m "BoardWager was a plain component: a wager logged in it never reached an open Journal, and a pull never re-priced it. It now inherits PanelBase and watches odds and the journal. It takes a market, side and book so a price cell or a book's rung can open it on that price, and while the row loads it shows the shape of what is coming rather than 'pick a side'. Reads and writes go through IWagerData, which is what lets it be rendered in tests."
 ```
 
@@ -2401,10 +2401,10 @@ git commit -m "feat(wager): the wager window is a panel, and opens on the side a
 ### Task 8: The advisory strip and Add to slip on the wager window
 
 **Files:**
-- Create: `src/LineOps.Web/Components/Desk/CheckList.razor`
-- Rewrite: `src/LineOps.Web/Components/Panels/BoardWager.razor` (final version below)
-- Modify: `src/LineOps.Desk/wwwroot/css/lineops.css` (append)
-- Test: `tests/LineOps.Web.Tests/BoardWagerTests.cs` (append)
+- Create: `src/XLines.Web/Components/Desk/CheckList.razor`
+- Rewrite: `src/XLines.Web/Components/Panels/BoardWager.razor` (final version below)
+- Modify: `src/XLines.Desk/wwwroot/css/xlines.css` (append)
+- Test: `tests/XLines.Web.Tests/BoardWagerTests.cs` (append)
 
 **Interfaces:**
 - Consumes: `Checks`, `CheckActions`, `Check` (Task 5); `WagerSlip`, `WagerOffer.ToSlipItem` (Tasks 4–5); `IWagerData.LatestOnSideAsync`, `LinesJobAsync`, `RunJobAsync` (Task 7).
@@ -2483,7 +2483,7 @@ git commit -m "feat(wager): the wager window is a panel, and opens on the side a
     {
         var cut = Render();
 
-        cut.InvokeAsync(() => Slip.Add(new LineOps.Web.Services.SlipItem(Guid.Empty, 8, "x", DateTimeOffset.UtcNow, "nfl",
+        cut.InvokeAsync(() => Slip.Add(new XLines.Web.Services.SlipItem(Guid.Empty, 8, "x", DateTimeOffset.UtcNow, "nfl",
             Markets.Moneyline, "x", null, "draftkings", -110, DateTimeOffset.UtcNow, false, 10m, null, null, null)));
 
         cut.WaitForAssertion(() => Assert.Equal("1", cut.Find(".slip-badge").TextContent.Trim()));
@@ -2495,8 +2495,8 @@ git commit -m "feat(wager): the wager window is a panel, and opens on the side a
         var cut = Render();
         Data.Row = BoardRows.Row(homeMl: -122);
 
-        Services.GetRequiredService<LineOps.Desk.Windowing.DeskSignals>()
-            .Publish(new HashSet<string> { LineOps.Data.Changes.DataTopics.Odds });
+        Services.GetRequiredService<XLines.Desk.Windowing.DeskSignals>()
+            .Publish(new HashSet<string> { XLines.Data.Changes.DataTopics.Odds });
 
         cut.WaitForAssertion(() =>
         {
@@ -2509,7 +2509,7 @@ git commit -m "feat(wager): the wager window is a panel, and opens on the side a
     public void A_stale_price_offers_the_leagues_pull_at_its_cost_and_runs_it()
     {
         Data.Row = BoardRows.Row(age: TimeSpan.FromMinutes(45));
-        Data.LinesJob = new LineOps.Ingestion.Services.IngestionJob(
+        Data.LinesJob = new XLines.Ingestion.Services.IngestionJob(
             "odds:lines:nfl", "NFL lines", "Lines for NFL", 1, true, null, EstimatedCredits: 2);
 
         var cut = Render();
@@ -2529,10 +2529,10 @@ Add `using Microsoft.Extensions.DependencyInjection;` to the file's usings.
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~BoardWagerTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~BoardWagerTests"`
 Expected: the six new tests FAIL (no `.check`, no `.slip-badge`, no "Add to slip" key, no `.wager-moved`); the Task 7 tests still pass.
 
-- [ ] **Step 3: Implement `CheckList`.** Create `src/LineOps.Web/Components/Desk/CheckList.razor`:
+- [ ] **Step 3: Implement `CheckList`.** Create `src/XLines.Web/Components/Desk/CheckList.razor`:
 
 ```razor
 @*
@@ -2567,11 +2567,11 @@ Expected: the six new tests FAIL (no `.check`, no `.slip-badge`, no "Add to slip
 - [ ] **Step 4: Rewrite `BoardWager.razor`** with its final content (supersedes Task 7's):
 
 ```razor
-@using LineOps.Core.Analytics
-@using LineOps.Core.Entities
-@using LineOps.Data.CrossReference
-@using LineOps.Ingestion.Services
-@using LineOps.Web.Services
+@using XLines.Core.Analytics
+@using XLines.Core.Entities
+@using XLines.Data.CrossReference
+@using XLines.Ingestion.Services
+@using XLines.Web.Services
 @inherits PanelBase
 @inject IWagerData Data
 @inject WagerSlip Slip
@@ -2669,7 +2669,7 @@ Expected: the six new tests FAIL (no `.check`, no `.slip-badge`, no "Add to slip
 
             <p class="empty" style="padding:0">
                 Logged against the price shown; CLV resolves once the game starts and the close is
-                recorded. LineOps records bets placed elsewhere; nothing here reaches a sportsbook.
+                recorded. XLines records bets placed elsewhere; nothing here reaches a sportsbook.
             </p>
         }
         else
@@ -2938,7 +2938,7 @@ Expected: the six new tests FAIL (no `.check`, no `.slip-badge`, no "Add to slip
 }
 ```
 
-- [ ] **Step 5: Append the check and badge styles** to `lineops.css` (below Task 7's block):
+- [ ] **Step 5: Append the check and badge styles** to `xlines.css` (below Task 7's block):
 
 ```css
 .checks { border: 1px solid var(--separator); border-radius: 6px; }
@@ -2955,13 +2955,13 @@ Expected: the six new tests FAIL (no `.check`, no `.slip-badge`, no "Add to slip
 
 - [ ] **Step 6: Run to verify they pass**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~BoardWagerTests|FullyQualifiedName~PanelRefreshTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~BoardWagerTests|FullyQualifiedName~PanelRefreshTests"`
 Expected: all PASS (the odds test takes about a second: `PanelBase` settles before reloading).
 
 - [ ] **Step 7: Commit**
 
 ```powershell
-git add src/LineOps.Web/Components/Desk/CheckList.razor src/LineOps.Web/Components/Panels/BoardWager.razor src/LineOps.Desk/wwwroot/css/lineops.css tests/LineOps.Web.Tests/BoardWagerTests.cs
+git add src/XLines.Web/Components/Desk/CheckList.razor src/XLines.Web/Components/Panels/BoardWager.razor src/XLines.Desk/wwwroot/css/xlines.css tests/XLines.Web.Tests/BoardWagerTests.cs
 git commit -m "feat(wager): the checks before Log, and a slip to bank a wager on" -m "Between the offer and the stake the window now says what is worth knowing: the value against the fair price, how old the price is (with the league's pull and its cost when it is stale), whether the side is already in the journal, and whether the price is a close that cannot have been taken, which alone disables Log. A price that moves while the window is open is said, not swapped. Add to slip banks the wager on the desk's slip and counts it on a badge without leaving the board."
 ```
 
@@ -2970,28 +2970,28 @@ git commit -m "feat(wager): the checks before Log, and a slip to bank a wager on
 ### Task 9: The Slip window
 
 **Files:**
-- Create: `src/LineOps.Web/Components/Panels/SlipPanel.razor`
-- Modify: `src/LineOps.Web/Windowing/WindowCatalog.cs` (constant beside `Wager`, entry after the `Wager` definition)
-- Modify: `src/LineOps.Desk/wwwroot/css/lineops.css` (append)
-- Test: `tests/LineOps.Web.Tests/SlipPanelTests.cs` (create)
+- Create: `src/XLines.Web/Components/Panels/SlipPanel.razor`
+- Modify: `src/XLines.Web/Windowing/WindowCatalog.cs` (constant beside `Wager`, entry after the `Wager` definition)
+- Modify: `src/XLines.Desk/wwwroot/css/xlines.css` (append)
+- Test: `tests/XLines.Web.Tests/SlipPanelTests.cs` (create)
 
 **Interfaces:**
 - Consumes: `WagerSlip` (Task 4), `IWagerData.LogStraightsAsync`/`LogParlayAsync` (Task 7), `StakeRow` (Task 6), `IDeskAlerts`, `DeskToasts`.
 - Produces: `WindowCatalog.Slip = "slip"`; `SlipPanel` (no parameters). Markup hooks: `.slip-card`, `.slip-card--blocked`, `.slip-card__stake`, `.slip-parlay__price`, `.slip-report`, `.slip-steps li`, `.slip-why`.
 
-- [ ] **Step 1: Write the failing tests.** Create `tests/LineOps.Web.Tests/SlipPanelTests.cs`:
+- [ ] **Step 1: Write the failing tests.** Create `tests/XLines.Web.Tests/SlipPanelTests.cs`:
 
 ```csharp
 using AngleSharp.Dom;
 using Bunit;
-using LineOps.Core.Entities;
-using LineOps.Desk.Windowing;
-using LineOps.Web.Components.Panels;
-using LineOps.Web.Services;
-using LineOps.Web.Tests.Support;
-using LineOps.Web.Windowing;
+using XLines.Core.Entities;
+using XLines.Desk.Windowing;
+using XLines.Web.Components.Panels;
+using XLines.Web.Services;
+using XLines.Web.Tests.Support;
+using XLines.Web.Windowing;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// The slip: cards that say whether each wager can be logged and why not, a switch between
@@ -3146,7 +3146,7 @@ public class SlipPanelTests : WagerTestContext
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~SlipPanelTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~SlipPanelTests"`
 Expected: build error `'WindowCatalog' does not contain a definition for 'Slip'`.
 
 - [ ] **Step 3: Add the catalog entry.** In `WindowCatalog`, after `public const string Form = "form";` add:
@@ -3174,11 +3174,11 @@ and in `All`, directly after the `Wager` definition:
         },
 ```
 
-- [ ] **Step 4: Create `src/LineOps.Web/Components/Panels/SlipPanel.razor`:**
+- [ ] **Step 4: Create `src/XLines.Web/Components/Panels/SlipPanel.razor`:**
 
 ```razor
-@using LineOps.Ingestion.Services
-@using LineOps.Web.Services
+@using XLines.Ingestion.Services
+@using XLines.Web.Services
 @inherits PanelBase
 @inject WagerSlip Slip
 @inject IWagerData Data
@@ -3318,7 +3318,7 @@ and in `All`, directly after the `Wager` definition:
     }
 
     <p class="empty" style="padding:0">
-        A logged wager becomes a journal row and leaves the slip. LineOps records bets placed
+        A logged wager becomes a journal row and leaves the slip. XLines records bets placed
         elsewhere; nothing here reaches a sportsbook.
     </p>
 </div>
@@ -3452,7 +3452,7 @@ and in `All`, directly after the `Wager` definition:
 }
 ```
 
-- [ ] **Step 5: Append the slip styles** to `lineops.css`:
+- [ ] **Step 5: Append the slip styles** to `xlines.css`:
 
 ```css
 .slip-card { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--separator); border-radius: 6px; }
@@ -3471,13 +3471,13 @@ and in `All`, directly after the `Wager` definition:
 
 - [ ] **Step 6: Run to verify they pass, and the catalog-wide tests still do**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~SlipPanelTests|FullyQualifiedName~WindowBarTests|FullyQualifiedName~CommandPaletteTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~SlipPanelTests|FullyQualifiedName~WindowBarTests|FullyQualifiedName~CommandPaletteTests"`
 Expected: all PASS.
 
 - [ ] **Step 7: Commit**
 
 ```powershell
-git add src/LineOps.Web/Components/Panels/SlipPanel.razor src/LineOps.Web/Windowing/WindowCatalog.cs src/LineOps.Desk/wwwroot/css/lineops.css tests/LineOps.Web.Tests/SlipPanelTests.cs
+git add src/XLines.Web/Components/Panels/SlipPanel.razor src/XLines.Web/Windowing/WindowCatalog.cs src/XLines.Desk/wwwroot/css/xlines.css tests/XLines.Web.Tests/SlipPanelTests.cs
 git commit -m "feat(slip): a Slip window that logs the session's wagers as straight bets or one parlay" -m "Each card says whether its wager can be logged and what would fix it: ready, needs a stake, worth knowing (two on one side), or cannot log (a closing price, with the remedy). The switch makes the slip one parlay, whose price is the legs multiplied unless the book's own is typed. Log writes everything it can in one save, reports what it left and why, and leaves the slip untouched if the save fails."
 ```
 
@@ -3486,12 +3486,12 @@ git commit -m "feat(slip): a Slip window that logs the session's wagers as strai
 ### Task 10: The doors — a price cell and a book's rung open the wager window
 
 **Files:**
-- Modify: `src/LineOps.Desk/Windowing/FollowUpLauncher.cs` (`Launch`, lines 77-116)
-- Modify: `src/LineOps.Web/Components/Desk/PriceCell.razor`
-- Modify: `src/LineOps.Web/Components/Panels/BoardPanel.razor` (the six `PriceCell`s, lines 290-327; a `Take` method beside `Launch`, line 857)
-- Modify: `src/LineOps.Web/Components/Panels/BoardAllBets.razor`
-- Modify: `src/LineOps.Desk/wwwroot/css/lineops.css` (append)
-- Test: `tests/LineOps.Web.Tests/PriceCellTests.cs`, `tests/LineOps.Web.Tests/FollowUpLauncherTests.cs` (append); `tests/LineOps.Web.Tests/BoardAllBetsTests.cs` (create)
+- Modify: `src/XLines.Desk/Windowing/FollowUpLauncher.cs` (`Launch`, lines 77-116)
+- Modify: `src/XLines.Web/Components/Desk/PriceCell.razor`
+- Modify: `src/XLines.Web/Components/Panels/BoardPanel.razor` (the six `PriceCell`s, lines 290-327; a `Take` method beside `Launch`, line 857)
+- Modify: `src/XLines.Web/Components/Panels/BoardAllBets.razor`
+- Modify: `src/XLines.Desk/wwwroot/css/xlines.css` (append)
+- Test: `tests/XLines.Web.Tests/PriceCellTests.cs`, `tests/XLines.Web.Tests/FollowUpLauncherTests.cs` (append); `tests/XLines.Web.Tests/BoardAllBetsTests.cs` (create)
 
 **Interfaces:**
 - Consumes: `BoardWager` parameters `GameId`, `Market`, `Outcome`, `Book` (Task 7); `IWagerData.RowAsync` (Task 7).
@@ -3579,17 +3579,17 @@ Append inside `FollowUpLauncherTests`:
     }
 ```
 
-Create `tests/LineOps.Web.Tests/BoardAllBetsTests.cs`:
+Create `tests/XLines.Web.Tests/BoardAllBetsTests.cs`:
 
 ```csharp
 using Bunit;
-using LineOps.Desk.Windowing;
-using LineOps.Web.Components.Panels;
-using LineOps.Web.Tests.Support;
-using LineOps.Web.Windowing;
+using XLines.Desk.Windowing;
+using XLines.Web.Components.Panels;
+using XLines.Web.Tests.Support;
+using XLines.Web.Windowing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>Door 3: a book's live price in Every book opens the wager window on that book.</summary>
 public class BoardAllBetsTests : WagerTestContext
@@ -3621,7 +3621,7 @@ public class BoardAllBetsTests : WagerTestContext
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~PriceCellTests|FullyQualifiedName~FollowUpLauncherTests|FullyQualifiedName~BoardAllBetsTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~PriceCellTests|FullyQualifiedName~FollowUpLauncherTests|FullyQualifiedName~BoardAllBetsTests"`
 Expected: build error `'PriceCell' does not contain a definition for 'OnTake'` and no `Launch` overload taking a dictionary.
 
 - [ ] **Step 3: `FollowUpLauncher` overload.** Replace the body of the existing `Launch` and add the overload:
@@ -3758,10 +3758,10 @@ and likewise `Moneyline.Second`, `Spread.First`, `Spread.Second`, `Total.First`,
 - [ ] **Step 6: `BoardAllBets` (Door 3).** Replace the header usings/injections:
 
 ```razor
-@using LineOps.Core.Analytics
-@using LineOps.Data.CrossReference
-@using LineOps.Desk.Primitives
-@using LineOps.Web.Services
+@using XLines.Core.Analytics
+@using XLines.Data.CrossReference
+@using XLines.Desk.Primitives
+@using XLines.Web.Services
 @inject IWagerData Data
 @inject WindowManager Manager
 ```
@@ -3847,7 +3847,7 @@ Change the two `Cell` call sites to pass the market: `@Cell(market, market.First
 
 Add `@using Microsoft.AspNetCore.Components.Web` if `MouseEventArgs` does not resolve (it is imported in `Components/_Imports.razor`, so normally it does). `ScopeFactory` and the `BoardService` resolution are no longer used and are removed.
 
-- [ ] **Step 7: Append the take styles** to `lineops.css`:
+- [ ] **Step 7: Append the take styles** to `xlines.css`:
 
 ```css
 .price--take { cursor: pointer; }
@@ -3860,7 +3860,7 @@ Add `@using Microsoft.AspNetCore.Components.Web` if `MouseEventArgs` does not re
 
 - [ ] **Step 8: Run to verify they pass, and the whole Web suite**
 
-Run: `dotnet test tests/LineOps.Web.Tests`
+Run: `dotnet test tests/XLines.Web.Tests`
 Expected: all PASS.
 
 `BoardAllBetsTests` is the first bUnit test to render a `DeskGrid` (MudDataGrid). If it fails for a missing MudBlazor provider rather than for the behaviour under test, render the provider first in the test (`RenderComponent<MudBlazor.MudPopoverProvider>();`) and re-run; do not weaken the assertions.
@@ -3868,7 +3868,7 @@ Expected: all PASS.
 - [ ] **Step 9: Commit**
 
 ```powershell
-git add src/LineOps.Desk/Windowing/FollowUpLauncher.cs src/LineOps.Web/Components/Desk/PriceCell.razor src/LineOps.Web/Components/Panels/BoardPanel.razor src/LineOps.Web/Components/Panels/BoardAllBets.razor src/LineOps.Desk/wwwroot/css/lineops.css tests/LineOps.Web.Tests/PriceCellTests.cs tests/LineOps.Web.Tests/FollowUpLauncherTests.cs tests/LineOps.Web.Tests/BoardAllBetsTests.cs
+git add src/XLines.Desk/Windowing/FollowUpLauncher.cs src/XLines.Web/Components/Desk/PriceCell.razor src/XLines.Web/Components/Panels/BoardPanel.razor src/XLines.Web/Components/Panels/BoardAllBets.razor src/XLines.Desk/wwwroot/css/xlines.css tests/XLines.Web.Tests/PriceCellTests.cs tests/XLines.Web.Tests/FollowUpLauncherTests.cs tests/XLines.Web.Tests/BoardAllBetsTests.cs
 git commit -m "feat(board): a live price opens the wager window on itself" -m "The wager window only opened from a row, on the side with the most value, so taking any other side or book cost a hunt through the chips. A live price cell on the Board, and a book's live price in Every book, now open it on that side at that book; a close stays a reading, since it can no longer be taken. The follow-up launcher carries several parameters, and re-aims a floating window rather than stacking another."
 ```
 
@@ -3877,22 +3877,22 @@ git commit -m "feat(board): a live price opens the wager window on itself" -m "T
 ### Task 11: The Journal's parlay form retires into the slip
 
 **Files:**
-- Modify: `src/LineOps.Web/Components/Panels/JournalPanel.razor`
-- Test: `tests/LineOps.Web.Tests/JournalPanelTests.cs` (create); `tests/LineOps.Web.Tests/SelectionGuardTests.cs` (append)
+- Modify: `src/XLines.Web/Components/Panels/JournalPanel.razor`
+- Test: `tests/XLines.Web.Tests/JournalPanelTests.cs` (create); `tests/XLines.Web.Tests/SelectionGuardTests.cs` (append)
 
 **Interfaces:**
 - Consumes: `WindowCatalog.Slip` (Task 9), `StakeRow` (Task 6), `CheckList`, `Checks.Duplicate`, `Checks.DuplicateWindow` (Tasks 5, 8), `IWagerData.LatestOnSideAsync` (Task 7).
 - Produces: nothing new for later tasks.
 
-- [ ] **Step 1: Write the failing tests.** Create `tests/LineOps.Web.Tests/JournalPanelTests.cs`:
+- [ ] **Step 1: Write the failing tests.** Create `tests/XLines.Web.Tests/JournalPanelTests.cs`:
 
 ```csharp
-using LineOps.Desk.Windowing;
-using LineOps.Web.Components.Panels;
-using LineOps.Web.Tests.Support;
-using LineOps.Web.Windowing;
+using XLines.Desk.Windowing;
+using XLines.Web.Components.Panels;
+using XLines.Web.Tests.Support;
+using XLines.Web.Windowing;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// The Journal keeps Log entry as the manual door and gives parlays to the slip. Read from the
@@ -3901,7 +3901,7 @@ namespace LineOps.Web.Tests;
 public class JournalPanelTests
 {
     private static string Source()
-        => File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", "JournalPanel.razor"));
+        => File.ReadAllText(Path.Combine(Repo.Root(), "src", "XLines.Web", "Components", "Panels", "JournalPanel.razor"));
 
     [Fact]
     public void Log_parlay_is_gone()
@@ -3943,7 +3943,7 @@ Append inside `SelectionGuardTests`:
     [Fact]
     public void No_panel_declares_its_own_stake_field()
     {
-        var panels = Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels");
+        var panels = Path.Combine(Repo.Root(), "src", "XLines.Web", "Components", "Panels");
 
         var offenders = Directory.EnumerateFiles(panels, "*.razor")
             .Where(f => File.ReadAllText(f).Contains("placeholder=\"Stake\""))
@@ -3957,7 +3957,7 @@ Append inside `SelectionGuardTests`:
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `dotnet test tests/LineOps.Web.Tests --filter "FullyQualifiedName~JournalPanelTests|FullyQualifiedName~SelectionGuardTests"`
+Run: `dotnet test tests/XLines.Web.Tests --filter "FullyQualifiedName~JournalPanelTests|FullyQualifiedName~SelectionGuardTests"`
 Expected: FAIL — "Log parlay" is found, and `JournalPanel.razor` declares `placeholder="Stake"` twice.
 
 - [ ] **Step 3: Edit `JournalPanel.razor`.**
@@ -3965,7 +3965,7 @@ Expected: FAIL — "Log parlay" is found, and `JournalPanel.razor` declares `pla
 (a) Header — add after `@inject IDeskAlerts Alerts`:
 
 ```razor
-@using LineOps.Web.Services
+@using XLines.Web.Services
 @inject IWagerData Wagers
 ```
 
@@ -4114,13 +4114,13 @@ The Parlays grid, its settle menu and delete stay: logged parlays are still read
 
 - [ ] **Step 4: Run to verify they pass, then the whole Web suite**
 
-Run: `dotnet test tests/LineOps.Web.Tests`
+Run: `dotnet test tests/XLines.Web.Tests`
 Expected: all PASS.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/LineOps.Web/Components/Panels/JournalPanel.razor tests/LineOps.Web.Tests/JournalPanelTests.cs tests/LineOps.Web.Tests/SelectionGuardTests.cs
+git add src/XLines.Web/Components/Panels/JournalPanel.razor tests/XLines.Web.Tests/JournalPanelTests.cs tests/XLines.Web.Tests/SelectionGuardTests.cs
 git commit -m "feat(journal): parlays are built on the slip, and the manual entry checks for a prior bet" -m "The Journal's Log parlay form duplicated the leg fields, the stake row and the book picker; keeping it beside the slip would be two ways to log a parlay from the first day. The key is Open slip now. Log entry stays as the door for a bet the board never priced, uses the shared stake row, and says when the side it names is already in the journal."
 ```
 
@@ -4139,11 +4139,11 @@ git commit -m "feat(journal): parlays are built on the slip, and the manual entr
 
 ```sql
 --   $pw = (Select-String -Path .env -Pattern '^POSTGRES_PASSWORD=(.+)$').Matches[0].Groups[1].Value.Trim()
---   Get-Content scripts/sql/seed-test-bets.sql -Raw | docker exec -i -e "PGPASSWORD=$pw" lineops-postgres psql -U lineops -d lineops -X -v ON_ERROR_STOP=1
+--   Get-Content scripts/sql/seed-test-bets.sql -Raw | docker exec -i -e "PGPASSWORD=$pw" xlines-postgres psql -U lineops -d lineops -X -v ON_ERROR_STOP=1
 --
 -- To take the test bets out again without adding them back:
 --   'DELETE FROM "JournalEntries" WHERE "Note" = ''test bet (seed-test-bets.sql)''; DELETE FROM "Parlays" WHERE "Note" = ''test bet (seed-test-bets.sql)'';' |
---     docker exec -i -e "PGPASSWORD=$pw" lineops-postgres psql -U lineops -d lineops -X
+--     docker exec -i -e "PGPASSWORD=$pw" xlines-postgres psql -U lineops -d lineops -X
 ```
 
 - [ ] **Step 2: Exercise it (only if the local Postgres holds data and this machine is not about to publish)**
@@ -4166,9 +4166,9 @@ git commit -m "chore(scripts): test bets to exercise the wager window, the slip 
 
 Run:
 ```powershell
-dotnet build src/LineOps.Web
-dotnet build tests/LineOps.Tests
-dotnet build tests/LineOps.Web.Tests
+dotnet build src/XLines.Web
+dotnet build tests/XLines.Tests
+dotnet build tests/XLines.Web.Tests
 ```
 Expected: `Build succeeded` with `0 Error(s)` for each.
 
@@ -4179,10 +4179,10 @@ Expected: `Passed!` for both test projects, `Failed: 0`.
 
 - [ ] **Step 3: The Worker host starts**
 
-Run: `dotnet run --project src/LineOps.Worker` in the background, watch for the host's startup log (no configuration exception about duplicate `"//"` keys), then stop it with Ctrl+C.
+Run: `dotnet run --project src/XLines.Worker` in the background, watch for the host's startup log (no configuration exception about duplicate `"//"` keys), then stop it with Ctrl+C.
 Expected: the host reaches `Application started` (or the Worker's equivalent hosted-service startup line) with no exception.
 
-- [ ] **Step 4: The desk, by hand** — `dotnet run --project src/LineOps.Web --launch-profile http`, then:
+- [ ] **Step 4: The desk, by hand** — `dotnet run --project src/XLines.Web --launch-profile http`, then:
   - Board → a priced row → Place wager: lands on the most value; the strip shows three rows; Log disabled with *Needs a stake above zero.*
   - Click a different price cell on the Board: the wager window opens on that side and book.
   - Every book → a non-best book's price: the window opens on that book's price, "one of N books".

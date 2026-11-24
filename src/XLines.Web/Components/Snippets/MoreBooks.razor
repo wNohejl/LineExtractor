@@ -1,0 +1,43 @@
+@namespace XLines.Web.Components.Snippets
+
+@*
+    The row under a market's table of books: how many it shows of how many are priced, in what
+    order, and the key that shows the rest (BookRanking).
+
+    A real button that reports aria-expanded and names the count ("View 5 more books"), Plain: the
+    table's context already has its one Filled key, if any, elsewhere. It stays the same element in
+    both states, so a press keeps focus on it while the rows it controls grow or fold beneath the
+    table above it. Nothing is drawn while every priced book already shows.
+*@
+
+@if (Total > Top)
+{
+    <div class="bookmore">
+        <span class="bookmore__count">@BookRanking.CountText(Total, Expanded, Top): @BookRanking.OrderText.</span>
+        <DeskButton Size="DeskKeySize.Small" Class="bookmore__key"
+                    Icon="@(Expanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                    OnClick="ToggleAsync"
+                    aria-expanded="@(Expanded ? "true" : "false")"
+                    aria-controls="@Controls">
+            @BookRanking.KeyLabel(Total - Top, Expanded)
+        </DeskButton>
+    </div>
+}
+
+@code {
+    /// <summary>How many books priced the market.</summary>
+    [Parameter, EditorRequired] public int Total { get; set; }
+
+    /// <summary>How many show before the key.</summary>
+    [Parameter] public int Top { get; set; } = BookRanking.Top;
+
+    /// <summary>Whether every book shows.</summary>
+    [Parameter] public bool Expanded { get; set; }
+
+    [Parameter] public EventCallback<bool> ExpandedChanged { get; set; }
+
+    /// <summary>The id of the region the rows are in, for aria-controls; none when the host has none.</summary>
+    [Parameter] public string? Controls { get; set; }
+
+    private Task ToggleAsync() => ExpandedChanged.InvokeAsync(!Expanded);
+}

@@ -25,8 +25,8 @@ naming rule.
 
 ### Where the values live
 
-- `lineops.css` keeps the Standard pair (`:root, [data-theme="apple-dark"]` and `apple-light`).
-- `themes.css`, loaded after `lineops.css` and before `mud-bridge.css`, holds the eight new blocks.
+- `xlines.css` keeps the Standard pair (`:root, [data-theme="apple-dark"]` and `apple-light`).
+- `themes.css`, loaded after `xlines.css` and before `mud-bridge.css`, holds the eight new blocks.
   Each block redeclares every colour token and nothing else, exactly as the light block does
   (ADR 0016). No component rule changes: nothing below the token blocks knows which theme is
   showing, and a grep of the codebase confirms no rule keys off `data-theme`.

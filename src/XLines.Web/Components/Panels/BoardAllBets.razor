@@ -1,0 +1,280 @@
+@using XLines.Core.Analytics
+@using XLines.Data.CrossReference
+@using XLines.Desk.Primitives
+@using XLines.Web.Components.Snippets
+@using XLines.Web.Services
+@inherits PanelBase
+@inject IWagerData Data
+@inject DeskFollowUps FollowUps
+@inject WagerSlip Slip
+@inject DeskToasts Toasts
+
+@*
+    Every book's number on every market for one game.
+
+    The board deliberately shows one price per market — the best — because a board that showed
+    four would be four boards. This is where the rest of it lives: the same data the rail
+    summarises, laid out to be read rather than scanned.
+*@
+
+@* The failure line sits above whatever the window already holds, as the Board's does. Before it
+   the window waited on a read that had thrown for as long as it stayed open — the skeleton
+   keyed on the row, and a row that never came looked exactly like one still coming. *@
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        @* The first market's name and rows of books, where they will land. *@
+        <DeskSkeleton Width="60%" />
+        <DeskGrid T="string" Items="@(Array.Empty<string>())" Loading="true" SkeletonRows="3" LoadingLabel="Fetching every book's prices" />
+    }
+}
+else if (Row is null)
+{
+    @* Read, and not there: the game left the board between the click and the read. *@
+    <EmptyState Kind="EmptyStateKind.Filtered">This game is not on the board, so no book's price is held for it.</EmptyState>
+}
+else if (Row.Unpriced is { } reason)
+{
+    <Note State="DeskState.Warning">@reason</Note>
+}
+else
+{
+
+@* Each market a section card in a flow, as the windows lay out their sections (ADR 0032): the
+   market's name in the card's bar, the table of books straight in the card, the fair line and
+   what the marks mean under it. A wide row or window puts the cards side by side rather than one
+   column of thirty rows, and each card shows its top five books, the rest behind a key that says
+   how many (BookComparison, BookRanking). It was a lit-price Note over three ruled sections,
+   each a four-column table of every book capped at 720px. *@
+<div class="wflow">
+@foreach (var market in Markets())
+{
+    var m = market;
+    var (first, second, firstName, secondName, firstAbbrev, secondAbbrev) = Columns(m);
+    var region = RegionId(m.Market);
+
+    <FormGroup Title="@SelectionText.MarketWord(m.Market)" id="@region">
+        <ChildContent>
+            <BookComparison Market="@m.Market" First="first" Second="second"
+                            FirstSide="@firstName" SecondSide="@secondName"
+                            Sport="@Row!.Game.Sport?.Key" FirstAbbrev="@firstAbbrev" SecondAbbrev="@secondAbbrev"
+                            OnTake="DoorFor(m)" Controls="@region"
+                            Expanded="_expanded.Contains(m.Market)"
+                            ExpandedChanged="@((bool open) => SetExpanded(m.Market, open))" />
+        </ChildContent>
+        <Notice>
+            @* Door 3: a book's price taken here, under its market, as the Board takes a price in its
+               row — the book, the stake, what is worth knowing, Log, and Custom price… typed in
+               place. The take is a card of its own, so it opens under the market's card, never in
+               it. It used to open the Place wager window beside this one; that form is the take's
+               own escape now, its Full wager form key. *@
+            @if (_take is { } take && take.Market == m.Market && Row is { } row)
+            {
+                <div class="allbets__take">
+                    <QuickTake @key="(take, _takeSerial)" Row="row" Market="@take.Market" Outcome="@take.Outcome"
+                               Book="@take.Book" Matchup="@Matchup(row.Game)"
+                               OnClose="CloseTake"
+                               OnOpenForm="@(((string Book, decimal Stake) form) => OpenForm(take, form.Book, form.Stake))"
+                               OnOpenTyped="@((TypedTake typed) => OpenForm(take, typed.Book, typed.Stake, typed))"
+                               OnViewSlip="ViewSlip" />
+                </div>
+            }
+        </Notice>
+        <Footer>@FootOf(m)</Footer>
+    </FormGroup>
+}
+</div>
+
+}
+
+@code {
+    /// <summary>
+    /// The game this view is about. Taken as an id rather than a row so the view can be hosted
+    /// as a desk window, which is rebuilt from its parameters and cannot carry an object.
+    /// </summary>
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    private BoardRow? Row;
+
+    protected override string LoadSubject => "Every book";
+
+    /// <summary>The game the window was last aimed at; aimed at another, it puts the take away.</summary>
+    private int? _shownFor;
+
+    /// <summary>
+    /// The markets showing every book, by key. The window's, not the table's: a refresh or a take
+    /// opening redraws the tables, and a market the operator opened stays open while the window
+    /// does. Re-aimed at another game, every market folds back to its top five.
+    /// </summary>
+    private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
+
+    /// <summary>Per instance, so two of these on one desk do not share their cards' ids.</summary>
+    private readonly string _ids = Guid.NewGuid().ToString("N")[..8];
+
+    protected override Task OnParametersSetAsync()
+    {
+        // A take is one game's side and book. Re-aimed at another game, the window kept it open,
+        // and it drew against the new game's row with the old game's side.
+        if (_shownFor != GameId)
+        {
+            _shownFor = GameId;
+            CloseTake();
+            _expanded.Clear();
+        }
+
+        return LoadAsync();
+    }
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    /// <summary>
+    /// The game's row, through the rail every window loads on: the pulse shows the read, and a
+    /// read that throws stays in this window as a failure line with a retry, rather than escaping
+    /// the lifecycle and taking the circuit with it.
+    /// </summary>
+    private Task LoadAsync()
+        => WithActivityAsync(async () => Row = await Data.RowAsync(GameId), settle: () => PulseState.Healthy);
+
+    private IEnumerable<MarketPair> Markets()
+    {
+        if (Row is null)
+            yield break;
+
+        yield return Row.Moneyline;
+        yield return Row.Spread;
+        yield return Row.Total;
+    }
+
+    private string RegionId(string market) => $"allbets-{_ids}-{market}";
+
+    private void SetExpanded(string market, bool open)
+    {
+        if (open)
+            _expanded.Add(market);
+        else
+            _expanded.Remove(market);
+    }
+
+    /// <summary>
+    /// The two price columns in the order the game reads, as the Game window and Line movement
+    /// order a market's sides: away then home ("Bills at Chiefs"), Over then Under, and a fight's
+    /// red corner (home) first, as its card bills it (ADR 0021). The pair lists home first
+    /// (BoardRow), so a team game's columns are its Second, then its First.
+    /// </summary>
+    private (BestOffer? First, BestOffer? Second, string FirstName, string SecondName, string? FirstAbbrev, string? SecondAbbrev)
+        Columns(MarketPair market)
+    {
+        var game = Row!.Game;
+
+        if (market.Market == XLines.Core.Entities.Markets.Total)
+            return (market.First, market.Second, "Over", "Under", null, null);
+
+        var home = (market.First, game.HomeTeam?.Name ?? "Home", game.HomeTeam?.Abbrev);
+        var away = (market.Second, game.AwayTeam?.Name ?? "Away", game.AwayTeam?.Abbrev);
+        var (a, b) = FightSports.IsFight(game.Sport?.Key) ? (home, away) : (away, home);
+
+        return (a.Item1, b.Item1, a.Item2, b.Item2, a.Item3, b.Item3);
+    }
+
+    /// <summary>
+    /// The sentence under a market's card: the fair line it is measured against, spelled as every
+    /// surface spells it, then what the marks mean. Nothing for a market no book has priced.
+    /// </summary>
+    private static string? FootOf(MarketPair market)
+    {
+        if (!market.IsPriced)
+            return null;
+
+        var fair = BookRanking.FairText(market.First, market.Second);
+        var lead = fair.Length > 0 ? fair + "." : "No fair price: too few books on this number to read one.";
+
+        return $"{lead} The best price on each side is marked, and a price's edge against fair follows it.";
+    }
+
+    /// <summary>
+    /// A live rung is a door (spec §5.3): pressed, its take opens under the market; Shift-pressed,
+    /// it goes onto the slip as a parlay leg. On a visitor's desk nothing is a door: there is no
+    /// wager to log (ADR 0018).
+    /// </summary>
+    private EventCallback<BookDoor> DoorFor(MarketPair market)
+        => Manager.Access.CanOperate
+            ? EventCallback.Factory.Create<BookDoor>(this, (BookDoor door) =>
+            {
+                if (door.Shift)
+                    Bank(market, door.Offer, door.Book);
+                else
+                    Take(market, door.Offer, door.Book);
+            })
+            : default;
+
+    /// <summary>A price taken here: which side, from which book.</summary>
+    private sealed record TakeRequest(string Market, string Outcome, string Book);
+
+    private TakeRequest? _take;
+
+    /// <summary>Bumped each time a take opens, so a new press is a fresh take, not the last one re-aimed.</summary>
+    private int _takeSerial;
+
+    /// <summary>
+    /// Door 3: a book's live price opens its take under the market — no window beside this one.
+    /// The same price pressed again puts it away.
+    /// </summary>
+    private void Take(MarketPair market, BestOffer offer, string book)
+    {
+        if (Row is null)
+            return;
+
+        var asked = new TakeRequest(market.Market, offer.Outcome, book);
+
+        if (_take == asked)
+        {
+            CloseTake();
+            return;
+        }
+
+        _take = asked;
+        _takeSerial++;
+    }
+
+    private void CloseTake() => _take = null;
+
+    /// <summary>
+    /// The take's escape, the full wager form on the same side and book, with the stake typed so
+    /// far and a typed price carried. Door 3 floats above the desk when it is full, as the Board's
+    /// doors do — on the desk's own layer, not one drawn in here: Every book is often itself a
+    /// floating dialog, and a dialog drawn inside another is positioned against it and clipped by it.
+    /// </summary>
+    private void OpenForm(TakeRequest take, string book, decimal stake, TypedTake? typed = null)
+    {
+        if (Row is null)
+            return;
+
+        FollowUps.Launcher.Launch(Manager, WindowCatalog.Wager,
+            TypedTake.Door(Row.Game.Id, take.Market, take.Outcome, book.Length > 0 ? book : take.Book, stake, typed),
+            Row.Game.Id, Matchup(Row.Game), "480px");
+        CloseTake();
+    }
+
+    private void ViewSlip() => _ = InvokeAsync(() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!));
+
+    /// <summary>Door 3, shifted: this book's live price goes onto the slip as a parlay leg.</summary>
+    private void Bank(MarketPair market, BestOffer offer, string book)
+    {
+        if (Row is null || WagerOffer.AtBook(market.Market, offer, book) is not { } price)
+            return;
+
+        var matchup = $"{Row.Game.AwayTeam?.Name ?? "Away"} at {Row.Game.HomeTeam?.Name ?? "Home"}";
+        Slip.AddLeg(price.ToSlipItem(Row.Game, matchup, 0m, null));
+
+        var legs = Slip.Items.Count(i => i.AsLeg);
+        Toasts.Added($"Added a leg: {price.Label} {OddsMath.FormatPrice(price.PriceAmerican)} ({price.Book}) · "
+                     + $"{legs} {(legs == 1 ? "leg" : "legs")} on the slip.",
+            "View slip", () => _ = InvokeAsync(() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!)));
+    }
+}

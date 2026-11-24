@@ -58,4 +58,4 @@ jobs:
       # Fails if an entity change was made without a matching migration — the most common
       # way a schema drifts away from its model between environments.
       - name: Check for pending model changes
-        run: dotnet ef migrations has-pending-model-changes --project src/LineOps.Data --no-build
+        run: dotnet ef migrations has-pending-model-changes --project src/XLines.Data --no-build

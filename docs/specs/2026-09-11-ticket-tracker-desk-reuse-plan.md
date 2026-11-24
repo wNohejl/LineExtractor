@@ -1,4 +1,4 @@
-# Reusing the LineOps desk for a ticket price tracker
+# Reusing the XLines desk for a ticket price tracker
 
 **Date:** 2026-09-11
 **Status:** Plan, researched against `LineX_Development` at `9b5c2fe`
@@ -6,13 +6,13 @@
 
 The second project is a ticket price tracker: compile the price of a given event's tickets
 from several marketplaces on a schedule, keep the history, and show where the best price is
-now and how it got there. This document records what in LineOps is reusable, what is not,
+now and how it got there. This document records what in XLines is reusable, what is not,
 where the price data can come from, and a phased plan for building it on the same stack
 (.NET 10, Blazor Interactive Server, MudBlazor 9.7, PostgreSQL 17, Docker).
 
 The short version: **the desk is domain-free apart from five files, the reliability layer is
 domain-free entirely, and the ingestion layer's shape transfers whole.** A ticket tracker is
-LineOps with events instead of games, marketplaces instead of books, and a price
+XLines with events instead of games, marketplaces instead of books, and a price
 observation instead of an odds snapshot. Most of the work is the domain, not the chrome.
 
 ---
@@ -26,11 +26,11 @@ observation instead of an odds snapshot. Most of the work is the domain, not the
 | `Components/Desk/` | 43 | 3,926 | The primitive set: buttons, fields, grid, tabs, sheets, dialogs, toasts, metrics, chart |
 | `Components/Layout/` | 4 | 309 | `MainLayout`, reconnect modal |
 | `Theming/` | 3 | — | `DeskTheme` tokens and `MudTheme`, `ThemeService`, mode |
-| `wwwroot/css/` | 2 | 4,096 | `lineops.css` — the whole visual system |
+| `wwwroot/css/` | 2 | 4,096 | `xlines.css` — the whole visual system |
 | `wwwroot/js/` | 4 | 616 | `desk-glide`, `windowing`, `theme`, `dialogs` |
 | `Components/Panels/` | 19 | 6,467 | **Sports domain.** Board, Game, Team, Player, Journal, Ops, … |
 | `Components/Snippets/` | 5 | 608 | **Sports domain.** Floating follow-ups |
-| `tests/LineOps.Web.Tests` | 16 | — | bUnit render tests on a `DeskTestContext` bench |
+| `tests/XLines.Web.Tests` | 16 | — | bUnit render tests on a `DeskTestContext` bench |
 
 The design is recorded in three ADRs, which the new project should adopt as written:
 
@@ -49,9 +49,9 @@ Only five files under the infrastructure directories reference the sports domain
 |---|---|---|
 | `Windowing/WindowCatalog.cs` | every panel type, the workspace list | **App-owned by design.** Each app writes its own. |
 | `Windowing/WindowShortcuts.cs` | catalogue keys (`Team`, `Player`, `Game`, …) | **App-owned.** Each app writes its own. |
-| `Components/Desk/PriceCell.razor` | `BestOffer` from `LineOps.Data.CrossReference` | Sports. Becomes a `PriceCell` over a ticket offer, or is dropped. |
+| `Components/Desk/PriceCell.razor` | `BestOffer` from `XLines.Data.CrossReference` | Sports. Becomes a `PriceCell` over a ticket offer, or is dropped. |
 | `Components/Desk/PullMenu.razor` | `IngestionJobs` | Generic in shape; the job list is data. Keep, point at the new `IngestionJobs`. |
-| `Components/Desk/RunbookSteps.razor` | `LineOps.Reliability.Runbook` | Reliability is being carried over whole, so this comes with it. |
+| `Components/Desk/RunbookSteps.razor` | `XLines.Reliability.Runbook` | Reliability is being carried over whole, so this comes with it. |
 
 Inside the windowing core itself the coupling is three lines and two brand marks:
 
@@ -59,7 +59,7 @@ Inside the windowing core itself the coupling is three lines and two brand marks
   `WindowCatalog.Ops` once as the default primary; `WindowShortcuts.cs` is entirely
   catalogue lookups. The catalogue is a static class.
 - The wordmark `LINE<em>OPS</em>` is hard-coded in `Desk.razor` (empty desk) and
-  `RailMenu.razor` (brand trigger). `lineops.css` contains the string once. The theme id is
+  `RailMenu.razor` (brand trigger). `xlines.css` contains the string once. The theme id is
   `apple-dark`, not a product name.
 
 Everything else in `Windowing/`, `Components/Windowing/`, `Components/Desk/` (40 of 43 files),
@@ -82,10 +82,10 @@ names suggest.
 
 **Generic, carry over whole**
 
-- `LineOps.Reliability` — touches only `IngestionRuns`, `Sources`, `Alerts`, `Incidents`,
+- `XLines.Reliability` — touches only `IngestionRuns`, `Sources`, `Alerts`, `Incidents`,
   `KpiDailies`. Freshness, success rate, volume anomaly, budget burn, the alert engine,
   incidents that cannot close without a root cause, the runbook. Nothing sports in it.
-- `LineOps.Observability` — OpenTelemetry wiring.
+- `XLines.Observability` — OpenTelemetry wiring.
 - Ingestion services with no domain reference: `IngestionScheduler` (state-driven, no fixed
   hours), `CreditBudgetGuard` + `BudgetCalculator` (a source declares per-hour, per-day or
   monthly limits; the guard refuses a run rather than overrun), `BackfillCoordinator`,
@@ -134,7 +134,7 @@ display and attribution.
 |---|---|---|---|
 | **SeatGeek Platform API** | Free `client_id` from seatgeek.com/account/develop, passed as a query parameter. No rate limit published. | `/events` with search, performer, venue, date and taxonomy filters; each event carries a `stats` block: `lowest_price`, `average_price`, `highest_price`, `listing_count`. **No per-listing or per-section prices** — the FAQ says there are no plans to expose them. | **Primary.** Exactly the "one number per source per observation" the board wants. |
 | **Ticketmaster Discovery API v2** | Free key from developer.ticketmaster.com. **5,000 calls/day, 5 requests/second.** | Event search; each event carries `priceRanges` (type `standard`, currency, `min`, `max`) for US, CA, AU, NZ, MX; max is capped at 2,000 with `listingsExtendBeyondMax`. Primary-market prices, so a different signal from the resale sites. Note the Discovery *Feed* (bulk file) dropped price fields on 2025-03-11; the API still returns them. | **Primary.** The quota maps straight onto `Source.RateLimitPerDay`. |
-| **StubHub API** | By application: affiliates@stubhub.com for buyer-side apps. Catalog and Sales APIs. | Resale listings and prices once approved. | **Phase 2.** Write the adapter against the contract; register it when a key arrives, the way LineOps handles an odds key. |
+| **StubHub API** | By application: affiliates@stubhub.com for buyer-side apps. Catalog and Sales APIs. | Resale listings and prices once approved. | **Phase 2.** Write the adapter against the contract; register it when a key arrives, the way XLines handles an odds key. |
 | **Vivid Seats, TickPick** | No public API. Only third-party scrapers (Apify and the like). | Per-listing prices with section and row. | **Out of scope initially.** Their user agreements are arbitration-bound and scraping is a terms question the project should not start on. The adapter contract leaves the door open. |
 
 Two consequences for the design:
@@ -143,14 +143,14 @@ Two consequences for the design:
   highest, listing count), not a listing. That keeps the board honest across sources that
   will never give listings, and it is what makes store-on-change cheap.
 - Primary (Ticketmaster) and resale (SeatGeek, StubHub) prices are different markets. The
-  board should say which it is showing, the way LineOps says "closed" versus live — and never
+  board should say which it is showing, the way XLines says "closed" versus live — and never
   average them together, per the reasoning in ADR 0011.
 
 ---
 
-## 4. The ticket domain, mapped onto LineOps
+## 4. The ticket domain, mapped onto XLines
 
-| LineOps | Ticket tracker | Notes |
+| XLines | Ticket tracker | Notes |
 |---|---|---|
 | `Sport` | `Category` (concert, sport, theatre — SeatGeek taxonomy ids) | `Enabled` gates the pickers, reconciled from config on start. |
 | `Team` / `Player` | `Performer` | Artist, team, production. `ExternalIds` jsonb per source. |
@@ -161,14 +161,14 @@ Two consequences for the design:
 | `ClosingLine` | `FinalPrice` | One row per event per source, promoted at event start; the stream is pruned after. |
 | `JournalEntry` (a wager) | `Purchase` | What you paid, where, when, how many. |
 | CLV | Paid-versus-final | `Purchase` joined to `FinalPrice`; positive means you beat the day-of price. |
-| — | `Watch` | New. An event the operator is tracking, with an optional target price and a notify-on-drop flag. Watches are what the scheduler polls; nothing is fetched unasked (the LineOps rule). |
+| — | `Watch` | New. An event the operator is tracking, with an optional target price and a notify-on-drop flag. Watches are what the scheduler polls; nothing is fetched unasked (the XLines rule). |
 | `Alert` rules: freshness, success rate, volume, budget | Same four, plus `price_drop` and `target_reached` per watch | The engine is untouched; two rules are added. |
 
 The **cadence** comes from `LinePollPlanner`'s idea rather than its code: what is left of a
 source's daily allowance, minus a reserve, divided by the cost of one sweep over the
 watchlist, spread over the hours remaining. Ticketmaster's 5,000/day makes this concrete:
 40 watched events at one request each is 200 sweeps a day, or one every seven minutes, and
-the planner should say so on the Ops window as LineOps does.
+the planner should say so on the Ops window as XLines does.
 
 The **partition** function is the same SQL with a new name; the retention service is the
 same code with `OddsSnapshots` renamed.
@@ -177,9 +177,9 @@ same code with `OddsSnapshots` renamed.
 
 ## 5. The window catalogue for the tracker
 
-Every LineOps window has a direct counterpart; the catalogue groups are unchanged.
+Every XLines window has a direct counterpart; the catalogue groups are unchanged.
 
-| Group | LineOps | Tracker | What changes |
+| Group | XLines | Tracker | What changes |
 |---|---|---|---|
 | Data | Board | **Watchlist** | Best current price per watched event, the source holding it, and a spread rail with one tick per source. Primary and resale badged, never merged. |
 | Data | Line movement | **Price history** | The chart: lowest price per source over time, event start marked, purchases marked. |
@@ -191,7 +191,7 @@ Every LineOps window has a direct counterpart; the catalogue groups are unchange
 | Destinations | Game / Team / Player / H2H | **Event / Performer / Venue** | `RequiresSubject`, opened by following a name. |
 | Follow-ups | All bets / Place wager / Form | **All sources / Log purchase / Trend** | Same floating layer, same `FollowUpLauncher`. |
 
-The board-to-purchase workflow is the LineOps one: click a row, three actions appear, each
+The board-to-purchase workflow is the XLines one: click a row, three actions appear, each
 opens a window while there is room and floats when there is not.
 
 ---
@@ -202,7 +202,7 @@ opens a window while there is room and floats when there is not.
 
 1. New repository, `TicketOps` (or your name). Copy `Directory.Packages.props`, `.gitattributes`,
    `.gitignore`, `.editorconfig`, `docker-compose.yml`, `compose/dev.yml`, `.env.example`,
-   `scripts/`, `.github/workflows/ci.yml`, `CLAUDE.md`. Rename `lineops` in compose and
+   `scripts/`, `.github/workflows/ci.yml`, `CLAUDE.md`. Rename `xlines` in compose and
    scripts (container name, database, user, partition function).
 2. Solution with the same seven projects, renamed. Keep the `Directory.Packages.props`
    central versioning; MudBlazor stays at 9.7.0 so the desk CSS matches.
@@ -214,13 +214,13 @@ Copy, do not extract yet (see §7 for why):
 1. `Windowing/` minus `WindowCatalog.cs` and `WindowShortcuts.cs`; `Components/Windowing/`;
    `Components/Desk/` minus `PriceCell.razor`, `PullMenu.razor`, `RunbookSteps.razor` (the
    last two return in Phase 3 once ingestion and reliability exist); `Components/Layout/`;
-   `Theming/`; `wwwroot/css/lineops.css` (rename), `wwwroot/js/`.
+   `Theming/`; `wwwroot/css/xlines.css` (rename), `wwwroot/js/`.
 2. Make the two brand marks a parameter: a `DeskBrand` record (wordmark, tagline) registered
    in DI and read by `Desk.razor` and `RailMenu.razor`.
 3. Write the new `WindowCatalog` with the §5 entries pointing at placeholder panels, and a
    `WindowShortcuts` for Event / Performer / Venue. `WindowModels.cs` line 120 names the
    default primary window; point it at Watchlist.
-4. Copy `tests/LineOps.Web.Tests` minus `PriceCellTests`; the bench and fifteen files should
+4. Copy `tests/XLines.Web.Tests` minus `PriceCellTests`; the bench and fifteen files should
    pass on the first build. This is the acceptance test for the lift.
 5. Copy ADRs 0007, 0013, 0016 into the new `docs/adr` with a note that they were adopted.
 
@@ -237,13 +237,13 @@ Copy, do not extract yet (see §7 for why):
    Ticketmaster (`/discovery/v2/events` with `keyword`/`attractionId`, read `priceRanges`).
    Both behind `HttpClient` with the retry, circuit-breaker and per-attempt timeout policies
    copied from `IngestionServiceCollectionExtensions`, and a User-Agent set explicitly (the
-   ESPN outage in LineOps was an absent User-Agent).
+   ESPN outage in XLines was an absent User-Agent).
 4. `EventResolver`: fast path on `ExternalIds[source]`; slow path on performer + venue +
    start within six hours; only the source that created the event may move its start.
 5. `PriceIngestionService`: reserve budget, fetch for the watchlist, resolve, write only
    observations whose lowest, average, highest or listing count changed.
 6. Integration tests on the Postgres fixture for: store-on-change, resolver drift, budget
-   refusal. Adapter parse tests from saved JSON fixtures, as `tests/LineOps.Tests/Adapters`
+   refusal. Adapter parse tests from saved JSON fixtures, as `tests/XLines.Tests/Adapters`
    does.
 
 ### Phase 3 — Operations and the scheduler (3 days)
@@ -254,8 +254,8 @@ Copy, do not extract yet (see §7 for why):
    `RetentionService` promoting `FinalPrice` at event start and pruning after;
    `ReferenceReconciler` as-is.
 3. `IngestionJobs` with named jobs: `watchlist:prices`, `events:discover`, `prices:finalise`.
-   `PullMenu` and `RunbookSteps` return from LineOps now that their dependencies exist.
-4. Ops, Incidents, Runs windows are the LineOps panels with the source names changed.
+   `PullMenu` and `RunbookSteps` return from XLines now that their dependencies exist.
+4. Ops, Incidents, Runs windows are the XLines panels with the source names changed.
 
 ### Phase 4 — The tracker's own windows (1 to 2 weeks)
 
@@ -293,11 +293,11 @@ approval or scraping, and the plan does not depend on either.
 products. Badge them; never average them. This is ADR 0011's point restated.
 
 **Terms and quotas.** Ticketmaster's 5,000/day is the binding constraint on how many events
-can be watched; the budget guard refuses rather than overruns, as in LineOps. Check each
+can be watched; the budget guard refuses rather than overruns, as in XLines. Check each
 portal's terms on caching and display before the first public deploy; keep source attribution
 on every price cell.
 
-**What LineOps taught this week that the new project should start with:** a matching window is
+**What XLines taught this week that the new project should start with:** a matching window is
 one fixture's drift, not a calendar day; only the schedule authority moves a start time; a
 reference number from a stats-style source must never enter a market ranking; a results sweep
 must back off a day it cannot heal; the enabled flags on reference rows are the configuration's

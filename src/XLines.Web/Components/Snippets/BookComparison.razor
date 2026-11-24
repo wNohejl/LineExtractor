@@ -1,0 +1,174 @@
+@namespace XLines.Web.Components.Snippets
+@using XLines.Data.CrossReference
+@using XLines.Web.Components.Panels
+
+@*
+    Every book's number on both sides of one market, a row per book: the one book table the desk
+    draws wherever a market is laid out book by book — the Board row's More bets, the Game
+    window's market opened in place (once its scans are folded into closes), and the More bets
+    window. It used to be two tables with two vocabularies: one lit the best price green and dimmed
+    the rest, wrote "+1.2% EV" only on a live price, and ordered the books by key; the other marked
+    the best by weight and an accent dot, headed its first column "Close", wrote a total's number
+    without its o/u, and ordered by name.
+
+    One spelling now, the Line movement window's: Book, then the two sides in the order the game
+    reads (away then home, Over then Under — the caller's First and Second), then Hold. A price is
+    written as Line movement quotes one ("+3.5 -110", "o47.5 -105"); its edge against fair follows
+    it as the value check writes an edge ("+2.1%"), positive in the positive ink because that is a
+    fact about the value; the best price on each side is heavier and carries a dot and the words
+    ", best" for a screen reader — never colour alone, and never the accent, which is for what can
+    be pressed. The books are ranked (BookRanking) and capped at the top five, the rest behind a
+    key under the table that says how many (MoreBooks).
+
+    No wrapper element: the grid is the card's own child where the host puts it straight in a
+    FormGroup, so the card frames it (desk.css, ".wgroup > .deskgrid") and nothing frames it twice.
+*@
+
+@{
+    var ranked = BookRanking.Priced(First, Second);
+    var shown = BookRanking.Visible(ranked, IsExpanded, Top);
+}
+
+@if (ranked.Count == 0)
+{
+    <EmptyState Kind="EmptyStateKind.New">Not priced by any book yet.</EmptyState>
+}
+else
+{
+    <DeskGrid T="string" Items="shown" Sortable="false" Resizable="false" Class="bookcmp" EmptyText="Not priced by any book yet.">
+        @* The row's label: the book's own name ("DraftKings"), never the feed's key. *@
+        <PropertyColumn T="string" TProperty="string" Property="b => b" Title="Book" Sortable="false">
+            <CellTemplate>@BookNames.Display(context.Item)</CellTemplate>
+        </PropertyColumn>
+
+        @* A club's column is headed by its crest and name; Over and Under are words. *@
+        <TemplateColumn T="string" Title="@FirstSide" Align="Align.Right" Sortable="false">
+            <HeaderTemplate><TeamMark Sport="@Sport" Abbrev="@FirstAbbrev" />@FirstSide</HeaderTemplate>
+            <CellTemplate>@Cell(First, context.Item)</CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="string" Title="@SecondSide" Align="Align.Right" Sortable="false">
+            <HeaderTemplate><TeamMark Sport="@Sport" Abbrev="@SecondAbbrev" />@SecondSide</HeaderTemplate>
+            <CellTemplate>@Cell(Second, context.Item)</CellTemplate>
+        </TemplateColumn>
+
+        @if (ShowHold)
+        {
+            @* What the book keeps: its two prices' overshoot past certainty. The cheapest book to
+               bet into over a season is the one with the lowest number here. *@
+            <TemplateColumn T="string" Title="Hold" Align="Align.Right" Sortable="false">
+                <CellTemplate>
+                    @if (BookRanking.Hold(context.Item, First, Second) is { } hold)
+                    {
+                        <span class="dim num">@((hold * 100).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))%</span>
+                    }
+                    else
+                    {
+                        @* Said in the cell, not in a title only a pointer raises (HIG 12): there is no
+                           hold without both sides quoted on the same number. *@
+                        <span class="dim">no pair</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        }
+    </DeskGrid>
+
+    <MoreBooks Total="ranked.Count" Top="Top" Expanded="IsExpanded" ExpandedChanged="SetExpandedAsync" Controls="@Controls" />
+}
+
+@code {
+    /// <summary>The market's key (<see cref="Markets"/>).</summary>
+    [Parameter, EditorRequired] public string Market { get; set; } = Markets.Moneyline;
+
+    /// <summary>The side in the first price column: away (a fight: the red corner), or Over.</summary>
+    [Parameter] public BestOffer? First { get; set; }
+
+    /// <summary>The side in the second price column: home (a fight: the blue corner), or Under.</summary>
+    [Parameter] public BestOffer? Second { get; set; }
+
+    /// <summary>The columns' names: "Chiefs", "Over".</summary>
+    [Parameter, EditorRequired] public string FirstSide { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string SecondSide { get; set; } = string.Empty;
+
+    /// <summary>The game's sport key and the clubs' abbreviations, for the columns' crests; none on a total.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    [Parameter] public string? FirstAbbrev { get; set; }
+
+    [Parameter] public string? SecondAbbrev { get; set; }
+
+    /// <summary>Draw the Hold column. The Game window's market in place has no room for it beside its two sides.</summary>
+    [Parameter] public bool ShowHold { get; set; } = true;
+
+    /// <summary>
+    /// A live price pressed: which side, which book, and whether Shift was down. Given, every live
+    /// (not closing) price is a button; not given, every price is a reading.
+    /// </summary>
+    [Parameter] public EventCallback<BookDoor> OnTake { get; set; }
+
+    /// <summary>How many books show before the key.</summary>
+    [Parameter] public int Top { get; set; } = BookRanking.Top;
+
+    /// <summary>
+    /// Whether every book shows. Bound by a host that keeps the state itself (so it outlives this
+    /// component); left unbound, the component keeps it for as long as it is on the page.
+    /// </summary>
+    [Parameter] public bool? Expanded { get; set; }
+
+    [Parameter] public EventCallback<bool> ExpandedChanged { get; set; }
+
+    /// <summary>The id of the region holding the table, for the key's aria-controls.</summary>
+    [Parameter] public string? Controls { get; set; }
+
+    private bool _expanded;
+
+    private bool IsExpanded => ExpandedChanged.HasDelegate ? Expanded ?? false : _expanded;
+
+    private async Task SetExpandedAsync(bool expanded)
+    {
+        _expanded = expanded;
+
+        if (ExpandedChanged.HasDelegate)
+            await ExpandedChanged.InvokeAsync(expanded);
+    }
+
+    private RenderFragment Cell(BestOffer? side, string book) => __builder =>
+    {
+        if (side is null || BookRanking.Rung(book, side) is not { } rung)
+        {
+            <span class="dim">—</span>
+            return;
+        }
+
+        var best = BookRanking.IsBest(book, side);
+
+        if (OnTake.HasDelegate && !side.IsClosing)
+        {
+            @* A live rung is a door (spec §5.3). A close stays a reading: it can no longer be taken. *@
+            <button type="button" class="take" title="Click to log this price. Shift-click adds it to the slip as a parlay leg."
+                    @onclick="@((MouseEventArgs e) => OnTake.InvokeAsync(new BookDoor(side, book, e.ShiftKey)))">
+                @Price(rung, side, best)
+            </button>
+        }
+        else
+        {
+            @Price(rung, side, best)
+        }
+    };
+
+    private RenderFragment Price(BookPrice rung, BestOffer side, bool best) => __builder =>
+    {
+        <span class="bookcmp__quote @(best ? "bookcmp__best" : null)">@BookRanking.Quote(rung, side.Outcome)</span>
+        @if (best)
+        {
+            <span class="bookcmp__dot" aria-hidden="true">●</span>
+            <span class="sr-only">, best</span>
+        }
+        @if (rung.Ev is { } ev)
+        {
+            @* Value against the fair price at this book's number, where there is one. *@
+            <span class="bookcmp__ev @(ev > 0 ? "up" : "dim")">@Checks.Percent(ev)</span>
+        }
+    };
+}

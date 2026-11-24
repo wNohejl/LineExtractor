@@ -1,0 +1,270 @@
+@using XLines.Data
+@using XLines.Desk.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<XLinesDbContext> DbFactory
+
+@* The quiet columns here are .quiet, not .dim. .dim is --text-tertiary — the tier for an
+   annotation nobody has to read — and it measures 2.70:1 on the panel, below WCAG AA. A job
+   key, a start time, a duration, a request count and a run's detail are the reading, not
+   an aside: they sit a step under the row at --text-secondary (5.71:1), which passes. A failed
+   run's error is .down, --state-negative-ink, which passes too. *@
+
+<PanelToolbar>
+    <ChildContent>
+        <DeskSelect TValue="string" aria-label="Source"
+                    Value="_sourceFilter" ValueChanged="OnSourceChanged">
+            <option value="">All sources</option>
+            @foreach (var s in _sources)
+            {
+                <option value="@s.Id">@s.Name</option>
+            }
+        </DeskSelect>
+
+        <DeskSelect TValue="string" aria-label="State"
+                    Value="_statusFilter" ValueChanged="OnStatusChanged">
+            <option value="">Any state</option>
+            @foreach (var s in Enum.GetValues<RunStatus>())
+            {
+                <option value="@s">@s</option>
+            }
+        </DeskSelect>
+    </ChildContent>
+    <Actions>
+        <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
+            Refresh
+        </DeskButton>
+    </Actions>
+</PanelToolbar>
+
+@* No section rule over the table: the window is called Runs and the table is all it holds, so a
+   rule saying "Runs" again named nothing. What the table is for is its footer, under it in the
+   secondary colour, rather than a filled note between the toolbar and the rows. *@
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (Loaded || !Failed)
+{
+@* A run that failed or half-failed reads at full ink across its row, routine ones a step under: the
+   failure stands out by weight of the words, without a tint on anything that can be pressed. *@
+<DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet. A run lands here when a job is pulled or scheduled."
+          Loading="@(!Loaded)" LoadingLabel="Fetching runs"
+          RowClassFunc="@((r, _) => r.Status is RunStatus.Failed or RunStatus.Partial ? "opsrun--exception" : string.Empty)">
+    @* Success is the expected outcome, so it is a check mark in the secondary ink, its word
+       kept for a screen reader; a run that failed or half-failed keeps its tag. Two hundred
+       green capsules was a wall of colour, and two hundred "Success" in grey was a wall of
+       words: either way the failed row it was there to show was hard to find. *@
+    <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            @if (context.Item.Status == RunStatus.Success)
+            {
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Success</span></span>
+            }
+            else
+            {
+                <Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* A source's runs are its own window, so the name is the way through to them. A name is
+       one reading and does not break; in a narrow window the column gives way to the detail,
+       which names the source itself on a row that has nothing else to say. *@
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Source!.Name" Title="Source"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <CellTemplate>
+            <DeskLink Destination="source"
+                      Icon="@Icons.Material.Filled.MonitorHeart"
+                      OnClick="() => Manager.OpenRuns(context.Item.SourceId, context.Item.Source?.Name)">
+                @context.Item.Source?.Name
+            </DeskLink>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.JobKey" Title="Job"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <CellTemplate><span class="mono quiet">@context.Item.JobKey</span></CellTemplate>
+    </PropertyColumn>
+
+    @* To the minute, on one line: the seconds broke the stamp over two lines in a window beside
+       the Board, and how long a run took is the Took column's reading, not this one's. *@
+    <PropertyColumn T="IngestionRun" TProperty="DateTimeOffset" Property="r => r.StartedAt"
+                    Title="@($"Started ({DisplayTime.Label})")" Align="Align.Right" InitialDirection="SortDirection.Descending"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <span class="quiet">@DisplayTime.Format(context.Item.StartedAt, "MMM d HH:mm")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* Sorts on the real duration so "slowest run" is one click, not a scan of formatted text. *@
+    <PropertyColumn T="IngestionRun" TProperty="double?"
+                    Property="r => r.FinishedAt == null ? null : (r.FinishedAt - r.StartedAt)!.Value.TotalMilliseconds"
+                    Title="Took" Align="Align.Right" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <CellTemplate>
+            <span class="quiet">@(context.Item.Duration is { } d ? $"{d.TotalMilliseconds:N0}ms" : "—")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RowsIngested" Title="Rows" Align="Align.Right" Format="N0"
+                    HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit" />
+
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Requests" Align="Align.Right"
+                    HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
+        <CellTemplate><span class="quiet">@context.Item.RequestsMade.ToString("N0")</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.CreditsSpent" Title="Credits" Align="Align.Right"
+                    HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
+        <CellTemplate>
+            <span class="quiet">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString("N0") : "—")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* What the run did, in its own sentence ("UFC: 37 asked, 0 answered; 37 set aside until
+       Nov 23."), then what went wrong, if anything did. A failed run's error is said in the
+       negative ink, as its tag is; a partial run's is the reading, quiet like the rest.
+
+       The column takes whatever the fixed ones leave, so a sentence wraps once rather than
+       clipping at a third of the window. A row with nothing to say names its source, but only
+       while the Source column is folded away (xlines.css, .opsrun__source): the cell is never
+       blank, and never repeats a column beside it. *@
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Detail ?? r.Error!" Title="Detail"
+                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+        <CellTemplate>
+            @if (context.Item.Detail is not { Length: > 0 } && context.Item.Error is not { Length: > 0 })
+            {
+                <span class="opsrun__source quiet">@context.Item.Source?.Name</span>
+            }
+            @if (context.Item.Detail is { Length: > 0 })
+            {
+                <span class="trunc quiet" title="@context.Item.Detail">@context.Item.Detail</span>
+            }
+            @if (context.Item.Error is { Length: > 0 })
+            {
+                <span class="trunc @ErrorTone(context.Item.Status)" title="@context.Item.Error">@context.Item.Error</span>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+</DeskGrid>
+
+@if (Loaded)
+{
+    <p class="opsfoot">
+        Every run lands here, successful or not. Ops reads its figures and alerts from this
+        table alone.
+        @if (_runs.Count >= RunLimit)
+        {
+            <text>The latest @RunLimit.ToString("N0") are shown.</text>
+        }
+    </p>
+}
+}
+
+@code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    protected override string LoadSubject => "The runs";
+
+    /// <summary>Set when opened from a source's name elsewhere on the desk.</summary>
+    [Parameter] public int? SourceId { get; set; }
+
+    /// <summary>How many of the latest runs the table holds; the footer says so when it is full.</summary>
+    private const int RunLimit = 200;
+
+    private List<IngestionRun> _runs = [];
+    private List<Source> _sources = [];
+    private bool _sourcesRead;
+    private string _sourceFilter = string.Empty;
+    private string _statusFilter = string.Empty;
+
+    private int? _aimedAt;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _aimedAt = SourceId;
+
+        // Arriving via a shortcut lands on that source rather than on everything, which is the
+        // whole point of following one — the filter then stays under the operator's control.
+        if (SourceId is { } id)
+            _sourceFilter = id.ToString();
+
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// The window is a singleton, so following another source's name re-aims this one rather
+    /// than opening a second, and Back re-aims it at what it showed before. Both arrive here.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (SourceId == _aimedAt)
+            return;
+
+        _aimedAt = SourceId;
+        _sourceFilter = SourceId?.ToString() ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task OnSourceChanged(string value)
+    {
+        _sourceFilter = value ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task OnStatusChanged(string value)
+    {
+        _statusFilter = value ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private Task LoadAsync() => WithActivityAsync(ReadRunsAsync, RunsPulse, RunsStatus);
+
+    private async Task ReadRunsAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        // Read with the first load that succeeds, so a window whose first read failed still
+        // gets its source picker once a filter or a retry gets through.
+        if (!_sourcesRead)
+        {
+            _sources = await db.Sources.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
+            _sourcesRead = true;
+        }
+
+        var query = db.IngestionRuns.AsNoTracking().Include(r => r.Source).AsQueryable();
+
+        if (int.TryParse(_sourceFilter, out var sourceId))
+            query = query.Where(r => r.SourceId == sourceId);
+
+        if (Enum.TryParse<RunStatus>(_statusFilter, out var status))
+            query = query.Where(r => r.Status == status);
+
+        _runs = await query.OrderByDescending(r => r.StartedAt).Take(RunLimit).ToListAsync();
+    }
+
+    // Recent failures are what this window is for, so they drive its pulse.
+    private int RecentFailures => _runs.Take(20).Count(r => r.Status == RunStatus.Failed);
+
+    private PulseState RunsPulse()
+        => RecentFailures > 4 ? PulseState.Critical
+            : RecentFailures > 0 ? PulseState.Warn
+            : PulseState.Healthy;
+
+    private string RunsStatus()
+        => RecentFailures > 0 ? $"{RecentFailures} recent fails" : $"{_runs.Count} runs";
+
+    private static string ErrorTone(RunStatus status) => status == RunStatus.Failed ? "down" : "quiet";
+
+    private static DeskState StatusState(RunStatus status) => status switch
+    {
+        RunStatus.Success => DeskState.Positive,
+        RunStatus.Partial => DeskState.Warning,
+        RunStatus.Failed => DeskState.Negative,
+        _ => DeskState.Info
+    };
+}

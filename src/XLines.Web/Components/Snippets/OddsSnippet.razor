@@ -1,0 +1,139 @@
+@namespace XLines.Web.Components.Snippets
+@using XLines.Core.Analytics
+@using XLines.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+@inject ILogger<OddsSnippet> Logger
+@implements IDisposable
+
+@*
+    The current market on one game, at a glance.
+
+    Best number per market and the book holding it — the same reading the Board gives, brought
+    to a row on a surface that does not carry price columns. The Slate lists the day; this is
+    how a game on it gets priced without opening anything.
+
+    Deliberately not the movement chart. "What is the number now" and "how did it get here" are
+    different questions, and the second one is what the window behind this answers.
+*@
+
+@if (_read.Loading)
+{
+    <DeskSkeleton Lines="2" />
+}
+else if (_read.Error is not null)
+{
+    <SnippetFailure Message="@_read.Error" OnRetry="LoadAsync" />
+}
+else if (_row is null || _row.Unpriced is { } reason)
+{
+    <Note State="DeskState.Warning">@(_row?.Unpriced ?? "This game is not on the board.")</Note>
+}
+else
+{
+    <div class="snippet__markets">
+        @RenderMarket("Moneyline", _row.Moneyline, crested: true)
+        @RenderMarket("Spread", _row.Spread, crested: true)
+        @RenderMarket("Total", _row.Total, crested: false)
+    </div>
+
+    @* How many books this "best" was chosen from, and when the market last moved. A best price
+       drawn from one book is a price; drawn from five it is a market, and the reader cannot
+       tell which they are looking at unless it is said. "Unmoved" rather than "old": prices are
+       stored on change (ADR 0001), so an old timestamp means a still market, not a stale feed. *@
+    <p class="snippet__coverage">
+        Best of @_row.BookCount @(_row.BookCount == 1 ? "book" : "books")
+        @if (_row.Age is { } age)
+        {
+            <text> · last move @Age(age.TotalMinutes) ago</text>
+        }
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    private BoardRow? _row;
+    private readonly SnippetRead _read = new();
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
+    private Task LoadAsync()
+    {
+        // A read the snippet has moved on from (re-aimed, or closed) is cancelled, and its row is
+        // not kept: only the newest read writes the answer.
+        var gameId = GameId;
+
+        return _read.RunAsync(async ct =>
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+            return await board.GetRowAsync(gameId, ct);
+        }, row => _row = row, "The market did not load.", Logger);
+    }
+
+    public void Dispose() => _read.Dispose();
+
+    /// <summary>Same wording as the panels use, so one reading is not two vocabularies.</summary>
+    private static string Age(double minutes) => minutes switch
+    {
+        < 1 => "just now",
+        < 60 => $"{minutes:F0}m",
+        < 1440 => $"{minutes / 60:F1}h",
+        _ => $"{minutes / 1440:F1}d"
+    };
+
+    private RenderFragment RenderMarket(string name, MarketPair pair, bool crested) => @<text>
+        <div class="snippet__market">
+            <div class="snippet__market-name">@name</div>
+            @if (!pair.IsPriced)
+            {
+                <div class="dim mono">—</div>
+            }
+            else
+            {
+                <div class="snippet__sides">
+                    @* Away then home, as the game reads and as the Game window and Line movement order a
+                       market's sides; a fight's red corner (home) first, as its card bills it (ADR 0021).
+                       Every pair lists home first (BoardRow), and a total Over first. *@
+                    @if (crested && !FightSports.IsFight(_row!.Game.Sport?.Key))
+                    {
+                        @RenderSide(pair.Second, _row!.Game.AwayTeam?.Abbrev)
+                        @RenderSide(pair.First, _row!.Game.HomeTeam?.Abbrev)
+                    }
+                    else
+                    {
+                        @RenderSide(pair.First, crested ? _row!.Game.HomeTeam?.Abbrev : null)
+                        @RenderSide(pair.Second, crested ? _row!.Game.AwayTeam?.Abbrev : null)
+                    }
+                </div>
+            }
+        </div>
+    </text>;
+
+    private RenderFragment RenderSide(BestOffer? offer, string? abbrev) => @<text>
+        @if (offer is null)
+        {
+            <div class="snippet__side snippet__side--empty mono">—</div>
+        }
+        else
+        {
+            <div class="snippet__side">
+                @* A club's side leads with its crest, outside the name that truncates; the caller hands
+                   each side its own club's abbreviation (none on a total). *@
+                <TeamMark Sport="@_row?.Game.Sport?.Key" Abbrev="@abbrev" />
+                <span class="snippet__sel trunc">@offer.Outcome</span>
+                @if (offer.Line is { } l)
+                {
+                    <span class="snippet__line mono">@OddsMath.FormatLine(l, offer.Outcome)</span>
+                }
+                <span class="snippet__price mono">@Price(offer.PriceAmerican)</span>
+                @* The book by its name, as every book table names it, not the feed's key. *@
+                <span class="snippet__book dim">@XLines.Web.Components.Panels.BookNames.Display(offer.Book)</span>
+            </div>
+        }
+    </text>;
+
+    private static string Price(int american) => OddsMath.FormatPrice(american);
+}

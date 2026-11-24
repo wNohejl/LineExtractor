@@ -1,0 +1,1531 @@
+@using XLines.Data
+@using XLines.Ingestion.Services
+@using XLines.Desk.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<XLinesDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+@inject IDeskAlerts Alerts
+@using XLines.Web.Services
+@using XLines.Web.Windowing
+@inject IWagerData Wagers
+@inject WagerSlip Slip
+@inject DeskToasts Toasts
+
+@*
+    The slip is a tab of the Journal, as it is of the wager window: the bets banked this session
+    sit one click from the bets already logged, with the count on the tab, and no third window.
+*@
+<DeskTabs TValue="JournalTab" Tabs="Tabs" Label="Journal sections" Context="tab"
+          Value="_tab" ValueChanged="@((JournalTab t) => _tab = t)">
+@if (tab == JournalTab.Slip)
+{
+    <SlipPanel />
+}
+else
+{
+<PanelToolbar Message="@_message">
+    <ChildContent>
+        <DeskSwitch Options="Statuses" Label="Status"
+                    Value="_status" ValueChanged="@((JournalStatus s) => FilterAsync(() => _status = s))" />
+    </ChildContent>
+    @* Period, sport and book are the narrower cuts; a narrow Journal folds them into More and
+       keeps status and the keys on the row, then folds the keys before Place wager as well. *@
+    <Overflow>
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Placed within</span>
+            <DeskSwitch Options="Periods" Label="Placed within"
+                        Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
+        </div>
+        @* Two leagues and "all" is a fixed set of three, so it is a segment beside the other two
+           rather than a pop-up that hides the alternatives (HIG: segmented controls). *@
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Sport</span>
+            <DeskSwitch Options="SportOptions" Label="Sport"
+                        Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
+        </div>
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Book</span>
+            <DeskSelect TValue="string" aria-label="Book"
+                        Value="_bookFilter" ValueChanged="@((string? b) => FilterAsync(() => _bookFilter = b))">
+                <option value="">All books</option>
+                @foreach (var book in _books)
+                {
+                    <option value="@book">@BookNames.Display(book)</option>
+                }
+            </DeskSelect>
+        </div>
+    </Overflow>
+    @* Secondary: the last thing to fold, into the top of More, when even the pickers there
+       leave the row too wide. Place wager, the key this window is for, never leaves it. *@
+    <SecondaryActions>
+        @* Parlays are logged from the slip (spec §5.4), the tab beside this one. Build parlay
+           fills it leg by leg, from the same wager window Place wager opens. *@
+        <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
+            Settle finished games
+        </DeskButton>
+        <DeskButton Icon="@Icons.Material.Filled.Link"
+                    Title="Find each leg's game and add it to the slip as a parlay leg"
+                    OnClick="BuildParlay">
+            Build parlay
+        </DeskButton>
+    </SecondaryActions>
+    <Actions>
+        @* The same window the Board's Place wager opens, here on a game search: one form records
+           a bet, whichever door it is reached by, so the door has the one name and glyph every
+           window gives it (WagerKey). Tinted, not Filled: it opens a window rather than
+           committing anything here. *@
+        <WagerKey Kind="WagerKind.Place"
+                  Title="Find the game and log the bet in the wager window"
+                  OnClick="OpenWager" />
+    </Actions>
+</PanelToolbar>
+
+@if (_mode == FormMode.Entry)
+{
+    @* The form names the row it edits on the line under its title, so "Edit entry" is about
+       something before the eye reaches the fields. *@
+    <PanelForm Title="Edit entry" Class="pform--grouped">
+    <Detail>@(_editing is { } editing ? $"Placed {Starts(editing.PlacedAt)}" : null)</Detail>
+    <ChildContent>
+
+        @if (_editing is { IsGraded: true })
+        {
+            <Note>
+                This entry is graded. Changing the game, market, selection, line, price, stake or book
+                sends it back to pending, and settlement grades it again from the game.
+            </Note>
+        }
+
+        @* The wager window's grouped form, row for row (apple-hig-components, forms.md): the
+           label leads in one column, the control trails, one inset rule between rows. A typed
+           price is said in the group's footer, under the rows it qualifies, rather than in a
+           box of its own above them. *@
+        <section class="wsection" aria-label="Entry">
+            <div class="wgroup jform">
+                @LegFields(_entry)
+
+                <FormRow Label="Stake">
+                    <StakeRow Stake="_entry.Stake" StakeChanged="@(s => Edit("stake", () => _entry.Stake = s))"
+                              PriceAmerican="@ReadPrice(_entry.PriceTaken)"
+                              Error="@(Touched("stake") ? StakeError(_entry.Stake) : null)" />
+                </FormRow>
+                <FormRow Label="Book">
+                    @BookPicker(_entry.Book, SetEntryBookAsync)
+                </FormRow>
+                <FormRow Label="Note">
+                    <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
+                               placeholder="Optional" Value="_entry.Note"
+                               ValueChanged="@((string? n) => Edit("note", () => _entry.Note = n))" />
+                </FormRow>
+            </div>
+            @if (_entry.ManualPrice)
+            {
+                <p class="wgroup__foot journal-manual-note">You typed this price; the desk did not fetch it.</p>
+            }
+        </section>
+
+    </ChildContent>
+    <Footer>
+        @* A disabled key that does not say what it is waiting for is a key the operator
+           has to guess at — and a tooltip only tells the one who hovers. The reason is text
+           on the row, and the key points a screen reader at it. The row is a KeyRow: Cancel,
+           the reason, Save last, and an id of its own, so two Journals never share one. *@
+        <KeyRow Justify="DeskJustify.Start"
+                Reason="@(EntryValid(_entry, true) ? null : "Needs a selection, a stake above zero, a price and a book.")">
+            <Secondary>
+                <DeskButton OnClick="CloseForm">Cancel</DeskButton>
+            </Secondary>
+            <Primary Context="why">
+                <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
+                            aria-describedby="@why">
+                    Save changes
+                </DeskButton>
+            </Primary>
+        </KeyRow>
+    </Footer>
+    </PanelForm>
+}
+
+@if (_mode == FormMode.EditParlay && _parlay is { } edited)
+{
+    @* The entry form's grouped rows, for the parlay's money: one bet, so one stake, one book and
+       one price, and beneath them the legs it was built from. A leg's side is the bet itself and
+       is not edited here — a different side is a different parlay, logged from the slip — but
+       the price it was taken at is a number, and a mistyped one is corrected like any other. *@
+    <PanelForm Title="Edit parlay" Class="pform--grouped">
+    <Detail>@($"{edited.Parlay.Legs.Count} legs, placed {Starts(edited.Parlay.PlacedAt)}")</Detail>
+    <ChildContent>
+
+        @if (edited.Parlay.IsGraded)
+        {
+            <Note>
+                This parlay is graded. Changing the stake, the book's price, a leg's price or the book
+                sends it back to pending, and settlement grades it again from its legs.
+            </Note>
+        }
+
+        @* Two section cards: the parlay's money, then its legs, each named in the bar at its top
+           (the Desk's grouping contract). A group sitting loose in the column beside a section is
+           a group with no name; a name floating above a group is a name attached to nothing.
+           They flow, so a form wider than two tracks would set them side by side. *@
+        <div class="wflow">
+            <FormGroup Title="Parlay" GroupClass="jform">
+                <ChildContent>
+                    <FormRow Label="Book">
+                        @BookPicker(edited.Book, SetParlayBookAsync)
+                    </FormRow>
+                    <FormRow Label="Stake">
+                        <StakeRow Stake="edited.Stake" StakeChanged="@(s => Edit("stake", () => edited.Stake = s))"
+                                  PriceAmerican="@CombinedPrice(edited)"
+                                  Error="@(Touched("stake") ? StakeError(edited.Stake) : null)" />
+                    </FormRow>
+                    <FormRow>
+                        <LabelContent>Book's price<span class="wbet__echo">@DecimalEcho(edited.PriceQuoted)</span></LabelContent>
+                        <ChildContent>
+                        @* The book's own price for the parlay, when it gave one: what a clean win pays.
+                           Without it the legs' prices are multiplied, as the slip does. To the cent,
+                           or decimal odds, read as the American price the label says back. *@
+                        <DeskField TValue="decimal?" Mono="true" Class="wfield--short" type="number" step="any"
+                                   aria-label="The book's price for the parlay" placeholder="Optional"
+                                   Value="edited.PriceQuoted"
+                                   ValueChanged="@((decimal? q) => Edit("quoted", () => edited.PriceQuoted = q))"
+                                   Error="@(Touched("quoted") && edited.PriceQuoted is { } quoted ? PriceError(quoted) : null)" />
+                        </ChildContent>
+                    </FormRow>
+                    <FormRow Label="Note">
+                        <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
+                                   placeholder="Optional" Value="edited.Note"
+                                   ValueChanged="@((string? n) => Edit("note", () => edited.Note = n))" />
+                    </FormRow>
+                </ChildContent>
+            </FormGroup>
+
+            @* No count on the bar: the form's detail line already says how many legs. *@
+            <FormGroup Title="Legs" GroupClass="jform">
+                <ChildContent>
+                    @foreach (var (leg, n) in edited.Parlay.Legs.OrderBy(l => l.Id).Select((l, i) => (l, i + 1)))
+                    {
+                        var field = $"leg-{leg.Id}";
+                        <FormRow Label="@($"Leg {n}")" @key="leg.Id">
+                            <DeskRow Justify="DeskJustify.Between">
+                                <div>
+                                    <div>@Describe(leg)</div>
+                                    @if (leg.Game is not null)
+                                    {
+                                        <div class="meta">@MatchupWithDate(leg.Game)</div>
+                                    }
+                                    <span class="wbet__echo">@DecimalEcho(edited.LegPrices.GetValueOrDefault(leg.Id))</span>
+                                </div>
+                                <DeskField TValue="decimal?" Mono="true" Class="wfield--short" type="number" step="any"
+                                           aria-label="@($"Price taken on {Describe(leg)}")" placeholder="-110"
+                                           Value="@edited.LegPrices.GetValueOrDefault(leg.Id)"
+                                           ValueChanged="@((decimal? p) => Edit(field, () => edited.LegPrices[leg.Id] = p))"
+                                           Error="@(Touched(field) ? LegPriceError(edited.LegPrices.GetValueOrDefault(leg.Id), leg.PriceTaken) : null)" />
+                            </DeskRow>
+                        </FormRow>
+                    }
+                </ChildContent>
+                <Footer>
+                    The price each leg was taken at. Without the book's price, settlement multiplies
+                    them, and after a push it reprices the parlay on the legs that are left.
+                </Footer>
+            </FormGroup>
+        </div>
+
+    </ChildContent>
+    <Footer>
+        <KeyRow Justify="DeskJustify.Start" Reason="@ParlayWaiting(edited)">
+            <Secondary>
+                <DeskButton OnClick="CloseForm">Cancel</DeskButton>
+            </Secondary>
+            <Primary Context="why">
+                <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveParlayChangesAsync" Disabled="@(ParlayWaiting(edited) is not null)"
+                            aria-describedby="@why">
+                    Save changes
+                </DeskButton>
+            </Primary>
+        </KeyRow>
+    </Footer>
+    </PanelForm>
+}
+
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        <DeskGrid T="JournalEntry" Items="_entries" Loading="true" LoadingLabel="Fetching the journal" />
+    }
+}
+else if (_entries.Count == 0 && _parlays.Count == 0)
+{
+    <EmptyState Kind="@(Filtered ? EmptyStateKind.Filtered : EmptyStateKind.New)">
+        @(Filtered
+            ? "No entries match these filters."
+            : "No entries logged yet. Place wager finds the game and records the bet; Build parlay adds legs to the slip, where the parlay is logged.")
+    </EmptyState>
+}
+
+@* The two ledgers are section cards (the Desk's grouping contract): each table inside a card
+   named in the bar at its top, so Straight bets and Parlays read as two things with an edge
+   between them rather than two rules over one run of rows. A table is wide, so each card takes
+   the flow's whole row; the table draws no second frame inside it (JournalPanel.razor.css). *@
+@if (_entries.Count > 0 || _parlays.Count > 0)
+{
+<div class="wflow journal-lists">
+@if (_entries.Count > 0)
+{
+    @* "Straight bets", the counterpart of Parlays below: under a tab called Entries, a first
+       section called Entries named the tab a second time and told the reader nothing new. *@
+    <FormGroup Title="Straight bets" Span="DeskCardSpan.Row" GroupClass="journal-list">
+    <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
+        @* Ordered by when the bet closes — the game's start, when the line closes and CLV is read —
+           newest first, as the service reads it: a bet placed days ahead on
+           a later game sits above one placed tonight. The placement is the dim second line; the
+           Placed within filter still cuts by it. *@
+        <TemplateColumn T="JournalEntry" Title="Closes" Sortable="true" SortBy="@(e => JournalService.GameStart(e))"
+                        InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>
+                @* An untracked bet has no game to start; its game start falls back to the placement,
+                   which would print the same time twice. It says so instead, dim like the line under it. *@
+                <div class="journal-when">
+                    @if (context.Item.GameId is null)
+                    {
+                        <span class="dim">No game</span>
+                    }
+                    else
+                    {
+                        @Starts(JournalService.GameStart(context.Item))
+                    }
+                    <div class="dim">placed @Starts(context.Item.PlacedAt)</div>
+                </div>
+            </CellTemplate>
+        </TemplateColumn>
+
+        @* The selection is the row's sentence and takes the width the figures leave; every other
+           column is a value held on one line (xlines.css, "Columns in the operations and
+           analytics windows"). *@
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Outcome" Title="Selection"
+                        HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+            <CellTemplate>
+                @Selection(context.Item)
+                @if (context.Item.Note is { } note)
+                {
+                    <div class="meta">@note</div>
+                }
+            </CellTemplate>
+        </PropertyColumn>
+
+        @* Market and Book fold away under 820px with CLV: at the Journal's usual width the figures
+           and the selection fill the window, and the selection already says the side. *@
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Market" Title="Market" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
+            <CellTemplate><span class="dim">@SelectionText.MarketName(context.Item.Market)</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Book" Title="Book" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
+            <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.PriceTaken" Title="Price" Align="Align.Right">
+            <CellTemplate>
+                @* Said where the number is: a typed price is the operator's word, not an observation. *@
+                @if (context.Item.ManualPrice)
+                {
+                    <DeskTooltip Text="Entered by hand, not fetched">
+                        <span class="dim journal-manual" tabindex="0">manual</span>
+                    </DeskTooltip>
+                }
+                @Price(context.Item.PriceTaken)
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.Stake" Title="Stake" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>@OddsMath.Money(context.Item.Stake)</CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="EntryResult" Property="e => e.Result" Title="Result"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate><Tag State="@ResultState(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.NetReturn" Title="Net" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>
+                <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
+                    @* Performance's signed money, so a loss reads "−$20" in both windows: "C0"
+                       follows the machine's region, and on this one printed "($20)". *@
+                    @(context.Item.IsSettled ? PerformancePanel.SignedToTheCent(context.Item.NetReturn) : "—")
+                </span>
+            </CellTemplate>
+        </PropertyColumn>
+
+        @* Sorts on the reading itself, so "worst CLV" is a click; an unresolved entry sorts below
+           every real one rather than as zero. A TemplateColumn because the key is computed. *@
+        <TemplateColumn T="JournalEntry" Sortable="true" Title="CLV" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit" Align="Align.Right"
+                        SortBy="@(e => Clv(e)?.CentsPercent ?? double.MinValue)">
+            <CellTemplate>@ClvCell(context.Item)</CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="JournalEntry" Title="" Sortable="false" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>
+                <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space1">
+                    @* Graded rows are done; a void stays open to a correction, because an automatic
+                       void is the common rule and a given book may have ruled otherwise.
+                       Settling commits a result, so it is a pull-down of commands, not a pop-up
+                       of values that acted on change and snapped back to its placeholder. *@
+                    @if (!context.Item.IsGraded)
+                    {
+                        <DeskPullDown Label="Settle" Emphasis="DeskEmphasis.Plain" Size="DeskKeySize.Small" Align="DeskPopoverAlign.End">
+                            <DeskMenuItem Label="Win" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Win))" />
+                            <DeskMenuItem Label="Loss" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Loss))" />
+                            <DeskMenuItem Label="Push" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Push))" />
+                            <DeskMenuItem Label="Void" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Void))" />
+                        </DeskPullDown>
+                    }
+                    @* Edit, Duplicate and Delete are one Actions menu (HIG 14): three icon keys a
+                       row, named only by titles, read as a toolbar on every row. Delete is the
+                       destructive item, and its alert still confirms. Duplicate is the same door
+                       the wager window's own uses: a new wager window on this bet, ready to log
+                       at today's price — or at the typed one, if it was. *@
+                    <DeskPullDown Label="Actions" Icon="@Icons.Material.Filled.MoreHoriz" Emphasis="DeskEmphasis.Plain"
+                                  Size="DeskKeySize.Small" Align="DeskPopoverAlign.End">
+                        <DeskMenuItem Label="Edit" OnClick="() => EditEntry(context.Item)" />
+                        <DeskMenuItem Label="Duplicate" Description="In a wager window, to log again"
+                                      OnClick="() => Duplicate(context.Item)" />
+                        <DeskMenuItem Label="Delete…" Destructive="true" OnClick="() => DeleteEntryAsync(context.Item)" />
+                    </DeskPullDown>
+                </DeskRow>
+            </CellTemplate>
+        </TemplateColumn>
+    </DeskGrid>
+    </FormGroup>
+}
+
+@if (_parlays.Count > 0)
+{
+    <FormGroup Title="Parlays" Span="DeskCardSpan.Row" GroupClass="journal-list">
+
+    <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
+        @* A parlay is ordered by its last leg's game: it is open until that one is. *@
+        <TemplateColumn T="Parlay" Title="Closes" Sortable="true" SortBy="@(p => JournalService.LastLegStart(p))"
+                        InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>
+                <div class="journal-when">
+                    @Starts(JournalService.LastLegStart(context.Item))
+                    <div class="dim">placed @Starts(context.Item.PlacedAt)</div>
+                </div>
+            </CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="Parlay" Title="Legs" Sortable="false" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+            <CellTemplate>
+                @foreach (var leg in context.Item.Legs.OrderBy(l => l.Id))
+                {
+                    @* One line per leg: wrapped, the tag, the team and the price each took a line
+                       of their own and the legs could not be told apart. *@
+                    <DeskRow NoWrap Class="legline">
+                        <Tag State="@ResultState(leg.Result)">@leg.Result</Tag>
+                        @Selection(leg)
+                        @if (leg.PriceTaken != 0)
+                        {
+                            <span class="dim num">@Price(leg.PriceTaken)</span>
+                        }
+                        @ClvCell(leg)
+                    </DeskRow>
+                }
+                @if (context.Item.Note is { } note)
+                {
+                    <div class="meta">@note</div>
+                }
+                @if (context.Item.Result == EntryResult.Pending && Stuck(context.Item) is { } reason)
+                {
+                    <div class="meta">@reason</div>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+
+        <PropertyColumn T="Parlay" TProperty="string" Property="p => p.Book" Title="Book"
+                        HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
+            <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
+        </PropertyColumn>
+
+        <TemplateColumn T="Parlay" Title="Price" Align="Align.Right" Sortable="false"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>@(context.Item.PriceQuoted is { } q ? Price(q) : "—")</CellTemplate>
+        </TemplateColumn>
+
+        <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.Stake" Title="Stake" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>@OddsMath.Money(context.Item.Stake)</CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Parlay" TProperty="EntryResult" Property="p => p.Result" Title="Result"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate><Tag State="@ResultState(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.NetReturn" Title="Net" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>
+                <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
+                    @* Performance's signed money, so a loss reads "−$20" in both windows: "C0"
+                       follows the machine's region, and on this one printed "($20)". *@
+                    @(context.Item.IsSettled ? PerformancePanel.SignedToTheCent(context.Item.NetReturn) : "—")
+                </span>
+            </CellTemplate>
+        </PropertyColumn>
+
+        <TemplateColumn T="Parlay" Title="" Sortable="false" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+            <CellTemplate>
+                <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space1">
+                    @* Legs grade themselves and the parlay follows. This is for the parlay a
+                       missing price left pending, or a book that ruled otherwise. A win is only
+                       offered where there is a price to pay it at. *@
+                    @if (!context.Item.IsGraded)
+                    {
+                        <DeskPullDown Label="Settle" Emphasis="DeskEmphasis.Plain" Size="DeskKeySize.Small" Align="DeskPopoverAlign.End">
+                            @if (context.Item.PriceQuoted is not null)
+                            {
+                                <DeskMenuItem Label="Win" OnClick="@(() => SetParlayResultAsync(context.Item, EntryResult.Win))" />
+                            }
+                            <DeskMenuItem Label="Loss" OnClick="@(() => SetParlayResultAsync(context.Item, EntryResult.Loss))" />
+                            <DeskMenuItem Label="Void" OnClick="@(() => SetParlayResultAsync(context.Item, EntryResult.Void))" />
+                        </DeskPullDown>
+                    }
+                    @* The menu an entry's row carries, in its order. Duplicate puts the legs back
+                       on the slip as a parlay at the prices taken, to log again — the slip is where
+                       a parlay is logged, as the wager window is where an entry is. *@
+                    <DeskPullDown Label="Actions" Icon="@Icons.Material.Filled.MoreHoriz" Emphasis="DeskEmphasis.Plain"
+                                  Size="DeskKeySize.Small" Align="DeskPopoverAlign.End">
+                        <DeskMenuItem Label="Edit" OnClick="() => EditParlay(context.Item)" />
+                        <DeskMenuItem Label="Duplicate" Description="On the slip, as a parlay to log again"
+                                      OnClick="() => DuplicateParlayAsync(context.Item)" />
+                        <DeskMenuItem Label="Delete…" Description="The parlay and its legs" Destructive="true"
+                                      OnClick="() => DeleteParlayAsync(context.Item)" />
+                    </DeskPullDown>
+                </DeskRow>
+            </CellTemplate>
+        </TemplateColumn>
+    </DeskGrid>
+    </FormGroup>
+}
+</div>
+}
+
+@if (_entries.Count >= _take || _parlays.Count >= _take)
+{
+    <DeskRow>
+        <DeskButton OnClick="ShowMoreAsync">Show @Step more</DeskButton>
+    </DeskRow>
+}
+
+@* What the Journal is, said once at its foot in the footnote voice, as the Slip tab says it.
+   It used to be a filled note under the toolbar, wider than the form beneath it, and every
+   form opened between the two read as a stack of boxes of three widths. *@
+<p class="wfoot journal-foot">
+    XLines does not place wagers and has no connection to any sportsbook. Entries here are
+    records of bets already placed elsewhere.
+</p>
+}
+</DeskTabs>
+
+@code {
+    private enum JournalTab { Journal, Slip }
+
+    private JournalTab _tab;
+
+    // An empty slip cannot be opened: a tab that opens onto "nothing on the slip" is a click
+    // spent to learn so, and the Journal's Place wager key is the way to a wager. The tab keeps
+    // its place in the bar, disabled, so the bar does not change shape as bets come and go;
+    // it stays live while the operator is on it, so a slip just emptied by logging is not
+    // pulled from under the report of what it logged.
+    // The first tab reads "Entries", not "Journal": the window's own tab in the title-bar strip
+    // already says Journal, and the two selected one above the other read as one word twice. The
+    // key stays JournalTab.Journal, so nothing that opens a tab by its key changes.
+    private IReadOnlyList<DeskTab<JournalTab>> Tabs =>
+    [
+        new(JournalTab.Journal, "Entries"),
+        new(JournalTab.Slip, "Slip", Count: Slip.Items.Count, Enabled: Slip.Items.Count > 0 || _tab == JournalTab.Slip)
+    ];
+
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Journal, DataTopics.Games };
+
+    // Games are watched for the entries' scores and finals, so only the games an entry or a leg
+    // on screen is on: a live poll of some other league used to re-read the whole journal. Every
+    // journal notice and a bare games notice still reload; a new entry arrives as a journal one.
+    protected override IReadOnlyDictionary<string, IReadOnlySet<string>> WatchesIds => _held;
+
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _held = HeldGames([], []);
+
+    /// <summary>
+    /// The ids <see cref="WatchesIds"/> narrows the games topic to: every game an entry or a
+    /// parlay's leg is on. Built once per load and swapped whole, because the base reads it on the
+    /// publisher's thread.
+    /// </summary>
+    public static IReadOnlyDictionary<string, IReadOnlySet<string>> HeldGames(
+        IEnumerable<JournalEntry> entries, IEnumerable<Parlay> parlays)
+        => NoticeTokens.Narrow(
+            entries.Concat(parlays.SelectMany(p => p.Legs)).Select(e => e.GameId).OfType<int>(), DataTopics.Games);
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    private const string FreeText = "__free__";
+    private const int Step = 100;
+
+    private enum FormMode { None, Entry, EditParlay }
+
+    /// <summary>
+    /// A logged parlay as the edit form holds it: the money and the book, which are the parlay's,
+    /// and the price on each leg, by the leg's id — null where the field is empty, as it opens on
+    /// a leg logged without one.
+    /// </summary>
+    private sealed class ParlayEditDraft(Parlay parlay)
+    {
+        public Parlay Parlay { get; } = parlay;
+        public string Book { get; set; } = parlay.Book;
+        public decimal Stake { get; set; } = parlay.Stake;
+        public decimal? PriceQuoted { get; set; } = parlay.PriceQuoted;
+        public string? Note { get; set; } = parlay.Note;
+
+        public Dictionary<int, decimal?> LegPrices { get; } =
+            parlay.Legs.ToDictionary(l => l.Id, l => l.PriceTaken == 0 ? (decimal?)null : l.PriceTaken);
+
+        /// <summary>
+        /// An empty leg field sends nothing: the leg keeps the price it has, or its lack of one.
+        /// Each price goes as the American price it is read as, so decimal odds typed here are
+        /// stored as the wager window stores them.
+        /// </summary>
+        public ParlayEdit ToEdit() => new(
+            Book, Stake, PriceQuoted is { } q ? ReadPrice(q) ?? q : null, Note,
+            LegPrices.Where(p => p.Value is not null).ToDictionary(p => p.Key, p => ReadPrice(p.Value) ?? p.Value!.Value));
+    }
+
+    /// <summary>
+    /// A straight bet as the edit form holds it. New bets are logged in the wager window; parlays
+    /// are built on the slip.
+    /// </summary>
+    private sealed class Draft
+    {
+        /// <summary>The price as logged, so an edit to it can be told from an edit to the stake.</summary>
+        public decimal OriginalPrice { get; init; }
+        public decimal? OriginalLine { get; init; }
+        public bool WasManual { get; init; }
+
+        /// <summary>
+        /// A typed price stays typed; a fetched one becomes typed once its number is edited here,
+        /// because the number in the journal is then the operator's, not the desk's.
+        /// </summary>
+        public bool ManualPrice => WasManual || LoggedPrice != OriginalPrice || LineTaken != OriginalLine;
+
+        /// <summary>The price as it is logged: the typed one, read as American odds where it is decimal.</summary>
+        public decimal LoggedPrice => ReadPrice(PriceTaken) ?? PriceTaken;
+
+        public int? GameId { get; set; }
+        public Game? Game { get; set; }
+        public string Market { get; set; } = Markets.Spread;
+        public string? FreeTextMarket { get; set; }
+        public string Outcome { get; set; } = string.Empty;
+        public decimal? LineTaken { get; set; }
+        public decimal PriceTaken { get; set; } = -110;
+        public decimal Stake { get; set; } = 100m;
+        public string Book { get; set; } = string.Empty;
+        public string? Note { get; set; }
+
+        public EntryDraft ToDraft() => new(
+            GameId, Market == FreeText ? "other" : Market,
+            Market == FreeText ? FreeTextMarket : null,
+            Outcome, LineTaken, LoggedPrice, Stake, Book, Note, ManualPrice);
+    }
+
+    private static readonly IReadOnlyList<DeskSwitchOption<JournalStatus>> Statuses =
+    [
+        new(JournalStatus.All, "All"),
+        new(JournalStatus.Pending, "Pending"),
+        new(JournalStatus.Settled, "Settled")
+    ];
+
+    // 0 is "all time": the switch needs a value for it, and no journal is older than that.
+    private static readonly IReadOnlyList<DeskSwitchOption<int>> Periods =
+    [
+        new(7, "7d", "Placed in the last 7 days"),
+        new(30, "30d", "Placed in the last 30 days"),
+        new(90, "90d", "Placed in the last 90 days"),
+        new(0, "All", "Every entry")
+    ];
+
+    private List<JournalEntry> _entries = [];
+    private List<Parlay> _parlays = [];
+    private List<string> _books = [];
+    private List<string> _sports = [];
+
+    private JournalStatus _status = JournalStatus.All;
+    private int _days;
+    private string? _sport;
+    private string? _bookFilter;
+    private int _take = Step;
+
+    private FormMode _mode;
+    private Draft _entry = new();
+    private JournalEntry? _editing;
+
+    // The parlay being edited, and its changes as the form opened, to tell an edit from a look.
+    private ParlayEditDraft? _parlay;
+    private ParlayEdit? _parlayOpened;
+
+    private bool _busy;
+    private string? _message;
+
+    private bool Filtered => _status != JournalStatus.All || _days != 0 || _sport is { Length: > 0 } || _bookFilter is { Length: > 0 };
+
+    private static bool EntryValid(Draft d, bool needsPrice)
+        => StakeError(d.Stake) is null
+           && (!needsPrice || PriceError(d.PriceTaken) is null)
+           && !string.IsNullOrWhiteSpace(d.Book)
+           && (d.Market == FreeText ? !string.IsNullOrWhiteSpace(d.FreeTextMarket) : !string.IsNullOrWhiteSpace(d.Outcome));
+
+    /// <summary>
+    /// A typed price is American odds to the cent or decimal odds, read as the wager window and
+    /// the slip read them (<see cref="OddsMath.ReadTypedPrice"/>): 2.0435 is +104.35. What is
+    /// neither — below 1.01 and above −100 — is a typo, most often a dropped digit, and zero is
+    /// no price at all.
+    /// </summary>
+    public static string? PriceError(decimal price)
+        => OddsMath.ReadTypedPrice(price) is null ? "A price is −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05." : null;
+
+    /// <summary>The American price a typed price is read as; null where it is none, or nothing is typed.</summary>
+    public static decimal? ReadPrice(decimal? typed)
+        => typed is { } t ? OddsMath.ReadTypedPrice(t) : null;
+
+    /// <summary>
+    /// What a typed decimal price is read as — "Decimal 2.0435 = +104.35" — so the number logged
+    /// is on screen first, as the slip says it. Null for an American price, or nothing typed.
+    /// </summary>
+    public static string? DecimalEcho(decimal? typed)
+        => XLines.Web.Components.Desk.TypedPrice.EchoOf(typed);
+
+    public static string? StakeError(decimal stake)
+        => stake <= 0 ? "Enter a stake above zero." : null;
+
+    /// <summary>
+    /// A spread or a total with no number cannot be graded. A total of zero or less is not a
+    /// line any game is offered at — the message says "above zero", so zero is held to it too.
+    /// A spread can sit at zero (a pick'em) or either side of it.
+    /// </summary>
+    public static string? LineError(string market, decimal? line) => market switch
+    {
+        Markets.Spread or Markets.Total when line is null => "Enter the line.",
+        Markets.Total when line <= 0 => "A total is above zero.",
+        _ => null
+    };
+
+    /// <summary>
+    /// Whether the form holds anything the journal does not. A note or a described bet cleared
+    /// back to nothing is the null it was opened with, and the manual-price flag follows the
+    /// price and line, so neither counts as a change of its own.
+    /// </summary>
+    public static bool EntryIsDirty(EntryDraft current, EntryDraft opened)
+    {
+        static EntryDraft Plain(EntryDraft d) => d with
+        {
+            Note = string.IsNullOrWhiteSpace(d.Note) ? null : d.Note,
+            FreeTextMarket = string.IsNullOrWhiteSpace(d.FreeTextMarket) ? null : d.FreeTextMarket,
+            ManualPrice = false
+        };
+
+        return Plain(current) != Plain(opened);
+    }
+
+    /// <summary>
+    /// Whether the parlay form holds anything the journal does not, by the rule the entry form
+    /// keeps: a book differing only in case or spaces is the same book once stored, a cleared
+    /// note is the null it opened with, and the book's price of zero is no price.
+    /// </summary>
+    public static bool ParlayIsDirty(ParlayEdit current, ParlayEdit opened)
+    {
+        static string? Text(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+        static IEnumerable<KeyValuePair<int, decimal>> Prices(ParlayEdit e)
+            => (e.LegPrices ?? new Dictionary<int, decimal>()).OrderBy(p => p.Key);
+
+        return !string.Equals(Text(current.Book), Text(opened.Book), StringComparison.OrdinalIgnoreCase)
+               || current.Stake != opened.Stake
+               || (current.PriceQuoted is 0 ? null : current.PriceQuoted) != (opened.PriceQuoted is 0 ? null : opened.PriceQuoted)
+               || Text(current.Note) != Text(opened.Note)
+               || !Prices(current).SequenceEqual(Prices(opened));
+    }
+
+    /// <summary>
+    /// A leg's price field: a typed number is held to what a price is, and an emptied field on a
+    /// leg that had a price asks for it back — clearing it would leave the parlay a price short
+    /// to reprice on, which is not a correction. A leg logged without one may stay without.
+    /// </summary>
+    private static string? LegPriceError(decimal? typed, decimal logged)
+        => typed is { } price ? PriceError(price)
+            : logged != 0 ? "Enter the price this leg was taken at."
+            : null;
+
+    /// <summary>
+    /// What the parlay pays at, for the stake row's Returns: the book's price where it gave a
+    /// real one, otherwise the legs' prices multiplied, as the slip reads it. None where a leg has
+    /// no price, or for legs on one game, which win and lose together and do not multiply.
+    /// </summary>
+    private static decimal? CombinedPrice(ParlayEditDraft d)
+    {
+        if (d.PriceQuoted is { } quoted)
+            return ReadPrice(quoted);
+
+        var legs = d.Parlay.Legs;
+        if (legs.Count < 2 || legs.Where(l => l.GameId is not null).GroupBy(l => l.GameId).Any(g => g.Count() > 1))
+            return null;
+
+        var prices = legs.Select(l => ReadPrice(d.LegPrices.GetValueOrDefault(l.Id))).ToList();
+        return prices.All(p => p is not null)
+            ? OddsMath.CombinedAmerican(prices.Select(p => p!.Value))
+            : null;
+    }
+
+    /// <summary>What Save is waiting for, said beside it; null when the form can be saved.</summary>
+    private static string? ParlayWaiting(ParlayEditDraft d)
+        => StakeError(d.Stake) is not null ? "Needs a stake above zero."
+            : string.IsNullOrWhiteSpace(d.Book) ? "Needs the book the parlay was placed at."
+            : d.PriceQuoted is { } quoted && PriceError(quoted) is not null
+                ? "The book's price is −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05."
+            : d.Parlay.Legs.Any(l => LegPriceError(d.LegPrices.GetValueOrDefault(l.Id), l.PriceTaken) is not null)
+                ? "Each leg needs the price it was taken at: −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05."
+            : null;
+
+    // A total's two sides as the grader reads them, lower-case.
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> TotalSides =
+    [
+        new("over", "Over"),
+        new("under", "Under")
+    ];
+
+    /// <summary>Away then home, by abbreviation, valued by name. Null until both teams are loaded.</summary>
+    private static IReadOnlyList<DeskSwitchOption<string>>? TeamSides(Game? game)
+        => game is { AwayTeam: { } away, HomeTeam: { } home }
+            ? [new(away.Name, away.Abbrev, away.Name), new(home.Name, home.Abbrev, home.Name)]
+            : null;
+
+    /// <summary>"All", then each enabled league; "" is all, as the filter reads it.</summary>
+    private IReadOnlyList<DeskSwitchOption<string>> SportOptions =>
+        [new("", "All", "Every sport"), .. _sports.Select(s => new DeskSwitchOption<string>(s, s.ToUpperInvariant()))];
+
+    // A field says what is wrong only once it has been touched: an error on a box nobody has
+    // reached yet tells the operator they are wrong before they have said anything.
+    private readonly HashSet<string> _touched = [];
+
+    /// <summary>The entry as it was opened, so the form can tell an edit from a look.</summary>
+    private EntryDraft? _opened;
+
+    private bool Touched(string field) => _touched.Contains(field);
+
+    /// <summary>
+    /// Every field's change comes through here: it marks the field touched, and tells the window
+    /// whether it now holds input the journal does not — so closing it, or evicting it, asks first.
+    /// </summary>
+    private void Edit(string field, Action change)
+    {
+        change();
+        _touched.Add(field);
+
+        if (_opened is not null)
+            MarkUnsaved(EntryIsDirty(_entry.ToDraft(), _opened), "this journal entry");
+        else if (_parlay is not null && _parlayOpened is not null)
+            MarkUnsaved(ParlayIsDirty(_parlay.ToEdit(), _parlayOpened), "this parlay");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The tab's count follows the slip.
+        Slip.Changed += OnSlipChanged;
+
+        // In Line watch the Journal starts on the bets a moving line still matters for: the ones
+        // not yet settled. A default, not a lock — the status switch shows everything again.
+        if (XLines.Web.Windowing.LineWatch.IsActive(Manager))
+            _status = JournalStatus.Pending;
+
+        await LoadAsync();
+    }
+
+    protected override void OnDispose()
+    {
+        Slip.Changed -= OnSlipChanged;
+        _reads.Cancel();
+    }
+
+    private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);
+
+    protected override string LoadSubject => "The journal";
+
+    private int _pending;
+
+    private Task LoadAsync() => WithActivityAsync(ReadAsync,
+        () => _pending > 0 ? PulseState.Warn : PulseState.Healthy,
+        () => _entries.Count + _parlays.Count == 0 && !Filtered ? null : $"{_pending} pending");
+
+    /// <summary>
+    /// The load in flight, cancelled by the next. The base class's generation check kept a
+    /// superseded load from saying how the window stood, but not from handing over its rows, so a
+    /// slower read of the last filter could land last and paint it under the new one.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    /// <summary>
+    /// The token of the load in flight, for <see cref="FetchAsync"/> to pass to its reads. A
+    /// property rather than a parameter so a render test's override keeps its signature; it is
+    /// read before the fetch's first await, while it still names that fetch's load.
+    /// </summary>
+    protected CancellationToken ReadToken { get; private set; }
+
+    /// <summary>
+    /// Everything is read first and handed over at once, and only by the latest load: a newer
+    /// filter or notice cancels this one, and one that comes back anyway hands over nothing. The
+    /// token is taken inside the work so Try again, which repeats it, starts a read of its own.
+    /// </summary>
+    private async Task ReadAsync()
+    {
+        var ct = _reads.Next();
+        ReadToken = ct;
+
+        var filter = new JournalFilter(
+            _status,
+            _sport,
+            _bookFilter,
+            _days == 0 ? null : DateTimeOffset.UtcNow.AddDays(-_days),
+            _take);
+
+        await LatestRead.HandOverAsync(ct, () => FetchAsync(filter), read =>
+        {
+            _entries = read.Entries.ToList();
+            _parlays = read.Parlays.ToList();
+            _held = HeldGames(_entries, _parlays);
+            _books = read.Books.ToList();
+            _sports = read.Sports.ToList();
+            _pending = read.Pending;
+        });
+    }
+
+    /// <summary>Everything one load of the Journal shows: the rows under the filter, and the lists its pickers offer.</summary>
+    protected sealed record JournalRead(
+        IReadOnlyList<JournalEntry> Entries,
+        IReadOnlyList<Parlay> Parlays,
+        IReadOnlyList<string> Books,
+        IReadOnlyList<string> Sports,
+        int Pending);
+
+    /// <summary>
+    /// The Journal's one read of the database. Virtual so a render test can hand the panel a
+    /// journal: the test project has no database, and a row's keys are only drawn on a row
+    /// that loaded.
+    /// </summary>
+    protected virtual async Task<JournalRead> FetchAsync(JournalFilter filter)
+    {
+        var ct = ReadToken;
+
+        // Two strands, each on a context of its own, so the wait is the slower one's. The
+        // journal's three reads share the scope's one context and stay one after another, as do
+        // the picker and the pending count on theirs. A failure in either still propagates.
+        var journalRead = ReadJournalAsync(filter, ct);
+        var pickerRead = ReadPickerAsync(ct);
+
+        await Task.WhenAll(journalRead, pickerRead);
+
+        var (entries, parlays, books) = await journalRead;
+        var (sports, pending) = await pickerRead;
+
+        return new JournalRead(entries, parlays, books, sports, pending);
+    }
+
+    private async Task<(IReadOnlyList<JournalEntry>, IReadOnlyList<Parlay>, IReadOnlyList<string>)> ReadJournalAsync(
+        JournalFilter filter, CancellationToken ct)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
+
+        var entries = await journal.EntriesAsync(filter, ct);
+        var parlays = await journal.ParlaysAsync(filter, ct);
+        var books = await journal.KnownBooksAsync(ct);
+
+        return (entries, parlays, books);
+    }
+
+    private async Task<(IReadOnlyList<string>, int)> ReadPickerAsync(CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+        var sports = await db.Sports.AsNoTracking().Where(s => s.Enabled).OrderBy(s => s.Key).Select(s => s.Key).ToListAsync(ct);
+
+        var pending = await db.JournalEntries.CountAsync(e => e.Result == EntryResult.Pending && e.ParlayGroupId == null, ct)
+                      + await db.Parlays.CountAsync(p => p.Result == EntryResult.Pending, ct);
+
+        return (sports, pending);
+    }
+
+    /// <summary>The write behind the parlay form's Save. Virtual for the same render tests.</summary>
+    protected virtual async Task WriteParlayAsync(Guid id, ParlayEdit edit)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>().UpdateParlayAsync(id, edit);
+    }
+
+    /// <summary>The write behind the entry form's Save. Virtual for the same render tests.</summary>
+    protected virtual async Task WriteEntryAsync(EntryDraft draft, int? id)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>().SaveEntryAsync(draft, id);
+    }
+
+    private async Task FilterAsync(Action change)
+    {
+        change();
+        _take = Step;
+        await LoadAsync();
+    }
+
+    private async Task ShowMoreAsync()
+    {
+        _take += Step;
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Opens the wager window on its game search: the one form a new bet is recorded with. The
+    /// last result line goes: a stale "Entry saved." beside a new bet describes some earlier minute.
+    /// </summary>
+    private void OpenWager()
+    {
+        _message = null;
+        Manager.Open(WindowCatalog.Find(WindowCatalog.Wager)!);
+    }
+
+    /// <summary>
+    /// The same wager window, building a parlay: each bet picked there is a leg on the slip, and
+    /// the slip turns to parlay mode so the legs read as one bet. Logged from the Slip tab, here
+    /// or in that window, once it is whole.
+    /// </summary>
+    private void BuildParlay()
+    {
+        _message = null;
+        Slip.SetMode(SlipMode.Parlay);
+        Manager.Open(WindowCatalog.Find(WindowCatalog.Wager)!,
+            new Dictionary<string, object> { ["BuildParlay"] = true }, "Build parlay");
+    }
+
+    /// <summary>A new wager window on this bet: the shared door, so it means what the wager window's own Duplicate means.</summary>
+    private void Duplicate(JournalEntry entry)
+    {
+        _message = null;
+        Manager.OpenWagerCopy(WagerPrefill.From(entry), entry.Game is { } game ? Matchup(game) : null);
+    }
+
+    private void EditEntry(JournalEntry entry)
+    {
+        _message = null;
+        _editing = entry;
+        _entry = new Draft
+        {
+            GameId = entry.GameId,
+            Game = entry.Game,
+            Market = entry.FreeTextMarket is null ? entry.Market : FreeText,
+            FreeTextMarket = entry.FreeTextMarket,
+            Outcome = entry.Outcome == "—" ? string.Empty : entry.Outcome,
+            // Without the column's scale, so the field reads "-3" as the book printed it and not
+            // "-3.00". Decimal equality ignores scale, so this is not an unsaved change.
+            LineTaken = entry.LineTaken is { } line ? line / 1.000000000000000000000000000000000m : null,
+            PriceTaken = entry.PriceTaken,
+            Stake = entry.Stake,
+            Book = entry.Book,
+            Note = entry.Note,
+            OriginalPrice = entry.PriceTaken,
+            OriginalLine = entry.LineTaken,
+            WasManual = entry.ManualPrice
+        };
+        _opened = _entry.ToDraft();
+        _parlay = null;
+        _parlayOpened = null;
+        _touched.Clear();
+        _mode = FormMode.Entry;
+
+        // Opened on another bet, the form holds nothing the journal lacks yet.
+        MarkUnsaved(false);
+    }
+
+    /// <summary>The same grouped form, on a parlay: its money and book, and the price on each leg.</summary>
+    private void EditParlay(Parlay parlay)
+    {
+        _message = null;
+        _editing = null;
+        _opened = null;
+        _parlay = new ParlayEditDraft(parlay);
+        _parlayOpened = _parlay.ToEdit();
+        _touched.Clear();
+        _mode = FormMode.EditParlay;
+        MarkUnsaved(false);
+    }
+
+    private void CloseForm()
+    {
+        _mode = FormMode.None;
+        _editing = null;
+        _opened = null;
+        _parlay = null;
+        _parlayOpened = null;
+        _touched.Clear();
+
+        // Saved or cancelled, the form holds nothing the journal lacks.
+        MarkUnsaved(false);
+    }
+
+    private Task SetParlayBookAsync(string book)
+    {
+        if (_parlay is { } edited)
+            Edit("book", () => edited.Book = book);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Saves the parlay form. A write that fails keeps the form open with what was typed, and
+    /// says so: the operator's corrections are not thrown away with the error.
+    /// </summary>
+    private async Task SaveParlayChangesAsync()
+    {
+        if (_parlay is not { } edited || ParlayWaiting(edited) is not null)
+            return;
+
+        try
+        {
+            await WriteParlayAsync(edited.Parlay.Id, edited.ToEdit());
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The parlay did not save");
+            _message = "The parlay was not saved. Try again.";
+            return;
+        }
+
+        _message = "Parlay saved.";
+        CloseForm();
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Puts a logged parlay back on the slip to log again: each leg at the price it was taken at,
+    /// typed rather than fetched (<see cref="SlipItem.ManualPrice"/>), so a leg on a game that
+    /// has started is a leg and not a closing line; then the parlay's stake, book and price. The
+    /// slip is shown in its tab here, beside the journal it was copied from.
+    ///
+    /// <para>
+    /// The slip holds one parlay, so wagers already on it are asked about before they are
+    /// replaced: they are banked and unlogged, and a copy laid over them would mix the two.
+    /// </para>
+    /// </summary>
+    private async Task DuplicateParlayAsync(Parlay parlay)
+    {
+        _message = null;
+
+        // The slip holds bets on games the desk tracks, at a price. A leg that is a described
+        // bet, on no tracked game, or logged without its price has no card to become.
+        if (parlay.Legs.Any(l => l.Game is null || !string.IsNullOrWhiteSpace(l.FreeTextMarket) || l.PriceTaken == 0))
+        {
+            _message = "The slip holds bets on tracked games at a price, and a leg of this parlay is not one. Nothing was copied.";
+            return;
+        }
+
+        if (Slip.Items.Count > 0)
+        {
+            var held = Slip.Items.Count == 1 ? "1 wager" : $"{Slip.Items.Count} wagers";
+            var replace = await Alerts.ConfirmAsync(
+                "Replace the slip?",
+                confirmLabel: "Replace",
+                message: $"The slip holds {held}. They leave it unlogged, and this parlay's {parlay.Legs.Count} legs take their place.",
+                destructive: true);
+
+            if (!replace)
+                return;
+
+            Slip.Clear();
+        }
+
+        foreach (var leg in parlay.Legs.OrderBy(l => l.Id))
+        {
+            var game = leg.Game!;
+            Slip.AddLeg(new SlipItem(
+                Guid.Empty,
+                game.Id, Matchup(game), game.StartsAt, game.Sport?.Key ?? string.Empty,
+                leg.Market, leg.Outcome, leg.LineTaken,
+                parlay.Book, leg.PriceTaken, leg.PlacedAt, IsClosing: false,
+                Stake: 0m, Note: null, Fair: null, Ev: null,
+                ManualPrice: true)
+            {
+                OutcomeAbbrev = SlipItem.ClubAbbrev(game, leg.Outcome),
+            });
+        }
+
+        Slip.SetMode(SlipMode.Parlay);
+        Slip.SetParlay(parlay.Stake, parlay.PriceQuoted, parlay.Book);
+
+        _tab = JournalTab.Slip;
+        Toasts.Success($"Copied the {parlay.Legs.Count}-leg parlay to the slip");
+    }
+
+    private Task SetEntryBookAsync(string book)
+    {
+        Edit("book", () => _entry.Book = book);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Saves the entry form. As the parlay form does, a write that fails keeps the form open with
+    /// what was typed and says so in the toolbar, rather than taking the operator's work with it.
+    /// </summary>
+    private async Task SaveEntryAsync()
+    {
+        try
+        {
+            await WriteEntryAsync(_entry.ToDraft(), _editing?.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Journal entry {Id} did not save", _editing?.Id);
+            _message = "The entry was not saved. Try again.";
+            return;
+        }
+
+        _message = _editing is null ? "Entry logged." : "Entry saved.";
+        CloseForm();
+        await LoadAsync();
+    }
+
+    private async Task DeleteEntryAsync(JournalEntry entry)
+    {
+        var confirmed = await Alerts.ConfirmAsync(
+            "Delete this entry?",
+            message: $"{Describe(entry)} — {OddsMath.Money(entry.Stake)} at {Price(entry.PriceTaken)}. It leaves the journal and every figure built on it.",
+            confirmLabel: "Delete", destructive: true);
+
+        if (!confirmed)
+            return;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<JournalService>().DeleteEntryAsync(entry.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Journal entry {Id} was not deleted", entry.Id);
+            _message = "The entry was not deleted. Try again.";
+            return;
+        }
+
+        _message = "Entry deleted.";
+        await LoadAsync();
+    }
+
+    private async Task DeleteParlayAsync(Parlay parlay)
+    {
+        var confirmed = await Alerts.ConfirmAsync(
+            "Delete this parlay?",
+            message: $"{parlay.Legs.Count} legs, {OddsMath.Money(parlay.Stake)}. The parlay and all its legs leave the journal.",
+            confirmLabel: "Delete", destructive: true);
+
+        if (!confirmed)
+            return;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<JournalService>().DeleteParlayAsync(parlay.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Parlay {Id} was not deleted", parlay.Id);
+            _message = "The parlay was not deleted. Try again.";
+            return;
+        }
+
+        _message = "Parlay deleted.";
+        await LoadAsync();
+    }
+
+    private async Task SetResultAsync(int entryId, EntryResult result)
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var entry = await db.JournalEntries.FirstAsync(e => e.Id == entryId);
+
+            PerformanceAnalytics.ApplyResult(entry, result);
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The result on journal entry {Id} was not recorded", entryId);
+            _message = "The result was not recorded. Try again.";
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task SetParlayResultAsync(Parlay parlay, EntryResult result)
+    {
+        var payout = result == EntryResult.Win && parlay.PriceQuoted is { } q
+            ? Math.Round(OddsMath.PayoutOnWin(q, parlay.Stake), 2, MidpointRounding.AwayFromZero)
+            : (decimal?)null;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<JournalService>().SetParlayResultAsync(parlay.Id, result, payout);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The result on parlay {Id} was not recorded", parlay.Id);
+            _message = "The result was not recorded. Try again.";
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task SettleAsync()
+    {
+        _busy = true;
+        Report(PulseState.Active, "settling");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var summary = await scope.ServiceProvider
+                .GetRequiredService<SettlementService>().SettleAsync();
+
+            _message = $"{summary.Graded} graded · {summary.Voided} voided · {summary.ParlaysSettled} parlays · "
+                       + $"{summary.ClvResolved} CLV resolved · {summary.LeftPending} pending";
+
+            // The reload catches its own failure (WithActivityAsync), so a catch here is the
+            // settlement's alone.
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Settlement did not run");
+            _message = "Settlement did not run. Try again.";
+            Report(PulseState.Critical, "settle failed");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Why a pending parlay whose legs are all in has not settled, if that is the case.</summary>
+    private static string? Stuck(Parlay parlay)
+        => parlay.Legs.All(l => l.Result != EntryResult.Pending)
+            ? ParlayGrading.Grade(parlay, parlay.Legs).Reason
+            : null;
+
+    private RenderFragment LegFields(Draft d) => @<text>
+        <FormRow Label="Game">
+            <GamePicker Value="d.GameId" Selected="d.Game"
+                        SelectedChanged="@((Game? g) => Edit("game", () => d.Game = g))"
+                        ValueChanged="@((int? id) => Edit("game", () => d.GameId = id))" />
+        </FormRow>
+
+        <FormRow Label="Market">
+            <DeskSelect TValue="string" Value="d.Market" Class="wfield--short" aria-label="Market"
+                        ValueChanged="@((string? m) => Edit("market", () => d.Market = m ?? Markets.Spread))">
+                <option value="@Markets.Moneyline">Moneyline</option>
+                <option value="@Markets.Spread">Spread</option>
+                <option value="@Markets.Total">Total</option>
+                <option value="@FreeText">Other (describe)</option>
+            </DeskSelect>
+        </FormRow>
+
+        <FormRow Label="@(d.Market == FreeText ? "Bet" : "Selection")">
+            @if (d.Market == FreeText)
+            {
+                <DeskField TValue="string" Class="wfield--fill" aria-label="The bet"
+                           placeholder="e.g. Player X over 1.5 receiving TDs" Value="d.FreeTextMarket"
+                           ValueChanged="@((string? t) => Edit("bet", () => d.FreeTextMarket = t))" />
+            }
+            else if (d.Market == Markets.Total)
+            {
+                @* A total is over or under; there is nothing else to type. *@
+                <DeskSwitch TValue="string" Options="TotalSides" Label="Selection" Size="DeskKeySize.Small"
+                            Value="d.Outcome" ValueChanged="@((string o) => Edit("selection", () => d.Outcome = o))" />
+            }
+            else if (d.GameId is not null && TeamSides(d.Game) is not null)
+            {
+                @* On a tracked game the side is one of two teams the desk already knows, away
+                   then home as the scoreboard reads; the value is the team's name, which is what
+                   settlement matches against. *@
+                <DeskSwitch TValue="string" Options="@TeamSides(d.Game)" Label="Selection" Size="DeskKeySize.Small"
+                            Value="d.Outcome" ValueChanged="@((string o) => Edit("selection", () => d.Outcome = o))" />
+            }
+            else
+            {
+                <DeskField TValue="string" Class="wfield--short" aria-label="Selection"
+                           placeholder="Team"
+                           Value="d.Outcome"
+                           ValueChanged="@((string? o) => Edit("selection", () => d.Outcome = o ?? string.Empty))" />
+            }
+        </FormRow>
+
+        @if (d.Market is Markets.Spread or Markets.Total)
+        {
+            <FormRow Label="Line">
+                <DeskField TValue="decimal?" Mono="true" Class="wfield--short" type="number" step="0.5"
+                           aria-label="Line" placeholder="-3" Value="d.LineTaken"
+                           ValueChanged="@((decimal? l) => Edit("line", () => d.LineTaken = l))"
+                           Error="@(Touched("line") ? LineError(d.Market, d.LineTaken) : null)" />
+            </FormRow>
+        }
+
+        @* To the cent, or decimal odds, read as the American price the label says back, as the
+           wager window and the slip read them. *@
+        <FormRow>
+            <LabelContent>Price<span class="wbet__echo">@DecimalEcho(d.PriceTaken)</span></LabelContent>
+            <ChildContent>
+            <DeskField TValue="decimal" Mono="true" Class="wfield--short" type="number" step="any"
+                       aria-label="Price" placeholder="-110" Value="d.PriceTaken"
+                       ValueChanged="@((decimal p) => Edit("price", () => d.PriceTaken = p))"
+                       Error="@(Touched("price") ? PriceError(d.PriceTaken) : null)" />
+            </ChildContent>
+        </FormRow>
+    </text>;
+
+    private RenderFragment BookPicker(string current, Func<string, Task> set) => @<text>
+        <DeskSelect TValue="string" Class="wfield--short" aria-label="Book" Value="current"
+                    ValueChanged="@(async (string? b) => await set(b ?? string.Empty))">
+            <option value="">Book…</option>
+            @foreach (var book in _books)
+            {
+                <option value="@book">@BookNames.Display(book)</option>
+            }
+        </DeskSelect>
+    </text>;
+
+    /// <summary>
+    /// The club a selection names, when it names one: a moneyline or a spread on a tracked game
+    /// is a side, and its outcome is that side's name. A total names no club, and a bout's
+    /// fighters carry no crest, so both answer null. Read off the row's own game, which the
+    /// journal's read already brings with its teams and sport.
+    /// </summary>
+    private static Team? SelectedClub(JournalEntry e)
+    {
+        if (e.Game is not { } game || FightSports.IsFight(game.Sport?.Key))
+            return null;
+
+        return string.Equals(e.Outcome, game.AwayTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.AwayTeam
+            : string.Equals(e.Outcome, game.HomeTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.HomeTeam
+            : null;
+    }
+
+    private RenderFragment Selection(JournalEntry e) => @<text>
+        @if (!string.IsNullOrWhiteSpace(e.FreeTextMarket))
+        {
+            @e.FreeTextMarket
+        }
+        else if (e.GameId is { } gameId)
+        {
+            @* An entry against a tracked game reaches its market. The club it backs leads with its
+               crest, decorative beside the name that says who it is. *@
+            <DeskLink Destination="game" OnClick="() => OpenGameAsync(gameId)">
+                @if (SelectedClub(e) is { } club)
+                {
+                    <TeamMark Sport="@e.Game!.Sport?.Key" Abbrev="@club.Abbrev" Size="TeamMarkSize.Small" />
+                }
+                @e.Outcome
+                @if (e.LineTaken is { } l)
+                {
+                    @* The space is part of the expression: Razor drops a whitespace-only text node,
+                       and "Buffalo Bills-3.00" ran the team into its line. *@
+                    <span class="dim num">@(" " + Line(l))</span>
+                }
+            </DeskLink>
+        }
+        else
+        {
+            @e.Outcome
+            @if (e.LineTaken is { } l)
+            {
+                <span class="dim num">@(" " + Line(l))</span>
+            }
+        }
+    </text>;
+
+    private RenderFragment ClvCell(JournalEntry e) => @<text>
+        @if (Clv(e) is { } clv)
+        {
+            @* When the line moved, the points are the reading; the two prices are for different
+               numbers and their difference means nothing on its own. The close it was measured
+               against is a tooltip on a focusable figure, not a title: a title never reaches the
+               keyboard (HIG 12), and the figure keeps its own text as its name. *@
+            <DeskTooltip Text="@ClvTitle(e)">
+                <span class="journal-clv @(clv.BeatClose ? "up" : "down")" tabindex="0">
+                    @(clv.SameNumber
+                        ? clv.CentsPercent.ToString("+0.0;-0.0") + "%"
+                        : clv.PointsGained!.Value.ToString("+0.#;-0.#") + " pts")
+                </span>
+            </DeskTooltip>
+        }
+        else
+        {
+            <span class="dim">—</span>
+        }
+    </text>;
+
+    private static string Describe(JournalEntry e)
+        => e.FreeTextMarket ?? $"{e.Outcome}{(e.LineTaken is { } l ? " " + (l > 0 ? $"+{l}" : l.ToString()) : "")} {SelectionText.MarketName(e.Market)}";
+
+    private static ClvResult? Clv(JournalEntry entry) => PerformanceAnalytics.ComputeClv(entry);
+
+    /// <summary>"Took -1.5 -110; closed -2.5 -110 at fanduel (no close for draftkings)" — what was compared.</summary>
+    private static string ClvTitle(JournalEntry e)
+    {
+        static string At(decimal? points, decimal price)
+            => points is { } p ? $"{p:+0.#;-0.#} {Price(price)}" : Price(price);
+
+        var close = At(e.ClosingPoints, e.ClosingPrice!.Value);
+        var book = string.Equals(e.ClosingBook, e.Book, StringComparison.OrdinalIgnoreCase) || e.ClosingBook is null
+            ? ""
+            : $" at {e.ClosingBook} (no close for {e.Book})";
+
+        var fair = PerformanceAnalytics.ComputeClv(e) is { EvAtClose: { } ev }
+            ? $". Worth {ev * 100:+0.0;−0.0}% at the fair close ({(e.ClosingFairBasis == FairValue.SharpBook ? "Pinnacle" : "consensus")}, no-vig)"
+            : "";
+
+        return $"Took {At(e.LineTaken, e.PriceTaken)}; closed {close}{book}{fair}";
+    }
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var game = await db.Games
+            .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
+            .FirstOrDefaultAsync(g => g.Id == gameId);
+
+        if (game is not null)
+            Manager.OpenGame(game);
+    }
+
+    private static DeskState ResultState(EntryResult result) => result switch
+    {
+        EntryResult.Win => DeskState.Positive,
+        EntryResult.Loss => DeskState.Negative,
+        EntryResult.Push => DeskState.Info,
+        EntryResult.Void => DeskState.Neutral,
+        _ => DeskState.Warning
+    };
+}

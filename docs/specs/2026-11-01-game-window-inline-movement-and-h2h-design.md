@@ -1,8 +1,8 @@
 # Game window: movement and head to head in place
 
 **Status:** Built · 2026-11-01
-**Touches:** `GamePanel.razor`, new `MarketMovement` and `GameHeadToHead` snippets, `HeadToHeadSnippet.razor` (takes rows it is handed), `lineops.css`. No schema change, no new service.
-`lineops.css` (the `gamelines` block). No schema change, no new service.
+**Touches:** `GamePanel.razor`, new `MarketMovement` and `GameHeadToHead` snippets, `HeadToHeadSnippet.razor` (takes rows it is handed), `xlines.css`. No schema change, no new service.
+`xlines.css` (the `gamelines` block). No schema change, no new service.
 
 ## The problem
 
@@ -157,7 +157,7 @@ Nothing closed grows. Every new pixel of height is one the operator asked for by
 
 1. Extract the market row into a `GameMarketRow` component with the disclosure and the two
    branches (Moves / Every book); reuse `OddsPanel.MovementRows` and `Headline` by moving them
-   to `LineOps.Web.Services.MarketMovement` so the panel and the snippet share one source.
+   to `XLines.Web.Services.MarketMovement` so the panel and the snippet share one source.
 2. H2H disclosure button, summary from the five rows `HeadToHeadSnippet` already reads
    (lift the read so the label and the snippet share one query).
 3. Move the season switch into the two panes; drop the Movement button.

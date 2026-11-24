@@ -1,0 +1,333 @@
+using XLines.Core.Analytics;
+using XLines.Ingestion.Services;
+
+namespace XLines.Web.Services;
+
+public enum SlipMode { Straight, Parlay }
+
+/// <summary>One wager banked on the slip: everything the wager window knew when it was added.</summary>
+public sealed record SlipItem(
+    Guid Id,
+    int GameId, string Matchup, DateTimeOffset StartsAt, string SportKey,
+    string Market, string Outcome, decimal? Line,
+    string Book, decimal PriceAmerican, DateTimeOffset CapturedAt, bool IsClosing,
+    decimal Stake, string? Note,
+    FairPrice? Fair, double? Ev,
+    bool ManualPrice = false)
+{
+    /// <summary>"ML · Chiefs -128".</summary>
+    public string Selection => $"{SelectionText.Of(Market, Outcome, Line)} {OddsMath.FormatPrice(PriceAmerican)}";
+
+    /// <summary>
+    /// What the journal already held on this side when the wager was banked — "$25 at -128
+    /// (draftkings), Sep 26 13:18 ET" — or null. Carried from the wager window's duplicate check
+    /// rather than read per card: the window has just read it, and a slip of ten cards is not
+    /// worth ten queries to restate what each window already said.
+    /// </summary>
+    public string? InJournal { get; init; }
+
+    /// <summary>
+    /// Banked as a parlay leg — from a Board price, or a wager window building a parlay — and so
+    /// carrying no stake: a leg's money is the parlay's. It is logged only inside a parlay; typing
+    /// a stake on the card makes it an ordinary wager that can also be logged straight.
+    /// </summary>
+    public bool AsLeg { get; init; }
+
+    /// <summary>
+    /// The abbreviation of the club this wager backs, for its crest on the card: set where the
+    /// outcome names one of the game's two clubs, null for a total, a fight or a free-text side.
+    /// </summary>
+    public string? OutcomeAbbrev { get; init; }
+
+    /// <summary>The club <paramref name="outcome"/> names in <paramref name="game"/>, by abbreviation, or null.</summary>
+    public static string? ClubAbbrev(XLines.Core.Entities.Game game, string outcome)
+    {
+        if (FightSports.IsFight(game.Sport?.Key))
+            return null;
+
+        return string.Equals(outcome, game.AwayTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.AwayTeam?.Abbrev
+            : string.Equals(outcome, game.HomeTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.HomeTeam?.Abbrev
+            : null;
+    }
+
+    public EntryDraft ToDraft(decimal stake)
+        => new(GameId, Market, null, Outcome, Line, PriceAmerican, stake, Book, Note, ManualPrice);
+}
+
+/// <summary>
+/// The wagers an operator has banked this desk session, and the rules that govern them.
+///
+/// <para>
+/// Circuit-scoped (registered <c>AddScoped</c>): one slip per desk, shared by every window on it,
+/// gone with the circuit. Not persisted — a reload loses an unlogged slip, and a slip takes seconds
+/// to rebuild (spec §11.1). No Blazor types: windows subscribe to <see cref="Changed"/>.
+/// </para>
+///
+/// <para>
+/// Being the only owner of the list is what enforces the rules: a closing price is never logged
+/// (it stays so the operator sees why), a straight bet needs a stake, a parlay's legs are the
+/// items the market still offers, and two items on one side are two bets — allowed, and said.
+/// </para>
+/// </summary>
+public sealed class WagerSlip
+{
+    private readonly List<SlipItem> _items = [];
+
+    public IReadOnlyList<SlipItem> Items => _items;
+    public SlipMode Mode { get; private set; } = SlipMode.Straight;
+    public decimal ParlayStake { get; private set; }
+    public decimal? ParlayPriceQuoted { get; private set; }
+    public string? ParlayBook { get; private set; }
+
+    public event Action? Changed;
+
+    /// <summary>
+    /// Banks a wager. Returns it as stored, with the id the slip assigned. A stake at or below
+    /// zero is refused outright: a $0 bet is not a bet, and a card that could be banked unstaked
+    /// was a card the slip then had to explain. A leg is the exception, and has its own door
+    /// (<see cref="AddLeg"/>): it is not a bet on its own.
+    /// </summary>
+    public SlipItem Add(SlipItem item)
+    {
+        if (item.AsLeg)
+            return AddLeg(item);
+
+        if (item.Stake <= 0)
+            throw new ArgumentOutOfRangeException(nameof(item), "A wager on the slip needs a stake above zero.");
+
+        var stored = item with { Id = Guid.NewGuid() };
+        _items.Add(stored);
+        Raise();
+        return stored;
+    }
+
+    /// <summary>
+    /// Banks a parlay leg: no stake, logged only inside a parlay. A slip holding nothing but legs
+    /// is a parlay being built, so it switches to parlay mode; one with straight bets on it keeps
+    /// the mode the operator chose.
+    /// </summary>
+    public SlipItem AddLeg(SlipItem item)
+    {
+        var stored = item with { Id = Guid.NewGuid(), Stake = 0m, AsLeg = true };
+        _items.Add(stored);
+
+        if (_items.All(i => i.AsLeg))
+            SetModeQuietly(SlipMode.Parlay);
+
+        Raise();
+        return stored;
+    }
+
+    /// <summary>The one removal path. An id not on the slip is a no-op.</summary>
+    public void Remove(Guid id)
+    {
+        if (_items.RemoveAll(i => i.Id == id) > 0)
+            Raise();
+    }
+
+    /// <summary>
+    /// Puts back an item <see cref="Remove"/> took off, at the place it had: the Undo on the
+    /// removal's toast. Its id is kept, so a second Undo, or an item already back, is a no-op.
+    /// </summary>
+    public void Restore(SlipItem item, int index)
+    {
+        if (_items.Any(i => i.Id == item.Id))
+            return;
+
+        _items.Insert(Math.Clamp(index, 0, _items.Count), item);
+        Raise();
+    }
+
+    public void Clear()
+    {
+        _items.Clear();
+        ParlayStake = 0;
+        ParlayPriceQuoted = null;
+        ParlayBook = null;
+        Raise();
+    }
+
+    /// <summary>
+    /// Switches between straight bets and one parlay, keeping every item. A parlay is placed at
+    /// one book, so switching to one proposes the book most of the legs came from.
+    /// </summary>
+    public void SetMode(SlipMode mode)
+    {
+        if (SetModeQuietly(mode))
+            Raise();
+    }
+
+    private bool SetModeQuietly(SlipMode mode)
+    {
+        if (Mode == mode)
+            return false;
+
+        Mode = mode;
+
+        if (mode == SlipMode.Parlay && ParlayBook is null)
+            ParlayBook = Legs.GroupBy(l => l.Book).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
+
+        return true;
+    }
+
+    /// <summary>The parlay's money: stake, the book's own price if it gave one, and the book.</summary>
+    public void SetParlay(decimal stake, decimal? priceQuoted, string? book)
+    {
+        ParlayStake = stake;
+        ParlayPriceQuoted = priceQuoted is 0 ? null : priceQuoted;
+        ParlayBook = string.IsNullOrWhiteSpace(book) ? null : book;
+        Raise();
+    }
+
+    /// <summary>
+    /// Edits one item in place — its stake or note. The id is the slip's and survives the edit.
+    /// An edit that would leave the stake at or below zero is refused and the card keeps its
+    /// stake: the same rule as <see cref="Add"/>, so the slip never holds a $0 bet. A leg stays
+    /// a leg at no stake; given one, it is a wager like any other.
+    /// </summary>
+    public void Touch(Guid id, Func<SlipItem, SlipItem> edit)
+    {
+        var index = _items.FindIndex(i => i.Id == id);
+        if (index < 0)
+            return;
+
+        var edited = edit(_items[index]) with { Id = id };
+
+        if (edited.Stake > 0)
+            edited = edited with { AsLeg = false };
+        else if (!edited.AsLeg)
+            return;
+
+        _items[index] = edited;
+        Raise();
+    }
+
+    /// <summary>
+    /// Records the price the operator actually got on an item: how a bet placed before its game
+    /// started — the four legs of a parlay logged the morning after — gets onto a parlay at all.
+    /// The card held the closing line, a number that could not have been taken from here, and the
+    /// slip would only say to log it from the Journal instead. A typed price is a claim about what
+    /// was taken, as it is in the wager window's pencil: the item stops being closing, its value is
+    /// read against the same fair price, and it can be a leg or a straight bet like any other.
+    /// False, and nothing changed, for a number that is not a price (between −100 and +100) or an
+    /// id not on the slip. A price to the cent is kept to the cent: +104.35 is what the book pays on.
+    /// </summary>
+    public bool TakePrice(Guid id, decimal priceAmerican)
+    {
+        if (priceAmerican is > -100m and < 100m)
+            return false;
+
+        var index = _items.FindIndex(i => i.Id == id);
+        if (index < 0)
+            return false;
+
+        var item = _items[index];
+        var ev = item.Fair is { } fair ? FairValue.Ev(fair.Probability, priceAmerican) : (double?)null;
+
+        _items[index] = item with { PriceAmerican = priceAmerican, IsClosing = false, ManualPrice = true, Ev = ev };
+        Raise();
+        return true;
+    }
+
+    /// <summary>
+    /// Whether this item can be logged as the slip stands. Never a closing price: it is a number
+    /// that could not have been taken from here. In straight mode, also a stake above zero — the
+    /// slip never admits one at zero, so this is the invariant restated, not a state a card can
+    /// be in; a parlay leg carries no stake of its own, and a card banked as one is logged only
+    /// inside a parlay.
+    /// </summary>
+    public bool CanLog(SlipItem item)
+        => Mode == SlipMode.Parlay ? IsLeg(item) : !item.IsClosing && !item.AsLeg && item.Stake > 0;
+
+    /// <summary>What Log would write in straight mode.</summary>
+    public IReadOnlyList<SlipItem> Ready => _items.Where(CanLog).ToList();
+
+    /// <summary>
+    /// The items a parlay is built from: what the market still offers, one per market on a game —
+    /// the first on the slip for each. A side and a total on one game is a same-game parlay, which
+    /// books write; the Bills to win beside the Bills to win is the same bet twice, and the over
+    /// beside the under cannot both win, so a second item on a market a leg already holds is not
+    /// a leg. The rest stay on the slip and say why.
+    /// </summary>
+    public IReadOnlyList<SlipItem> Legs
+        => _items.Where(i => !i.IsClosing).GroupBy(i => (i.GameId, i.Market)).Select(g => g.First()).ToList();
+
+    public bool IsLeg(SlipItem item) => Legs.Any(l => l.Id == item.Id);
+
+    /// <summary>A live item that is not a leg because an earlier item is on the same market of the same game.</summary>
+    public bool SharesMarketWithLeg(SlipItem item) => !item.IsClosing && !IsLeg(item);
+
+    /// <summary>
+    /// Two or more legs on one game. Their results move together — a favourite covering and the
+    /// game going over are not independent — so the legs' prices multiplied overstate what the
+    /// parlay pays, and only the book's own price for it is a price at all.
+    /// </summary>
+    public bool IsSameGame => Legs.GroupBy(l => l.GameId).Any(g => g.Count() > 1);
+
+    /// <summary>
+    /// The legs' prices multiplied, whatever the book quoted, as a whole American price — what a
+    /// book prints for it. Null with fewer than two legs. The product is exact over legs taken to
+    /// the cent; only the quote is rounded, and settlement pays on the product, not the quote.
+    /// </summary>
+    public decimal? MultipliedPrice
+    {
+        get
+        {
+            var legs = Legs;
+            return legs.Count >= 2
+                ? OddsMath.FromDecimal((double)OddsMath.CombinedDecimal(legs.Select(l => l.PriceAmerican)))
+                : null;
+        }
+    }
+
+    /// <summary>
+    /// The parlay's price: the book's quote where it gave one, otherwise the legs' prices
+    /// multiplied (<see cref="OddsMath.CombinedAmerican"/>). Null with fewer than two legs, and
+    /// null for a same-game parlay the book's price has not been given for (<see cref="IsSameGame"/>).
+    /// </summary>
+    public decimal? CombinedPrice
+        => ParlayPriceQuoted is { } quoted ? quoted
+            : IsSameGame ? null
+            : MultipliedPrice;
+
+    /// <summary>Whether another item on the slip is on the same side of the same game.</summary>
+    public bool HasTwin(SlipItem item)
+        => _items.Any(o => o.Id != item.Id && o.GameId == item.GameId && o.Market == item.Market
+                           && string.Equals(o.Outcome, item.Outcome, StringComparison.OrdinalIgnoreCase));
+
+    public IReadOnlyList<EntryDraft> StraightDrafts() => Ready.Select(i => i.ToDraft(i.Stake)).ToList();
+
+    /// <summary>
+    /// The parlay as the journal takes it. The quoted price only when the book gave one: without
+    /// it settlement multiplies the legs, which is also how it reprices after a push.
+    /// </summary>
+    public ParlayDraft ToParlayDraft()
+        => new(ParlayBook ?? string.Empty, ParlayStake, ParlayPriceQuoted, null, Legs.Select(l => l.ToDraft(0m)).ToList());
+
+    /// <summary>
+    /// Takes logged items off the slip, in one change. Whatever was not logged stays. The
+    /// parlay's money goes with them: a logged parlay's stake, book price and book belonged to
+    /// that parlay, and kept they priced the next one — a +441 the book quoted for four legs
+    /// standing as the quote for the two built after it. A straight bet logged while the legs
+    /// stay on the slip leaves the parlay's money alone: it is still that parlay.
+    /// </summary>
+    public void Logged(IEnumerable<Guid> ids)
+    {
+        var gone = ids.ToHashSet();
+        var removed = _items.RemoveAll(i => gone.Contains(i.Id)) > 0;
+        var hadParlay = ParlayStake != 0 || ParlayPriceQuoted is not null || ParlayBook is not null;
+        var parlayGone = hadParlay && Legs.Count == 0;
+
+        if (parlayGone)
+        {
+            ParlayStake = 0;
+            ParlayPriceQuoted = null;
+            ParlayBook = null;
+        }
+
+        if (removed || parlayGone)
+            Raise();
+    }
+
+    private void Raise() => Changed?.Invoke();
+}

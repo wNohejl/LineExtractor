@@ -1,0 +1,113 @@
+@namespace XLines.Web.Components.Snippets
+@using XLines.Core.Entities
+@using XLines.Web.Services
+
+@*
+    Two clubs side by side, as the fight's tale of the tape sets two fighters: the away club
+    leading, the home club trailing, what each row measures between them.
+
+    The Board row's Form answer for a team sport. It was a record, five W/L tags and an ATS figure
+    a side, in a card a third of the row wide. The row has more to say, and the database already
+    holds it: where each market stands and where its best book opened, the fair price and the
+    cheapest book to bet into, then each club's season — record and where it was won, what it
+    scores and allows, against the spread and the total, rest, the last game and the last five,
+    and the starter the board names. Two groups (Lines, then the season), each one fill with one
+    hairline and inset rows, filling the row's width. Figures are tabular; nothing is coloured as
+    a pick. A market no book priced says "no line"; a season with no finals says so.
+*@
+
+<div class="mtape">
+    <div class="mtape__clubs">
+        @Club(Data.Row.Game.AwayTeam, Data.Away, trailing: false)
+        <span class="mtape__at" aria-hidden="true">at</span>
+        @Club(Data.Row.Game.HomeTeam, Data.Home, trailing: true)
+    </div>
+
+    <section class="mtape__group" aria-label="Lines">
+        <h4 class="mtape__title">Lines@(Data.Row.PricesAreClosing ? ", at the close" : "")</h4>
+        <div class="mtape__list">
+            @foreach (var market in Data.Markets)
+            {
+                <div class="mtape__row">
+                    @Price(market.Leading, trailing: false)
+                    <span class="mtape__label">
+                        @market.Name
+                        @if (market.Detail is { } detail)
+                        {
+                            <span class="mtape__sub">@detail</span>
+                        }
+                    </span>
+                    @Price(market.Trailing, trailing: true)
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="mtape__group" aria-label="@SeasonTitle">
+        <h4 class="mtape__title">@SeasonTitle</h4>
+        @if (Data.Away.Played + Data.Home.Played == 0)
+        {
+            <p class="mtape__none">Neither club has a final this @SeasonWord yet.</p>
+        }
+        else
+        {
+            <div class="mtape__list">
+                @Row("Record", Data.Away.Record, Data.Home.Record)
+                @Row("Home · away", Data.Away.HomeAway, Data.Home.HomeAway)
+                @Row("Scored – allowed a game", Data.Away.PerGame, Data.Home.PerGame)
+                @Row("Against the spread", Data.Away.Ats, Data.Home.Ats)
+                @Row("Over – under", Data.Away.OverUnder, Data.Home.OverUnder)
+                @Row("Rest", Data.Away.Rest, Data.Home.Rest)
+                @Row("Last game", Data.Away.LastGame ?? "—", Data.Home.LastGame ?? "—")
+                <div class="mtape__row">
+                    <span class="mtape__value"><FormRun Log="@FormResult.From(Data.Away.Season)" /></span>
+                    <span class="mtape__label">Last five</span>
+                    <span class="mtape__value mtape__value--trailing"><FormRun Log="@FormResult.From(Data.Home.Season)" /></span>
+                </div>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public MatchupTapeData Data { get; set; } = default!;
+
+    /// <summary>The part of the season the game is in, as the copy names it: "season", "postseason".</summary>
+    private string SeasonWord => Data.Row.Game.SeasonType switch
+    {
+        SeasonType.Postseason => "postseason",
+        SeasonType.Preseason => "preseason",
+        SeasonType.Exhibition => "exhibition games",
+        _ => "season"
+    };
+
+    private string SeasonTitle => $"The {Data.Row.Game.SeasonYear} {SeasonWord}";
+
+    private RenderFragment Club(Team? team, TapeClub club, bool trailing) => @<span class="mtape__club@(trailing ? " mtape__club--trailing" : "")">
+        <span class="mtape__name">
+            <TeamMark Sport="@Data.Row.Game.Sport?.Key" Abbrev="@team?.Abbrev" />
+            @(team?.Name ?? (trailing ? "Home" : "Away"))
+        </span>
+        <span class="mtape__detail">@(club.Starter ?? (club.Played == 0 ? $"no finals this {SeasonWord}" : club.Record))</span>
+    </span>;
+
+    private static RenderFragment Price(TapeQuote? quote, bool trailing) => @<span class="mtape__value@(trailing ? " mtape__value--trailing" : "")">
+        @if (quote is null)
+        {
+            <span class="dim">no line</span>
+        }
+        else
+        {
+            <span class="mtape__figure num">@quote.Quote</span>
+            <span class="mtape__sub">
+                @quote.Book@(quote.Edge is { } edge ? $" · {edge} vs fair" : "")@(quote.Opened is { } opened ? $" · {opened}" : "")
+            </span>
+        }
+    </span>;
+
+    private static RenderFragment Row(string label, string away, string home) => @<div class="mtape__row">
+        <span class="mtape__value num">@away</span>
+        <span class="mtape__label">@label</span>
+        <span class="mtape__value mtape__value--trailing num">@home</span>
+    </div>;
+}

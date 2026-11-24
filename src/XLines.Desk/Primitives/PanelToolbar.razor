@@ -1,0 +1,309 @@
+@namespace XLines.Desk.Primitives
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@*
+    The one row of controls that scope or act on a whole panel.
+
+    Second slot of the panel anatomy (spec 2026-10-24). Before it, every panel laid its own
+    opening row: Ops put a lone Filled key on a right-aligned row of its own, a list put
+    its Filled key in the middle of the filter row, Runs stacked selects under a note and
+    put Refresh after them. The operator's hand went to a different place in every window.
+
+    Order inside is fixed, left to right: pickers (the ChildContent), the secondary pickers
+    (Overflow), the search field (Search), a message the toolbar reports, then the actions slot.
+    The search is compact and trailing: it takes the room a query needs, not the rest of the row,
+    and leads the trailing group with the keys after it (controls.css, "Search"; HIG, Search
+    fields). Without a search, the actions slot is pinned to the right edge on its own. The actions slot holds at most
+    one Filled key, always last; Plain and Tinted keys may sit before it. A toolbar may hold
+    no Filled key at all — a key that only opens a form in place is Tinted, and the key that
+    commits the form is the Filled one.
+
+    The actions slot is not drawn when there is nothing to put in it, so a window a visitor
+    reads renders its pickers with no empty box after them and nothing moves.
+
+    The row is one line. It used to wrap, and a 400px list window stacked pickers, field and keys
+    on three or four lines; the HIG's toolbar overflows instead, and says in advance what
+    goes first (live audit, Toolbars). So the owner says it: Overflow holds the controls that
+    can leave the row, and toolbar.js watches whether the row still fits. When it does not,
+    they fold into a More key just before the actions, and come back once the row has room
+    for them again with some to spare, so a window resized across the line does not flicker.
+    It folds in steps, each only when the last was not enough: the pickers first, then the
+    search, because it is the control most often reached for, then the keys before the
+    primary (SecondaryActions). The primary key never leaves the row.
+
+    In More the controls stay the controls they were — a segmented control, a select, a
+    checkbox — set as form rows with their label leading, not rewritten as menu items. Each
+    Overflow control is wrapped by its owner in a .ptoolbar__item with a .ptoolbar__label;
+    the label is hidden in the row, where the control names itself, and shown in the panel.
+
+    No More key is drawn while nothing is folded, and nothing can fold for a toolbar with no
+    Overflow or SecondaryActions: an owner whose only folding control writes, and is gone
+    for a visitor, passes neither and gets no empty key.
+*@
+
+@* No role="toolbar": the ARIA pattern promises one tab stop with arrow keys between the
+   controls, and these are ordinary controls with ordinary tab stops. A role that
+   announces behaviour the row does not have is worse than none. *@
+<div @ref="_root" class="@Classes" style="@Styles" data-narrow="@(Narrow ? "true" : null)" data-spent="@(Spent ? "true" : null)" @attributes="Rest">
+    @ChildContent
+
+    @if (!Folded(Stage.Overflow))
+    {
+        @Overflow
+    }
+
+    @* More sits where the filters it holds were: straight after the ones still on the row.
+       It used to sit just before the actions, so in a window beside two others the filters
+       stayed at the leading edge and their overflow went to the far side, next to Log entry,
+       a long way from what it belonged with. *@
+    @if (Narrow)
+    {
+        <DeskPopover Open="_moreOpen" OpenChanged="SetMoreOpen" Align="DeskPopoverAlign.Start" Class="ptoolbar__more-key">
+            <Anchor>
+                @* At the last fold the key gives up its own word too: the row that has folded
+                   everything it can is the row with the least room, and the ellipsis with a
+                   title and an accessible name says the same thing in a third of the width. *@
+                <DeskButton Emphasis="DeskEmphasis.Plain"
+                            Size="DeskKeySize.Small"
+                            Icon="@Icons.Material.Filled.MoreHoriz"
+                            OnClick="ToggleMore"
+                            Title="@(FullyFolded ? "More" : null)"
+                            aria-label="@(FullyFolded ? "More" : null)"
+                            aria-expanded="@(_moreOpen ? "true" : "false")"
+                            data-popover-return="true">
+                    @if (!FullyFolded)
+                    {
+                        <text>More</text>
+                        <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
+                    }
+                </DeskButton>
+            </Anchor>
+            <ChildContent>
+                @* A group of form rows, not a menu: Tab walks the controls, and Escape — which
+                   a menu would have handled — is handled here, so the popover still closes and
+                   gives focus back to More. Folded keys lead it, as the commands; then the
+                   search; then the pickers. *@
+                <div @ref="_more" class="ptoolbar__more" role="group" aria-label="More" @onkeydown="OnMoreKey">
+                    @if (Folded(Stage.Actions))
+                    {
+                        <div class="ptoolbar__more-actions">@SecondaryActions</div>
+                    }
+                    @if (Folded(Stage.Search))
+                    {
+                        @Search
+                    }
+                    @if (Folded(Stage.Overflow))
+                    {
+                        @Overflow
+                    }
+                </div>
+            </ChildContent>
+        </DeskPopover>
+    }
+    @if (!Folded(Stage.Search))
+    {
+        @Search
+    }
+
+    @if (Message is { Length: > 0 })
+    {
+        <span class="ptoolbar__msg" title="@(Spent ? Message : null)">@Message</span>
+    }
+
+
+    @if (Actions is not null || SecondaryActions is not null)
+    {
+        <div class="ptoolbar__actions">
+            @if (!Folded(Stage.Actions))
+            {
+                @SecondaryActions
+            }
+            @Actions
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The pickers that always stay on the row.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// The controls that fold into More when the row is too narrow — each wrapped in a
+    /// <c>.ptoolbar__item</c> with a <c>.ptoolbar__label</c>, which More shows as its row label.
+    /// Null for a toolbar where nothing can leave the row.
+    /// </summary>
+    [Parameter] public RenderFragment? Overflow { get; set; }
+
+    /// <summary>
+    /// The search field, a <c>DeskSearch</c>: compact, on the trailing side just before the keys.
+    /// It folds only after the Overflow has.
+    /// </summary>
+    [Parameter] public RenderFragment? Search { get; set; }
+
+    /// <summary>What the toolbar last did — "Archived 3 orders". Quiet, between search and actions.</summary>
+    [Parameter] public string? Message { get; set; }
+
+    /// <summary>The keys, pinned right. Plain or Tinted first, the one Filled key last.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>
+    /// Keys that sit in the actions slot before <see cref="Actions"/> and are the last thing
+    /// to fold: when the row is still too wide with the pickers and search in More, they lead
+    /// the More panel as full-width keys, and the primary in Actions stays on the row. Each
+    /// needs a text label — an icon alone says nothing in a list.
+    /// </summary>
+    [Parameter] public RenderFragment? SecondaryActions { get; set; }
+
+    /// <summary>Draws the row folded whatever its width. For tests, which have no layout to measure.</summary>
+    [Parameter] public bool ForceNarrow { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra declarations, appended after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private ElementReference _root;
+    private ElementReference _more;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<PanelToolbar>? _self;
+
+    // What can fold, in the order it folds: the pickers, then the search, then the keys
+    // before the primary. A search folds only behind pickers, so a row whose only folding
+    // control is its search keeps it; the keys can fold on their own.
+    private enum Stage { Overflow, Search, Actions }
+
+    // How far the row is folded, as toolbar.js measured it: how many of the stages present
+    // are in More. Steps is how many there are, which is how far it can fold at all.
+    private int _fold;
+    private int _observedSteps;
+    private bool _moreOpen;
+    private bool _moreFocused;
+
+    private IEnumerable<Stage> Stages()
+    {
+        if (Overflow is not null)
+        {
+            yield return Stage.Overflow;
+
+            if (Search is not null)
+                yield return Stage.Search;
+        }
+
+        if (SecondaryActions is not null)
+            yield return Stage.Actions;
+    }
+
+    private int Steps => Stages().Count();
+
+    private bool Folded(Stage stage)
+    {
+        var at = Stages().ToList().IndexOf(stage);
+
+        return at >= 0 && (at < _fold || (ForceNarrow && at == 0));
+    }
+
+    private bool Narrow => Stages().Any(Folded);
+
+    /// <summary>Every stage this row has is in More; the key itself is the next thing to shrink.</summary>
+    private bool FullyFolded => Steps > 0 && _fold >= Steps && !ForceNarrow;
+
+    /// <summary>
+    /// Nothing is left to fold: every stage is in More, or the row has none. The message is then
+    /// what gives, ending in an ellipsis (controls.css), so the primary key is never pushed past
+    /// the window's edge.
+    /// </summary>
+    private bool Spent => Steps == 0 || FullyFolded;
+
+    private string Classes => string.Join(' ', new[] { "ptoolbar", Class, DeskLayout.ExtraClass(Extra) }
+        .Where(p => p is { Length: > 0 }));
+
+    private string? Styles => DeskLayout.MergeStyle(null, Extra) is { } splat
+        ? Style is { Length: > 0 } ? $"{Style}; {splat}" : splat
+        : Style;
+
+    private IReadOnlyDictionary<string, object>? Rest => DeskLayout.WithoutClassAndStyle(Extra);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // A row that cannot fold has nothing to watch; one that has gained or lost its
+        // Overflow or Search tells the observer how far it may now go.
+        if (!ForceNarrow && Steps != _observedSteps)
+        {
+            _observedSteps = Steps;
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("toolbar.js"));
+            _self ??= DotNetObjectReference.Create(this);
+
+            if (_module is not null)
+                await _module.InvokeVoidAsync("observe", _root, _self, Steps);
+        }
+
+        // Focus goes into the panel on open, onto its first control, as it does into a menu.
+        if (_moreOpen && !_moreFocused)
+        {
+            _moreFocused = true;
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("toolbar.js"));
+
+            if (_module is not null)
+                await _module.InvokeVoidAsync("focusFirst", _more);
+        }
+    }
+
+    /// <summary>
+    /// toolbar.js: the row's fold changed — called only when it flips, never per resize.
+    /// </summary>
+    [JSInvokable]
+    public Task Fold(int level) => InvokeAsync(() =>
+    {
+        if (level == _fold)
+            return;
+
+        _fold = level;
+
+        // Unfolded, the controls are back on the row and the panel has nothing to show.
+        if (!Narrow)
+            SetMoreOpen(false);
+
+        StateHasChanged();
+    });
+
+    private void ToggleMore() => SetMoreOpen(!_moreOpen);
+
+    private void SetMoreOpen(bool open)
+    {
+        _moreOpen = open;
+
+        if (!open)
+            _moreFocused = false;
+    }
+
+    private void OnMoreKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            SetMoreOpen(false);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                if (_observedSteps > 0)
+                    await _module.InvokeVoidAsync("unobserve", _root);
+
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit went first — nothing to release on a browser that is gone.
+            }
+        }
+
+        _self?.Dispose();
+    }
+}

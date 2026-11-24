@@ -16,6 +16,12 @@
 # appsettings.Local.json, where a host run keeps its key, is never in the image (.dockerignore),
 # and the image's appsettings.json has every provider off. A key does nothing without its
 # *_ENABLED=true beside it.
+# The project name stays "lineops" whatever the checkout folder is called (ADR 0031, as
+# amended): the volumes are lineops_lineops-pgdata and lineops_lineops-keys on every machine
+# that ran this before the rename, and a project named after an "XLines" folder would start
+# both empty.
+name: lineops
+
 x-providers: &providers
   Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
   Ingestion__OddsApiIo__Enabled: ${ODDS_API_IO_ENABLED:-false}
@@ -38,7 +44,7 @@ x-providers: &providers
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: lineops-postgres
+    container_name: xlines-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: lineops
@@ -71,8 +77,8 @@ services:
     build:
       # Root context: the Dockerfile needs Directory.Packages.props and every referenced project.
       context: .
-      dockerfile: src/LineOps.Web/Dockerfile
-    container_name: lineops-web
+      dockerfile: src/XLines.Web/Dockerfile
+    container_name: xlines-web
     restart: unless-stopped
     depends_on:
       postgres:
@@ -125,8 +131,8 @@ services:
   worker:
     build:
       context: .
-      dockerfile: src/LineOps.Worker/Dockerfile
-    container_name: lineops-worker
+      dockerfile: src/XLines.Worker/Dockerfile
+    container_name: xlines-worker
     restart: unless-stopped
     profiles: ["worker"]
     depends_on:

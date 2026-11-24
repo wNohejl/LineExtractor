@@ -10,11 +10,11 @@
 - Every ESPN field is optional (spec §7): a missing `situation`, linescore or play list parses to
   null/empty, never throws.
 - Tests first (superpowers:test-driven-development) for every parser and service change. Parser
-  tests read fixtures under `tests/LineOps.Tests/Fixtures`; persistence tests use
+  tests read fixtures under `tests/XLines.Tests/Fixtures`; persistence tests use
   `PostgresFixture` (Testcontainers — Docker is running).
 - Fixtures stay small (a few KB, hand-trimmed from real captures). Real captures taken
   1 Nov 2026 during live NFL games are in
-  `C:\Users\waden\AppData\Local\Temp\claude\C--Deploy-LineOps--claude-worktrees-live-gamecast-f20911\3229fa10-ab5b-45b0-b860-73e796e4f339\scratchpad\espn\`:
+  `C:\Users\waden\AppData\Local\Temp\claude\C--Deploy-XLines--claude-worktrees-live-gamecast-f20911\3229fa10-ab5b-45b0-b860-73e796e4f339\scratchpad\espn\`:
   `nfl-scoreboard.json` (3 live, finals, pre), `nfl-summary-live-401873032.json` (LAC @ LAR,
   Q2, drives.current + previous), `nfl-summary-final-401873030.json` (MIN @ DET final),
   `nfl-probs-401873032.json` (core `probabilities?limit=5`, carries `spreadCoverProbHome`,
@@ -22,14 +22,14 @@
   `tiePercentage`, `playId`). No MLB game is live (season over): MLB live shapes are
   hand-written from ESPN's field names (`situation.balls`, `strikes`, `outs`, `onFirst`,
   `onSecond`, `onThird`, `batter`, `pitcher`).
-- Build: `dotnet build src/LineOps.Web`, `dotnet build tests/LineOps.Tests`,
-  `dotnet build tests/LineOps.Web.Tests` clean (no new warnings); `dotnet test` on the test
+- Build: `dotnet build src/XLines.Web`, `dotnet build tests/XLines.Tests`,
+  `dotnet build tests/XLines.Web.Tests` clean (no new warnings); `dotnet test` on the test
   projects you touched green. When other agents may be building in the same tree, build to an
-  in-repo scratch path, e.g. `-p:BaseOutputPath=tests/LineOps.Tests/bin/<tag>/`, and delete it
-  after (never `%TEMP%`: `Repo.Root()` walks up for `LineOps.slnx`).
-- Never `Stop-Process` LineOps.Web. A web host you start runs on its own port with
+  in-repo scratch path, e.g. `-p:BaseOutputPath=tests/XLines.Tests/bin/<tag>/`, and delete it
+  after (never `%TEMP%`: `Repo.Root()` walks up for `XLines.slnx`).
+- Never `Stop-Process` XLines.Web. A web host you start runs on its own port with
   `--Ingestion:HostScheduler=false --Reliability:HostEvaluator=false` unless told otherwise.
-- `src/LineOps.Web/wwwroot/css/lineops.css` (or wherever the desk stylesheet is) is single-owner:
+- `src/XLines.Web/wwwroot/css/xlines.css` (or wherever the desk stylesheet is) is single-owner:
   new styles go in a component-scoped `.razor.css` beside the component.
 - Windows follow ADR 0020 (`PanelTitle`, `PanelToolbar`, `PanelSection`), ADR 0007/0013 (every
   window is a panel the window manager hosts), ADR 0016 and the `apple-hig-components` skill.
@@ -75,10 +75,10 @@ DateTimeOffset?`. Situation fields clear to null once the game is no longer in p
 
 ### Play store (Tasks 5–6) — exact file, created verbatim by Task 5 *and* Task 6
 
-`src/LineOps.Core/Contracts/CanonicalGamecast.cs`:
+`src/XLines.Core/Contracts/CanonicalGamecast.cs`:
 
 ```csharp
-namespace LineOps.Core.Contracts;
+namespace XLines.Core.Contracts;
 
 /// <summary>
 /// One game's play-by-play as the provider states it at one moment: the drives, every play in
@@ -144,7 +144,7 @@ public record CanonicalPlay(
     DateTimeOffset? Modified);
 ```
 
-Entities (Task 6), in `src/LineOps.Core/Entities/Gamecast.cs`, tables `game_play` and
+Entities (Task 6), in `src/XLines.Core/Entities/Gamecast.cs`, tables `game_play` and
 `game_drive` following the context's naming convention:
 
 - `GamePlay`: `Id long`, `GameId int` (FK, cascade), `SourceId int` (FK to `Source`, as
@@ -165,14 +165,14 @@ Entities (Task 6), in `src/LineOps.Core/Entities/Gamecast.cs`, tables `game_play
 
 ### Task 1: Parse and keep the live state
 
-**Files:** `src/LineOps.Core/Contracts/ISourceAdapter.cs`, `src/LineOps.Core/Entities/Reference.cs`
-(`Game`), the `Game` configuration in `src/LineOps.Data/LineOpsDbContext.cs` (or its
-configuration file), one migration `LiveGameState` in `src/LineOps.Data/Migrations`,
-`src/LineOps.Ingestion/Adapters/EspnStatsAdapter.cs` (`ParseScoreboard`),
-`src/LineOps.Ingestion/Services/EntityResolver.cs` (`ResolveGameAsync`),
-`tests/LineOps.Tests/Fixtures/espn.scoreboard.json`, tests under `tests/LineOps.Tests`.
+**Files:** `src/XLines.Core/Contracts/ISourceAdapter.cs`, `src/XLines.Core/Entities/Reference.cs`
+(`Game`), the `Game` configuration in `src/XLines.Data/XLinesDbContext.cs` (or its
+configuration file), one migration `LiveGameState` in `src/XLines.Data/Migrations`,
+`src/XLines.Ingestion/Adapters/EspnStatsAdapter.cs` (`ParseScoreboard`),
+`src/XLines.Ingestion/Services/EntityResolver.cs` (`ResolveGameAsync`),
+`tests/XLines.Tests/Fixtures/espn.scoreboard.json`, tests under `tests/XLines.Tests`.
 Do **not** touch `IngestionJobs`, `IngestionScheduler`, `IngestionOptions`, `ChangeNotifier`,
-anything in `LineOps.Desk` or `LineOps.Web`.
+anything in `XLines.Desk` or `XLines.Web`.
 
 1. Fixture: add to `espn.scoreboard.json` one live NFL event trimmed from the capture (keep
    `status` with `displayClock`, `period`, `type.{state,detail,shortDetail}`;
@@ -198,10 +198,10 @@ anything in `LineOps.Desk` or `LineOps.Web`.
 
 ### Task 2: Addressed change notices
 
-**Files:** `src/LineOps.Data/Changes/ChangeNotifier.cs` (`DataTopics` too),
-`src/LineOps.Desk/Windowing/DeskPanelBase.cs`, `src/LineOps.Desk/Windowing/DeskSignals.cs` only if
-needed, `src/LineOps.Web/Services/DataChangeListener.cs` only if needed, tests in
-`tests/LineOps.Tests` and `tests/LineOps.Desk.Tests` (or wherever DeskPanelBase is tested).
+**Files:** `src/XLines.Data/Changes/ChangeNotifier.cs` (`DataTopics` too),
+`src/XLines.Desk/Windowing/DeskPanelBase.cs`, `src/XLines.Desk/Windowing/DeskSignals.cs` only if
+needed, `src/XLines.Web/Services/DataChangeListener.cs` only if needed, tests in
+`tests/XLines.Tests` and `tests/XLines.Desk.Tests` (or wherever DeskPanelBase is tested).
 Do **not** touch entities, ingestion, or any panel.
 
 Implement the *Addressed change notices* interface exactly. Tests: notifier payload for a save
@@ -212,11 +212,11 @@ XML docs that describe the payload (`DataTopics`, `ChangeNotifier`, `DeskSignals
 
 ### Task 3: The live pass is its own job
 
-**Files:** `src/LineOps.Ingestion/Services/IngestionJobs.cs`,
-`src/LineOps.Ingestion/Services/IngestionScheduler.cs`,
-`src/LineOps.Ingestion/Configuration/IngestionOptions.cs`, the job catalogue the Pull menu reads
-(find it from `espn:slate`'s registration), `appsettings*.json` of `LineOps.Worker` and
-`LineOps.Web` if they set `LivePoll`/`TickInterval` (comment keys stay unique: `"//1"`, `"//2"`),
+**Files:** `src/XLines.Ingestion/Services/IngestionJobs.cs`,
+`src/XLines.Ingestion/Services/IngestionScheduler.cs`,
+`src/XLines.Ingestion/Configuration/IngestionOptions.cs`, the job catalogue the Pull menu reads
+(find it from `espn:slate`'s registration), `appsettings*.json` of `XLines.Worker` and
+`XLines.Web` if they set `LivePoll`/`TickInterval` (comment keys stay unique: `"//1"`, `"//2"`),
 tests. May call but not change `EntityResolver`'s public surface beyond an optional parameter.
 
 1. `espn:live`: for each league-day with a game in play, fetch the scoreboard (same adapter
@@ -233,10 +233,10 @@ tests. May call but not change `EntityResolver`'s public surface beyond an optio
 
 ### Task 4: The Game window reloads its row and shows the clock
 
-**Files:** `src/LineOps.Web/Components/Panels/GamePanel.razor` (and `.razor.cs` if any), the
-`Scoreline` / `StatusLabel` helpers (find them), `PanelBase.cs` in `LineOps.Web` only for a
-shared situation-line helper, `src/LineOps.Data/CrossReference/BoardService.cs` only if the Board
-needs the bare-topic behaviour kept explicitly, tests in `tests/LineOps.Web.Tests`.
+**Files:** `src/XLines.Web/Components/Panels/GamePanel.razor` (and `.razor.cs` if any), the
+`Scoreline` / `StatusLabel` helpers (find them), `PanelBase.cs` in `XLines.Web` only for a
+shared situation-line helper, `src/XLines.Data/CrossReference/BoardService.cs` only if the Board
+needs the bare-topic behaviour kept explicitly, tests in `tests/XLines.Web.Tests`.
 
 1. `GamePanel` watches `games` with ids `{GameId}` (and `odds` with `{GameId}`), `journal` bare.
    On a `games:{id}` notice it reloads **the row only** (one query) and re-renders the title;
@@ -254,13 +254,13 @@ needs the bare-topic behaviour kept explicitly, tests in `tests/LineOps.Web.Test
 
 ### Task 5: Parse ESPN's summary into a gamecast
 
-**Files:** `src/LineOps.Core/Contracts/CanonicalGamecast.cs` (verbatim from *Interfaces*),
-a new partial `src/LineOps.Ingestion/Adapters/EspnStatsAdapter.Gamecast.cs` (a static
+**Files:** `src/XLines.Core/Contracts/CanonicalGamecast.cs` (verbatim from *Interfaces*),
+a new partial `src/XLines.Ingestion/Adapters/EspnStatsAdapter.Gamecast.cs` (a static
 `ParseGamecast(JsonDocument/stream, ...)` plus an adapter method
 `FetchGamecastAsync(sportKey, sourceGameId, ct)` and
 `FetchProbabilitiesAsync(...)` for the core `probabilities?limit=1000` resource, through the
 adapter's existing HTTP client, URL builder and `RequestDelay`), fixtures
-`tests/LineOps.Tests/Fixtures/espn.summary.live.json` and `espn.probabilities.json` trimmed from
+`tests/XLines.Tests/Fixtures/espn.summary.live.json` and `espn.probabilities.json` trimmed from
 the captures (2 previous drives with 2–3 plays each, `drives.current` with 2 plays, 1–2
 `scoringPlays`, matching `winprobability` rows, `header.competitions[0].status`), tests.
 Do not touch entities or the DbContext.
@@ -273,10 +273,10 @@ to empty lists.
 
 ### Task 6: The play and drive tables
 
-**Files:** `src/LineOps.Core/Contracts/CanonicalGamecast.cs` (verbatim — identical file to
-Task 5's), `src/LineOps.Core/Entities/Gamecast.cs`, `LineOpsDbContext` (DbSets, configuration),
+**Files:** `src/XLines.Core/Contracts/CanonicalGamecast.cs` (verbatim — identical file to
+Task 5's), `src/XLines.Core/Entities/Gamecast.cs`, `XLinesDbContext` (DbSets, configuration),
 one migration `GamePlays`, `DataTopics` (`Plays`, `For` → `plays`, addressed `plays:{GameId}`
-by Task 2's rules), a writer `src/LineOps.Ingestion/Services/GamecastWriter.cs` that upserts a
+by Task 2's rules), a writer `src/XLines.Ingestion/Services/GamecastWriter.cs` that upserts a
 `CanonicalGamecast` for a known `Game.Id` + `Source.Id` (insert new, update modified — compare
 `Modified` and the fields, as `PlayerGameStat`'s writer does — never delete), tests on
 `PostgresFixture`. Do not touch the adapter.
@@ -287,7 +287,7 @@ links plays to drives.
 
 ### Task 7: GamecastFeed follows games in play
 
-**Files:** `src/LineOps.Ingestion/Services/GamecastFeed.cs` (a `BackgroundService`),
+**Files:** `src/XLines.Ingestion/Services/GamecastFeed.cs` (a `BackgroundService`),
 `IngestionOptions` (a `Gamecast` section: `Enabled` true, `Poll` 15 s, `ProbabilityPoll` 60 s,
 `MaxFollowedGames` 4, `Sports` ["NFL"]), registration wherever the scheduler is registered so it
 runs only where `HostScheduler` is on (Worker, or web host when it hosts the scheduler — never
@@ -306,7 +306,7 @@ stops after final with one box-score write. Worker host must start.
 
 ### Task 8: GamecastService
 
-**Files:** `src/LineOps.Data/Gamecast/GamecastService.cs` (+ registration beside
+**Files:** `src/XLines.Data/Gamecast/GamecastService.cs` (+ registration beside
 `BoardService`'s), tests on `PostgresFixture`.
 
 Reads: `HeaderAsync(gameId)` (the `Game` with teams and live fields, the pre-game close from
@@ -317,12 +317,12 @@ models are small records, no entities leak to the window. `AsNoTracking`.
 
 ### Task 9: The Gamecast window
 
-**Files:** `src/LineOps.Web/Components/Panels/GamecastPanel.razor` (+ `.razor.css`),
-`src/LineOps.Web/Components/Snippets/FieldStrip.razor` (+ `.razor.css`), a JS module
-`src/LineOps.Web/wwwroot/js/gameclock.js` written in the style of
-`src/LineOps.Desk/wwwroot/js/windowing.js` (`startClock(el, seconds, running)`), `WindowCatalog`,
+**Files:** `src/XLines.Web/Components/Panels/GamecastPanel.razor` (+ `.razor.css`),
+`src/XLines.Web/Components/Snippets/FieldStrip.razor` (+ `.razor.css`), a JS module
+`src/XLines.Web/wwwroot/js/gameclock.js` written in the style of
+`src/XLines.Desk/wwwroot/js/windowing.js` (`startClock(el, seconds, running)`), `WindowCatalog`,
 `WindowShortcuts`, `GamePanel.razor` (a Gamecast key beside Movement and Head to head), the
-Board row actions (a Gamecast action while the game is live), tests in `tests/LineOps.Web.Tests`.
+Board row actions (a Gamecast action while the game is live), tests in `tests/XLines.Web.Tests`.
 
 - Title: matchup and score; clock and period as tags; situation as `Detail`.
 - Field strip: 100-yard SVG/CSS bar — ball spot, line of gain, possession arrow, red-zone tint —

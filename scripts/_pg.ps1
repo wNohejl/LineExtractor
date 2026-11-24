@@ -79,12 +79,12 @@ function Get-PgPassword([string]$Root) {
     script that names the list asks for it here, and the list follows .env, which is where the
     machine already says it is the one the tailnet reaches.
 
-    LINEOPS_COMPOSE_FILES, semicolon-separated, replaces the list outright, for a machine whose
+    XLINES_COMPOSE_FILES, semicolon-separated, replaces the list outright, for a machine whose
     overlays are not the ones .env implies.
 #>
 function Get-ComposeFiles([string]$Root) {
-    if ($env:LINEOPS_COMPOSE_FILES) {
-        return @($env:LINEOPS_COMPOSE_FILES -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($env:XLINES_COMPOSE_FILES) {
+        return @($env:XLINES_COMPOSE_FILES -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     }
 
     $files = @('docker-compose.yml', 'compose/dev.yml')
@@ -165,7 +165,7 @@ function Invoke-JournalJob {
         [string]$ConnectionString
     )
 
-    $project = Join-Path (Join-Path $Root 'src') 'LineOps.Worker'
+    $project = Join-Path (Join-Path $Root 'src') 'XLines.Worker'
     $dotnetArgs = @('run', '--project', $project, '--') + $Arguments + @('--Logging:LogLevel:Default=Warning')
     if ($ConnectionString) { $dotnetArgs += "--ConnectionStrings:LineOps=$ConnectionString" }
 

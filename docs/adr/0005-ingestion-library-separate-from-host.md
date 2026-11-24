@@ -12,7 +12,7 @@ That worked when running from the SDK, and broke the moment the app was containe
 
 ```
 error NETSDK1152: Found multiple publish output files with the same relative path:
-src/LineOps.Ingestion/appsettings.json, src/LineOps.Web/appsettings.json
+src/XLines.Ingestion/appsettings.json, src/XLines.Web/appsettings.json
 ```
 
 Two executable projects in one publish output, each with its own `appsettings.json`. The
@@ -24,14 +24,14 @@ configuration.
 
 Split by role:
 
-- **`LineOps.Ingestion`** — a plain `Microsoft.NET.Sdk` class library: adapters, services,
+- **`XLines.Ingestion`** — a plain `Microsoft.NET.Sdk` class library: adapters, services,
   the scheduler `BackgroundService`, and DI registration. No entry point, no configuration
   files.
-- **`LineOps.Worker`** — a `Microsoft.NET.Sdk.Worker` executable: `Program.cs` and
+- **`XLines.Worker`** — a `Microsoft.NET.Sdk.Worker` executable: `Program.cs` and
   `appsettings.json`, nothing else. It composes the library.
 
-`LineOps.Web` references only the library. Both hosts register the scheduler through the same
-`AddLineOpsIngestionScheduler()` extension, so there is one code path regardless of which
+`XLines.Web` references only the library. Both hosts register the scheduler through the same
+`AddXLinesIngestionScheduler()` extension, so there is one code path regardless of which
 process runs it.
 
 ## Consequences

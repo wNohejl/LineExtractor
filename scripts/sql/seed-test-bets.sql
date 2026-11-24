@@ -15,11 +15,11 @@
 -- on the laptop.
 --
 --   $pw = (Select-String -Path .env -Pattern '^POSTGRES_PASSWORD=(.+)$').Matches[0].Groups[1].Value.Trim()
---   Get-Content scripts/sql/seed-test-bets.sql -Raw | docker exec -i -e "PGPASSWORD=$pw" lineops-postgres psql -U lineops -d lineops -X -v ON_ERROR_STOP=1
+--   Get-Content scripts/sql/seed-test-bets.sql -Raw | docker exec -i -e "PGPASSWORD=$pw" xlines-postgres psql -U lineops -d lineops -X -v ON_ERROR_STOP=1
 --
 -- To take the test bets out again without adding them back:
 --   'DELETE FROM "JournalEntries" WHERE "Note" = ''test bet (seed-test-bets.sql)''; DELETE FROM "Parlays" WHERE "Note" = ''test bet (seed-test-bets.sql)'';' |
---     docker exec -i -e "PGPASSWORD=$pw" lineops-postgres psql -U lineops -d lineops -X
+--     docker exec -i -e "PGPASSWORD=$pw" xlines-postgres psql -U lineops -d lineops -X
 
 BEGIN;
 

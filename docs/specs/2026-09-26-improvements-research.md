@@ -18,7 +18,7 @@ of what landed follows from closing that gap.
 
 | Commit | What |
 |---|---|
-| `fix(setup)` | A fresh clone's hosts can reach their database: `setup.ps1` writes the connection into both hosts' user-secrets, and the Worker has a Development launch profile. Before this the CLAUDE.md laptop bootstrap failed SCRAM on first boot, and `dotnet run --project src/LineOps.Worker` could not start on any machine. |
+| `fix(setup)` | A fresh clone's hosts can reach their database: `setup.ps1` writes the connection into both hosts' user-secrets, and the Worker has a Development launch profile. Before this the CLAUDE.md laptop bootstrap failed SCRAM on first boot, and `dotnet run --project src/XLines.Worker` could not start on any machine. |
 | `feat(odds)` | **Fair value.** `FairValue`/`FairMarket` pair each book's two sides on one number and de-margin them — Pinnacle's pair where it quotes, else the average of at least two books. Every offer carries EV, every book its hold. The price cell lights a +EV price; Every book shows hold and value per book; the wager form opens on the side with the most value. Pinnacle is in the committed book list (free: named books bill as one region). Also: unpriced rows no longer claim "no odds scan has run" when the league's scans were promoted away; a stale pull is named ("No lines pulled in 16 days"). |
 | `feat(journal)` | **CLV at the fair close.** Settlement stores the closing market's no-vig chance of the side at the number taken (`FairClose` migration); `ClvResult.EvAtClose` values the price taken at it. Performance shows stake-weighted value at close beside ROI. |
 | `chore(deps)` | Testcontainers 4.15 drops the high-severity SSH.NET; the AngleSharp advisory is suppressed in the test project with the reason (no patched version works with bUnit 1.x). Test warnings fixed. |
@@ -102,7 +102,7 @@ log the first real bet and watch it settle and value end to end.
 
 ```powershell
 git fetch; git checkout LineX_Improvements
-dotnet run --project src/LineOps.Web --launch-profile http   # applies FairClose on start
+dotnet run --project src/XLines.Web --launch-profile http   # applies FairClose on start
 ```
 
 - **Fair value, without spending credits:** Ctrl+K → "chiefs broncos" → the 14 Sep game. Hover the

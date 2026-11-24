@@ -1,0 +1,1485 @@
+@using System.Globalization
+@using XLines.Core.Analytics
+@using XLines.Core.Entities
+@using XLines.Data.CrossReference
+@using XLines.Ingestion.Services
+@using XLines.Web.Services
+@inherits PanelBase
+@inject IWagerData Data
+@inject WagerSlip Slip
+@inject DeskToasts Toasts
+
+@*
+    The one form a bet is recorded with, from either door.
+
+    From the Board the game and the side are already known, so the form starts filled and the
+    operator supplies what the board cannot: the book they used, and how much. From the Journal it
+    opens on a game search; picking a game gives the same form. There is no second form: two ways
+    to record a bet drifted apart once already, and a bet recorded the wrong way is a bet the
+    journal misreads.
+
+    The price is the operator's to choose. The best price on the side is the default, and the
+    book is a menu on the price listing every book quoting it; picking one re-reads the
+    headline, the value, the checks and the returns from that book's latest number. Where the
+    number taken is not one the desk fetched — earlier, or at a book it does not scan — the
+    book menu's Custom price… takes the number typed and the Journal tags it manual.
+
+    A panel (spec §6): it watches the odds and the journal, so a pull re-prices an open form
+    instead of leaving it quoting a number the board has moved off. A typed price is never
+    re-priced. Before Log, a strip of checks says what is worth knowing (§4); only a closing line
+    blocks, and only a fetched one.
+*@
+
+@*
+    The game is the window's header, not a step: from the Board it is a fact the door brought,
+    set as a title with the kickoff beneath it; from the Journal it is the search, and once a
+    game is picked, the game with Change beside it. Under it, three steps on a rail (DeskSteps):
+    Bet (the side, and the price on it), Stake, Review and log. Each step's controls sit in
+    one outlined group, its parts divided by rules. Only the step to do is open; a finished
+    step folds to its title and what was chosen, with Change to reopen it, and a waiting step
+    is one line saying what it waits for. So the window is as tall as the step being worked,
+    not as tall as every control it owns, and reads the same in a narrow window as a wide one.
+*@
+@*
+    The slip is a tab of this window, not a third window: what was banked is one click from
+    where it was banked, and the count on the tab says the slip is not empty without opening
+    it. The Journal offers the same tab, so the slip reads the same from either door.
+*@
+<DeskTabs TValue="WagerTab" Tabs="Tabs" Label="Wager window sections"
+          Value="_tab" ValueChanged="@((WagerTab t) => _tab = t)">
+@if (context == WagerTab.Slip)
+{
+    @* An empty slip here offers the way back to this window's own form, not a second window. *@
+    <SlipPanel OnPickBet="@(EventCallback.Factory.Create(this, PickBet))" />
+}
+else if (_loading)
+{
+    @* Unread is not empty (ADR 0003): the shape of what is coming, not "pick a side". *@
+    <DeskStack Gap="DeskSpace.Space2" Class="wager-loading" aria-busy="true">
+        <DeskSkeleton Lines="1" />
+        <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="64px" />
+    </DeskStack>
+}
+else if (!Searching && Row is null)
+{
+    <EmptyState Kind="EmptyStateKind.New">This game is no longer on the desk.</EmptyState>
+}
+else
+{
+    <div class="whead">
+        @if (Searching)
+        {
+            @* A leg is graded from its game, so building a parlay offers no No game. *@
+            <GamePicker Value="_gameId" Selected="Row?.Game" OfferNoGame="@(!BuildParlay)"
+                        NoGame="_noGame" NoGameChanged="SetNoGame"
+                        SelectedChanged="PickGameAsync" />
+            @if (Row is null && !_noGame)
+            {
+                <p class="whead__hint">
+                    @if (BuildParlay)
+                    {
+                        <text>
+                            Find each leg's game: type a team, like Steelers, or two for the matchup. A side and a
+                            total on the same game make a same-game parlay. A game already played takes the price
+                            you got, typed with Custom price… on the book.
+                        </text>
+                    }
+                    else
+                    {
+                        <text>
+                            Find the game the bet was on: type a team, like Steelers, or two for the matchup.
+                            Upcoming games come first. For a future or anything without a game, choose No game.
+                        </text>
+                    }
+                </p>
+            }
+        }
+        else if (Row is not null)
+        {
+            var game = Row.Game;
+
+            @* The game as the compact scoreboard (the Game window's title on one line): each
+               team's mark and name, a link to its window, and the score once there is one; the
+               kickoff opens the game. One line that wraps as a unit, so "at" no longer floats
+               between two wrapped names. Duplicate is the header's trailing key: it acts on the
+               whole bet, not on the review step. *@
+            <PanelTitle>
+                <ChildContent>
+                    <Scoreboard Game="game" Compact="true" OnTeam="id => OpenTeam(game, id)" />
+                </ChildContent>
+                <Tags>
+                    <Tag>@game.Sport?.Key.ToUpperInvariant()</Tag>
+                    @if (game.Status == GameStatus.Live)
+                    {
+                        <Tag State="DeskState.Warning" Live="true">Live</Tag>
+                    }
+                    else if (game.Status == GameStatus.Final)
+                    {
+                        <Tag>Final</Tag>
+                    }
+                </Tags>
+                <Detail>
+                    <DeskLink Destination="game" Icon="@Icons.Material.Filled.Scoreboard"
+                              OnClick="() => Manager.OpenGame(game)">
+                        @DisplayTime.Stamp(game.StartsAt)
+                    </DeskLink>
+                </Detail>
+                <Keys>@DuplicateKey</Keys>
+            </PanelTitle>
+        }
+
+        @if (Searching)
+        {
+            @* From the Journal the header is the search; the key trails it the same way. *@
+            <span class="whead__keys">@DuplicateKey</span>
+        }
+    </div>
+
+    @* An addition to the slip is said by a green toast with a View slip key (Banked), not a
+       grey note above the steps: the note was the same grey as every other note and stayed
+       until the next one, so nothing about it said a thing had been added. The Slip tab's
+       count is what the slip holds. *@
+
+    @* Logged: the wizard starts the next bet by itself — the game stays, everything chosen for
+       the logged bet goes, and step 1 opens — and what it did is one line above the steps. The
+       receipt used to stand in the steps' place until New bet was pressed, so a second bet on
+       the same game was a press nobody wanted to make. The line offers Same bet again (the
+       logged side and book, a fresh stake) and View in journal; picking a side is the next bet
+       and the line goes. It is a status line, as the closing note under the card is: a tag for
+       the state, the bet in one sentence, two plain keys. *@
+    @if (_receipt is { } receipt)
+    {
+        <div class="wstatus wlogged" role="status">
+            <span class="wstatus__text">
+                <Tag State="DeskState.Positive">Logged</Tag>
+                <span class="wreceipt__bet">
+                    <strong class="num">@OddsMath.Money(receipt.Stake)</strong> on @receipt.Bet at
+                    <span class="num">@Price(receipt.PriceAmerican)</span> · @receipt.Book@(receipt.Manual ? ", your own price" : "")
+                </span>
+            </span>
+            <span class="wlogged__keys">
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ContentCopy" OnClick="SameBetAgainAsync"
+                            Title="Keep this side and book, and take another stake">
+                    Same bet again
+                </DeskButton>
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.MenuBook" OnClick="OpenJournalAsync"
+                            Title="Open the Journal, where this bet is now recorded">
+                    View in journal
+                </DeskButton>
+            </span>
+        </div>
+    }
+
+    @* One main card holds the stepper, as the package wizard draws it: a bordered surface with
+       the rail inside; the review step becomes its own card beside the form when the window is
+       wide enough for two columns (CSS, .wcard and .wstep--review). *@
+    <div class="wcard">
+    <DeskSteps Label="@(BuildParlay ? "Add a parlay leg" : "Log a wager")">
+        @* ---- 1 · Bet: the side, and the price on it ---------------------------------
+           One step and one outlined group, in two sections: the board of sides above a rule,
+           the chosen side's price and book beneath it. A bet is a side at a price; asking for
+           them on two steps put a fold between the number and the thing it is the number for. *@
+        <DeskStep Number="1" Title="Bet" State="@StateOf(BetStep)" Open="@IsOpen(BetStep)"
+                  OnOpen="() => OpenStep(BetStep)"
+                  Waiting="Pick a game first."
+                  Hint="@(_noGame
+                      ? "Describe the bet in your own words, then the price you were given, like -110 or +150, and the book you used."
+                      : "Pick the side you bet; its best price and the book quoting it appear beneath. Bet somewhere else? Change the book on the price. Got a different number? Choose Custom price… on the book and type it.")">
+            <Summary>
+                @if (_noGame)
+                {
+                    @_described
+                }
+                else
+                {
+                    @Side?.Label
+                }
+                @if (_offer is { } folded)
+                {
+                    @* The same classes as the open card's number and book: folded or open, the
+                       price reads from one place. *@
+                    <text> · </text><span class="wager-offer__price num">@Price(folded.PriceAmerican)</span>
+                    @if (folded.Line is { } foldedLine)
+                    {
+                        @(" ")<span class="num">@OddsMath.FormatLine(foldedLine, folded.Outcome)</span>
+                    }
+                    <text> at </text><span class="wager-offer__book">@BookNames.Display(folded.Book)</span>
+                    @if (folded.Manual)
+                    {
+                        <text>, your own price</text>
+                    }
+                }
+            </Summary>
+            <ChildContent>
+                @* One grouped form (apple-hig-components, forms.md): a fill, no outline, one
+                   inset rule between rows, the label leading and the control trailing in one
+                   aligned column. The three markets are three rows of a segmented control; the
+                   price is the row beneath them, a value beside its label, not a hero; what the
+                   number is worth and where it came from is the group's footer. The group and its
+                   footer sit in a named section, as every grouped form on the desk does. *@
+                <section class="wsection" aria-label="Bet">
+                    <div class="wgroup wbet">
+                        @if (_noGame)
+                        {
+                            <FormRow Label="Bet">
+                                <DeskField TValue="string" Immediate="true" Class="wfield--fill"
+                                           placeholder="e.g. Steelers to win the AFC North"
+                                           aria-label="The bet" Value="_described" ValueChanged="SetDescribed" />
+                            </FormRow>
+                        }
+                        else if (Row is not null)
+                        {
+                            <SelectionChips Row="Row" Market="@_market" Outcome="@_outcome" OnChoose="ChooseAsync" />
+                        }
+
+                        @if (!HasSide)
+                        {
+                            @* The price row keeps its place before a side is picked, so the group
+                               does not jump when one is: it says what it waits for in tertiary, and
+                               the book pop-up is there but disabled (recipe rule 3), not hidden. *@
+                            <FormRow Class="wbet__price wbet__price--empty wager-offer">
+                                <Lead><span class="wbet__wait" id="@_waitId">Choose a side above.</span></Lead>
+                                <ChildContent>
+                                    <div class="wager-offer__top">
+                                        <PricePicker Books="[]" Disabled="true" DescribedBy="@_waitId" />
+                                    </div>
+                                </ChildContent>
+                            </FormRow>
+                        }
+                        else if (Typing)
+                        {
+                            @* Typed: a row per field, label leading, fields one width (HIG: fields in
+                               a group share widths and stack). The fields and their reading are the
+                               Board take's too (TypedPriceFields, TypedPrice): one way to type a price. *@
+                            <TypedPriceFields Model="_typed" Market="@_market" HasLine="HasLine"
+                                              SideEcho="@(_noGame ? null : TypedEcho)" KnownBooks="_knownBooks"
+                                              CanUseFetched="@(Side?.Offer is not null)" OnUseFetched="ToggleManual"
+                                              OnChanged="Reprice" />
+                        }
+                        else if (_offer is { } offer && Side?.Offer is { } quoted)
+                        {
+                            @* The row closes the group and echoes the choice (wizards.md, the bet-and-price
+                               recipe, rule 3): leading, the side with its line at 13px semibold
+                               ("Bills +2.5") over its market and matchup in secondary ("Spread · at
+                               Chiefs"); trailing, the price at title 2 and then the book pop-up, with
+                               Custom price… inside the pop-up replaces the number. The echo is the label, so there
+                               is no "Price" label, and the line is said once, in the echo. Keyed on the
+                               side, so a new choice cross-fades in (rule 4) rather than swapping. *@
+                            <FormRow Class="wbet__price wager-offer">
+                                <Lead>
+                                <span class="wbet__echo-pair" @key="offer.Label">
+                                    <span class="wbet__side">@EchoSide(offer)</span>
+                                    <span class="wbet__detail">@EchoDetail(_market!, offer.Outcome)</span>
+                                </span>
+                                </Lead>
+                                <ChildContent>
+                                <div class="wager-offer__top">
+                                    <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
+                                    @* The shared price picker (PricePicker), as the Board's take draws it:
+                                       the key names the book, the list every book's price best first,
+                                       and Custom price… ends it, which is the pencil this row used to
+                                       carry beside the key: the HIG's Custom item, in the pop-up
+                                       rather than a second control beside it. *@
+                                    <PricePicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book"
+                                                 OnChoose="ChooseBook" OnCustom="ToggleManual" Align="DeskPopoverAlign.End" />
+                                </div>
+                                </ChildContent>
+                            </FormRow>
+                        }
+                    </div>
+
+                    @* The group's footer: what the number is worth, and where it came from. *@
+                    @if (HasSide && Typing && _offer is { } typed)
+                    {
+                        <p class="wgroup__foot wager-offer__value">@ValueLine(typed)</p>
+                    }
+                    else if (HasSide && Typing && Side?.Offer is null)
+                    {
+                        <p class="wgroup__foot wager-offer__of wager-typed-why">
+                            @(_noGame
+                                ? "No game, so no fetched price: enter the price you got. The Journal tags it manual."
+                                : "No book the desk scans prices this side: enter the price you got. The Journal tags it manual.")
+                        </p>
+                    }
+                    else if (!Typing && _offer is { } priced && Side?.Offer is { } fetched)
+                    {
+                        <p class="wgroup__foot wager-offer__meta">
+                            <span class="wager-offer__value">@ValueLine(priced)</span>
+                            <span class="wager-offer__of">
+                                @(priced.IsBest ? "Best" : "One") of @priced.BooksQuoting @(priced.BooksQuoting == 1 ? "book" : "books")
+                                @if (!priced.IsBest && WagerOffer.Best(_market!, fetched) is { } best)
+                                {
+                                    <text> · best is @best.Book @Price(best.PriceAmerican)</text>
+                                }
+                            </span>
+                            @* The age says what it is in its own words ("captured 1h 49m ago",
+                               "closing price"); a hover title repeating that never reached the
+                               keyboard (HIG 12). *@
+                            <span class="wager-offer__age">
+                                <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(priced)
+                            </span>
+                        </p>
+                    }
+                </section>
+
+                @if (_moved is not null)
+                {
+                    @* Said, not swapped silently: the operator was looking at the old number. *@
+                    <Note State="DeskState.Positive" Class="wager-moved">@_moved</Note>
+                }
+            </ChildContent>
+        </DeskStep>
+
+        @* ---- 2 · Stake ----------------------------------------------------------------- *@
+        @* A leg has no stake of its own — the parlay holds the money — so building a parlay
+           skips the step rather than asking for a number it would throw away. *@
+        @if (!BuildParlay)
+        {
+        <DeskStep Number="2" Title="Stake" State="@StateOf(StakeStep)" Open="@IsOpen(StakeStep)"
+                  OnOpen="() => OpenStep(StakeStep)"
+                  Waiting="@(HasSide ? "Finish your bet's price first." : "Pick your bet first.")"
+                  Hint="How much you put down. What it returns if it wins updates as you type.">
+            <Summary>@OddsMath.Money(_stake)</Summary>
+            <ChildContent>
+                @* Two rows of the same grouped form: the amount with its quick values beside
+                   the field (HIG: common values sit beside the field), and the note; what the
+                   stake wins is the group's footer, under it, and follows the field as it is
+                   typed (the field is Immediate). *@
+                <section class="wsection" aria-label="Stake">
+                    <div class="wgroup wstake">
+                        <FormRow Label="Stake">
+                            <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" ShowReturns="false" />
+                        </FormRow>
+                        <FormRow Label="Note">
+                            @* Immediate: a note bound on change is committed by the blur, and a press of
+                               Add to slip or Log straight from the field could run before it — the wager
+                               went on with no note. Bound as it is typed, the key reads what it shows. *@
+                            <DeskField TValue="string" Immediate="true" placeholder="Optional"
+                                       aria-label="Note" Class="wfield--fill" @bind-Value="_note" />
+                        </FormRow>
+                    </div>
+                    @if (_offer is { PriceAmerican: not 0 } stakedAt && _stake > 0)
+                    {
+                        <p class="wgroup__foot wstake__win num">
+                            To win <strong>@OddsMath.Money(OddsMath.ProfitOnWin(stakedAt.PriceAmerican, _stake))</strong>
+                            · @OddsMath.Money(OddsMath.PayoutOnWin(stakedAt.PriceAmerican, _stake)) back with the stake
+                        </p>
+                    }
+                </section>
+            </ChildContent>
+        </DeskStep>
+        }
+
+        @* ---- 3 · Review and log -------------------------------------------------------- *@
+        <DeskStep Number="@(BuildParlay ? 2 : 3)" Title="@(BuildParlay ? "Review and add" : "Review and log")"
+                  State="@StateOf(ReviewStep)" Open="@IsOpen(ReviewStep)" Class="wstep--review"
+                  Waiting="@(_offer is null ? "The bet and its price come first." : "A stake comes first.")"
+                  Hint="@(BuildParlay
+                      ? "Check anything flagged, then add it. The parlay's stake, price and book are set on the Slip tab, where it is logged."
+                      : "Check anything flagged, then log it. XLines records the bet; nothing is sent to a sportsbook.")">
+            @if (_offer is not null)
+            {
+                <CheckList Items="Strip" Title="Before you log" ShowTitle="false" />
+            }
+
+            @if (BuildParlay && _offer is { } leg)
+            {
+                <p class="wreview">
+                    You are adding <strong>@leg.Label at @Price(leg.PriceAmerican)</strong> with @leg.Book@(leg.Manual ? ", your own price" : "")
+                    as a leg. The slip holds @LegCount @(LegCount == 1 ? "leg" : "legs") so far.
+                </p>
+            }
+            else if (_offer is { } logging && _stake > 0)
+            {
+                <p class="wreview">
+                    You are logging <strong>@OddsMath.Money(_stake)</strong> on
+                    <strong>@logging.Label at @Price(logging.PriceAmerican)</strong> with @logging.Book@(logging.Manual ? ", your own price" : "").
+                    @if (logging.PriceAmerican != 0)
+                    {
+                        <text>It returns <strong>@OddsMath.Money(OddsMath.PayoutOnWin(logging.PriceAmerican, _stake))</strong> if it wins.</text>
+                    }
+                </p>
+            }
+
+            @if (OnSlip)
+            {
+                @* Banked, and the window left as it was: the tag says this exact bet is on the
+                   slip, and goes once the side, the price or the stake changes (or the card
+                   leaves the slip). Banking again banks a second card, which the slip names. *@
+                <p class="wreview wbanked">
+                    <Tag>On the slip</Tag> Adding it again banks a second card; Log takes it off the slip and into the journal.
+                </p>
+            }
+
+            <div class="waction">
+                @if (_error is not null)
+                {
+                    <Note State="DeskState.Warning">@_error</Note>
+                }
+
+                <p class="wfoot">
+                    Logged against the price shown; closing-line value resolves once the game starts and
+                    the close is recorded.
+                </p>
+
+                @* The step's foot, trailing, as an assistant's Continue sits (wizards.md): the one
+                   Filled key last and rightmost, its Plain companions to its left, and — while it
+                   cannot be pressed — one line saying what it waits for, between them, as every
+                   window's KeyRow reads (HIG 3). The reason is text, and the Filled key is
+                   described by it; a title on a disabled key never shows. Nothing on screen that
+                   cannot be used yet: Add to slip appears with a stake, Add as leg with a price
+                   that can be taken. The Filled key stays, disabled, because its reason is the
+                   next instruction; a closing line's reason is the status note under the card,
+                   said once. The count on the Slip tab and the review's On the slip tag are
+                   the acknowledgment, and the key stays: the bet stays on screen after it is
+                   banked. The slip does not open (spec §11.3) — it is a tab here, a link away.
+                   A bet on no game has no slip card. *@
+                <KeyRow Reason="@KeyReason">
+                    <Secondary>
+                        @if (!BuildParlay)
+                        {
+                            @* A leg needs no stake — the parlay holds it — so this key does not wait
+                               for one the way Add to slip does. *@
+                            @if (CanBankLeg)
+                            {
+                                <WagerKey Kind="WagerKind.AddLeg" OnClick="AddLegAsync" Title="@LegTitle" />
+                            }
+
+                            @if (CanBank)
+                            {
+                                <WagerKey Kind="WagerKind.AddToSlip" OnClick="AddToSlip"
+                                          Title="Bank this wager on the desk's slip, to log later or build a parlay"
+                                          Count="Slip.Items.Count" CountLabel="@($"{Slip.Items.Count} on the slip")" />
+                            }
+                        }
+                    </Secondary>
+                    <Primary Context="why">
+                        @if (BuildParlay)
+                        {
+                            @* Building a parlay, the one Filled key adds the leg: nothing is logged
+                               here, and the parlay is logged from the Slip tab once it is whole. *@
+                            <WagerKey Kind="WagerKind.AddLeg" Label="Add leg" Emphasis="DeskEmphasis.Filled"
+                                      Disabled="@(!CanBankLeg)" OnClick="AddLegAsync"
+                                      Title="@(CanBankLeg ? LegTitle : null)" DescribedBy="@why"
+                                      Count="LegCount" CountLabel="@($"{LegCount} legs on the slip")" />
+                        }
+                        else
+                        {
+                            <WagerKey Kind="WagerKind.Log" Stake="_stake" Busy="@_saving" Disabled="@(!CanLog)"
+                                      Title="Record this bet in the Journal" DescribedBy="@why"
+                                      OnClick="PlaceAsync" />
+                        }
+                    </Primary>
+                </KeyRow>
+            </div>
+        </DeskStep>
+    </DeskSteps>
+    </div>
+
+    @if (_receipt is null && _offer is { IsClosing: true })
+    {
+        @* The status note (wizards.md, reconciling rule 7): under the steps card, outside it,
+           aligned to its content edge; the orange symbol and one sentence in primary ink. Not a
+           tinted box: the red check in the review already marks the price, and this says what
+           to do about it. *@
+        <p class="wstatus wstatus--warning" role="status">
+            <span class="wstatus__mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.Warning" /></span>
+            <span class="wstatus__text">This is the closing line, so it cannot be @(BuildParlay ? "a leg" : "logged"): Custom price… on the book records the one you got.</span>
+        </p>
+    }
+    else if (_receipt is null && _fromClose && Typing)
+    {
+        @* The price was typed for the operator from a started game's close (TypeOverClose). Said
+           once, where the closing note would be: the number is a starting point, and the one to
+           record is the one they got. *@
+        <p class="wstatus wstatus--warning" role="status">
+            <span class="wstatus__mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.Edit" /></span>
+            <span class="wstatus__text">The game has started, so the price starts from its closing line. Change it to the one you got before you @(BuildParlay ? "add the leg" : "log it").</span>
+        </p>
+    }
+}
+</DeskTabs>
+
+@code {
+    private enum WagerTab { Wager, Slip }
+
+    private WagerTab _tab;
+
+    // An empty slip cannot be opened: the tab keeps its place in the bar, disabled, until
+    // something is banked, so the bar holds its shape. It stays live while the operator is on
+    // it, so a slip emptied by logging is not pulled from under the report of what it logged.
+    private IReadOnlyList<DeskTab<WagerTab>> Tabs =>
+    [
+        new(WagerTab.Wager, "Wager"),
+        new(WagerTab.Slip, "Slip", Count: Slip.Items.Count, Enabled: Slip.Items.Count > 0 || _tab == WagerTab.Slip)
+    ];
+
+    /// <summary>
+    /// The game this view is about. Taken as an id rather than a row so the view can be hosted
+    /// as a desk window, which is rebuilt from its parameters and cannot carry an object. Absent:
+    /// the Journal's door, which opens on a game search.
+    /// </summary>
+    [Parameter] public int? GameId { get; set; }
+
+    /// <summary>The side a door names (<c>Markets.*</c>). With <see cref="Outcome"/>; otherwise the most value.</summary>
+    [Parameter] public string? Market { get; set; }
+
+    [Parameter] public string? Outcome { get; set; }
+
+    /// <summary>The book a door names. Where it quotes the side, the window shows its price, not the best.</summary>
+    [Parameter] public string? Book { get; set; }
+
+    /// <summary>
+    /// A bet being made again (<see cref="WagerPrefill"/>): the stake and note it was made with,
+    /// so the copy is ready to log; the price only where the original was typed, which makes the
+    /// copy a typed price too; the description of a bet on no game, which opens the no-game form
+    /// filled in. The stake and the line are invariant text ("110", "-2.5"), because a window's
+    /// parameters are saved as JSON and come back as an int or a double, neither of which sets a
+    /// decimal (<see cref="WagerPrefill.ToParameters"/>).
+    /// </summary>
+    /// <remarks>
+    /// Typed object, not string: a desk saved by the first build that carried a copy holds the
+    /// stake as a number, which restores as an int or a double, and a window that cannot take
+    /// what a saved desk hands it takes the whole circuit down. <see cref="WagerPrefill.Read"/>
+    /// reads any of them.
+    /// </remarks>
+    [Parameter] public object? Stake { get; set; }
+
+    [Parameter] public string? Note { get; set; }
+
+    /// <summary>
+    /// A typed price the copy types again, as invariant text ("104.35"): a price is taken to the
+    /// cent, and a decimal parameter cannot be set from what a saved desk restores. A desk saved
+    /// while the price was whole hands an int; <see cref="WagerPrefill.Read"/> reads either.
+    /// </summary>
+    [Parameter] public object? PriceAmerican { get; set; }
+
+    [Parameter] public object? TakenLine { get; set; }
+
+    /// <summary>
+    /// Whatever else a saved desk hands this window — "Line" from the first build that carried a
+    /// copy — captured rather than refused. Blazor throws on a parameter a component does not
+    /// declare, and that throw ended the circuit, not just this window.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)] public IReadOnlyDictionary<string, object>? Saved { get; set; }
+
+    [Parameter] public string? Described { get; set; }
+
+    /// <summary>
+    /// The Journal's Build parlay door: every bet picked here is a leg on the slip rather than a
+    /// bet of its own. No stake step, no Log; Add leg banks it and, on the game search, clears
+    /// the game for the next one. The parlay is logged from the Slip tab.
+    /// </summary>
+    [Parameter] public bool BuildParlay { get; set; }
+
+    [Parameter] public EventCallback OnPlaced { get; set; }
+
+    protected override IReadOnlySet<string> Watches { get; } =
+        new HashSet<string> { DataTopics.Odds, DataTopics.Journal };
+
+    /// <summary>
+    /// Odds or journal: the refresh does not say which, and both reads are cheap, so the row is
+    /// re-priced and the journal re-read either way.
+    /// </summary>
+    protected override Task RefreshAsync() => ReloadAsync();
+
+    private const int BetStep = 1, StakeStep = 2, ReviewStep = 3;
+
+    /// <summary>The price row's "choose a side" text, which the disabled book pop-up is described by.</summary>
+    private readonly string _waitId = "wait-" + Guid.NewGuid().ToString("N")[..8];
+
+    private BoardRow? Row;
+    private int? _gameId;
+    private bool _noGame;
+    private string? _described;
+
+    // The side, and the book the operator chose for it. The book outlives a change of side: a bet
+    // at DraftKings is usually followed by another at DraftKings.
+    private string? _market;
+    private string? _outcome;
+    private string? _book;
+
+    private WagerOffer? _offer;
+    private IReadOnlyList<string> _knownBooks = [];
+
+    private bool _manual;
+
+    /// <summary>The typed price's fields and their one reading, shared with the Board take.</summary>
+    private readonly TypedPrice _typed = new();
+
+    // A finished step the operator opened again with Change; null while the steps run in order.
+    private int? _opened;
+
+    private bool _loading;
+    private bool _settingsRead;
+    private decimal _stake;
+    private string? _note;
+    private string? _error;
+    private string? _logged;
+
+    // What was last banked from this window, and the card it became: the review's "On the slip"
+    // tag stands while the bet on screen is still exactly that one and the card is still there.
+    private Banking? _banked;
+
+    private sealed record Banking(Guid Card, BetShape Bet);
+
+    /// <summary>What makes two bets the same bet for the slip's tag: the side, the price and where, and the stake.</summary>
+    private sealed record BetShape(string Market, string Outcome, decimal? Line, string Book, decimal PriceAmerican,
+                                   bool Manual, decimal Stake);
+
+    private BetShape? ShapeNow
+        => _offer is { } o ? new BetShape(o.Market, o.Outcome, o.Line, o.Book, o.PriceAmerican, o.Manual, _stake) : null;
+
+    private bool OnSlip
+        => _banked is { } banked && banked.Bet == ShapeNow && Slip.Items.Any(i => i.Id == banked.Card);
+
+    // The bet just logged, said in one line above the steps until the next bet is begun.
+    private LoggedWager? _receipt;
+
+    private sealed record LoggedWager(string Bet, decimal PriceAmerican, string Book, decimal Stake, bool Manual,
+                                      BetChoice Choice);
+
+    /// <summary>
+    /// What the operator chose for a bet, short of its stake: what Same bet again puts back after
+    /// the wizard has reset itself for the next one.
+    /// </summary>
+    private sealed record BetChoice(string? Market, string? Outcome, string? Book, bool Manual, decimal? TypedPrice,
+                                    decimal? TypedLine, string? TypedBook, string? Described, bool SideChosen);
+
+    // What the door named, last time it was applied. A re-render that hands the same door back
+    // leaves the window as the operator left it, so New bet is not undone by the window landing
+    // on the door's side again.
+    private string? _door;
+    private string? _moved;
+    private bool _saving;
+
+    // The duplicate check's reading: a field the render reads, never a query from the render.
+    private JournalEntry? _prior;
+    private bool _priorRead;
+    private bool _priorFailed;
+
+    private IngestionJob? _linesJob;
+    private bool _pulling;
+
+    /// <summary>Opened without a game: the Journal's door. The search stays, so the game can be changed.</summary>
+    private bool Searching => GameId is null;
+
+    private SelectionChoice? Side
+        => _market is null || _outcome is null
+            ? null
+            : SelectionChoice.All(Row).FirstOrDefault(c => c.Market == _market
+                                                          && string.Equals(c.Outcome, _outcome, StringComparison.OrdinalIgnoreCase));
+
+    private bool HasSide => _noGame || Side is not null;
+
+    /// <summary>The price comes from the fields: asked for, or nothing fetched to take it from.</summary>
+    private bool Typing => _manual || _noGame || (Side is { Offer: null });
+
+    private bool HasLine => !_noGame && _market is Markets.Spread or Markets.Total;
+
+    /// <summary>
+    /// Where each step stands. Done is the step's own fact — a side, a price, a stake; the step
+    /// to do is the first one that is not done, and everything after it waits. Review is never
+    /// done: it is where the window ends. With no game yet, every step waits.
+    /// </summary>
+    private DeskStepState StateOf(int step)
+    {
+        if (Row is null && !_noGame)
+            return DeskStepState.Todo;
+
+        return Done[step - 1] ? DeskStepState.Done
+            : step == Current ? DeskStepState.Current
+            : DeskStepState.Todo;
+    }
+
+    /// <summary>
+    /// The bet step is done when it has a price: a side picked but still being priced keeps the
+    /// step open, since the price is the step's second half.
+    /// </summary>
+    private bool[] Done =>
+    [
+        _offer is not null,
+        BuildParlay || _stake > 0,
+        false
+    ];
+
+    private int Current => Array.IndexOf(Done, false) + 1;
+
+    /// <summary>
+    /// The step to do is open, and a finished one the operator asked for. Two more stay open:
+    /// the stake beside the review, and the review as soon as there is a price — its checks are
+    /// worth reading before a stake is typed, and the Log key says what it still needs. A bet on
+    /// no game is typed from end to end, so none of its steps fold: a step that folded on the
+    /// first character would take the field away mid-word.
+    /// </summary>
+    private bool IsOpen(int step)
+    {
+        if (step == ReviewStep)
+            return _offer is not null;
+
+        return StateOf(step) != DeskStepState.Todo
+               && (_noGame || _opened == step || step == Current || (step == StakeStep && Current == ReviewStep));
+    }
+
+    private void OpenStep(int step) => _opened = step;
+
+    protected override void OnInitialized() => Slip.Changed += OnSlipChanged;
+
+    protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
+
+    private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var door = string.Join('|', GameId, Market, Outcome, Book, Stake, Note, PriceAmerican, TakenLine, Described, BuildParlay);
+
+        if (door == _door)
+            return;
+
+        _door = door;
+
+        // A new door is a new bet: whatever was logged through the last one has been seen.
+        _receipt = null;
+
+        // A first read shows the skeleton; a door re-aiming a loaded window does not flash it.
+        _loading = Row is null && GameId is not null;
+        _book = Book;
+        _moved = null;
+        _opened = null;
+
+        try
+        {
+            if (!_settingsRead)
+            {
+                _knownBooks = await Data.KnownBooksAsync();
+                _settingsRead = true;
+            }
+
+            if (GameId is { } id)
+            {
+                _gameId = id;
+                await ReadRowAsync();
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        // What a copy carries, applied before the price is decided so a typed price is typed
+        // from the first render. A door that names none leaves the window as it was.
+        if (WagerPrefill.Read(Stake) is { } stake && stake > 0)
+            _stake = stake;
+        if (Note is not null)
+            _note = Note;
+
+        if (Described is not null && GameId is null)
+        {
+            // The no-game form, filled in: the description, the price and the book it was at.
+            _noGame = true;
+            _described = Described;
+            _typed.Restore(WagerPrefill.Read(PriceAmerican), _typed.Line, Book);
+            Reprice();
+            return;
+        }
+
+        if (GameId is null)
+            return;
+
+        // A door lands on the side it names, and only then; one that names none opens on step 1
+        // with every side offered and none chosen. The book is the door's, else the best.
+        var landed = SelectionChoice.Land(Row, Market, Outcome, null);
+        _market = landed?.Market;
+        _outcome = landed?.Outcome;
+        var typedPrice = WagerPrefill.Read(PriceAmerican);
+        _manual = typedPrice is not null;
+
+        if (_manual)
+            _typed.Restore(typedPrice, WagerPrefill.Read(TakenLine ?? Saved?.GetValueOrDefault("Line")), Book);
+
+        Reprice();
+        _fromClose = false;
+        _keptClose = false;
+        TypeOverClose();
+        await ReadPriorAsync();
+    }
+
+    /// <summary>
+    /// A second window on this bet through the door the Journal's Duplicate uses: the side, the
+    /// book, the stake and the note as they stand here, and the price only if it was typed.
+    /// </summary>
+    private void Duplicate()
+    {
+        if (_offer is not { } offer)
+            return;
+
+        Manager.OpenWagerCopy(WagerPrefill.From(offer, Row?.Game.Id, _stake, _note), Row is null ? null : Matchup(Row.Game));
+    }
+
+    private async Task ReadRowAsync()
+    {
+        Row = _gameId is { } id ? await Data.RowAsync(id) : null;
+        _linesJob = Row?.Game.Sport is { } sport ? await Data.LinesJobAsync(sport.Key) : null;
+    }
+
+    /// <summary>After a change the window watches: the same side and book, re-priced, and the journal re-read.</summary>
+    private async Task ReloadAsync()
+    {
+        if (_gameId is null)
+            return;
+
+        var before = _offer;
+        await ReadRowAsync();
+        Reprice();
+
+        if (before is { Manual: false } && _offer is { Manual: false }
+            && _offer.Market == before.Market && _offer.Outcome == before.Outcome
+            && string.Equals(_offer.Book, before.Book, StringComparison.OrdinalIgnoreCase)
+            && (_offer.PriceAmerican != before.PriceAmerican || _offer.Line != before.Line))
+        {
+            _moved = $"Price moved since you opened this: {LinePrice(before)} → {LinePrice(_offer)} ({_offer.Book}).";
+            // A number that moved is worth a look: the step opens to show it.
+            _opened = BetStep;
+        }
+
+        await ReadPriorAsync();
+    }
+
+    /// <summary>
+    /// The one place the price is decided. Typed: the fields. Otherwise the chosen book's latest
+    /// rung where it quotes the side, else the best price on it.
+    /// </summary>
+    private void Reprice()
+    {
+        if (Typing)
+        {
+            var side = Side;
+            var market = _noGame ? "other" : side?.Market;
+            var outcome = _noGame ? string.Empty : side?.Outcome;
+
+            _offer = !_noGame || !string.IsNullOrWhiteSpace(_described)
+                ? _typed.Offer(market, outcome, HasLine, side?.Offer, DateTimeOffset.UtcNow, _noGame ? _described!.Trim() : null)
+                : null;
+            return;
+        }
+
+        if (Side is not { Offer: { } quoted } chosen)
+        {
+            _offer = null;
+            return;
+        }
+
+        _offer = (_book is not null ? WagerOffer.AtBook(chosen.Market, quoted, _book) : null)
+                 ?? WagerOffer.Best(chosen.Market, quoted);
+    }
+
+    /// <summary>
+    /// The duplicate check's one query, keyed on the side (game, market, outcome) at any book. It
+    /// reports the title bar's pulse itself — active while it runs, healthy or a warning after —
+    /// and stays outside WithActivityAsync on purpose: that wrapper treats a failure as the
+    /// window not loading — LoadError set, the pulse critical with "load failed" — and keeps the
+    /// work it ran as the one Retry repeats. A journal that cannot be read is not the window
+    /// failing; it leaves one check unable to answer, so the pulse is a warning and the check
+    /// says so.
+    /// </summary>
+    private async Task ReadPriorAsync()
+    {
+        _priorFailed = false;
+
+        if (Row is null || _market is null || _outcome is null || _noGame)
+        {
+            _prior = null;
+            _priorRead = false;
+            return;
+        }
+
+        _priorRead = false;
+        var (gameId, market, outcome) = (Row.Game.Id, _market, _outcome);
+
+        // Its own catch rather than WithActivityAsync: a failed read here is not the window failing
+        // to load, it is one check that cannot answer. The check says so (a warning, not a block),
+        // where "reading" for ever would read as a check still on its way.
+        Report(PulseState.Active);
+
+        try
+        {
+            _prior = await Data.LatestOnSideAsync(gameId, market, outcome, DateTimeOffset.UtcNow - Checks.DuplicateWindow);
+            _priorRead = true;
+            Report(PulseState.Healthy);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The journal was not read for the duplicate check");
+            _prior = null;
+            _priorFailed = true;
+            Report(PulseState.Warn, "journal unread");
+        }
+    }
+
+    private async Task PickGameAsync(Game? game)
+    {
+        _gameId = game?.Id;
+        _market = null;
+        _outcome = null;
+        _manual = false;
+        _moved = null;
+        _logged = null;
+        _receipt = null;
+        _offer = null;
+        _opened = null;
+        _sideChosen = false;
+        SyncUnsaved();
+
+        if (game is null)
+        {
+            Row = null;
+            return;
+        }
+
+        _noGame = false;
+        await ReadRowAsync();
+
+        // Searched for, not opened from a row: nothing says which side was bet, so none is assumed.
+        await ReadPriorAsync();
+    }
+
+    private void SetNoGame(bool noGame)
+    {
+        _noGame = noGame;
+        _logged = null;
+        _opened = null;
+
+        if (noGame)
+        {
+            Row = null;
+            _gameId = null;
+            _market = null;
+            _outcome = null;
+            _typed.Restore(_typed.Price, _typed.Line, _typed.BookKey ?? _book);
+        }
+
+        Reprice();
+    }
+
+    private void SetDescribed(string? text)
+    {
+        _described = text;
+        // Describing the next bet is beginning it: the last one's line has been read.
+        _receipt = null;
+        Reprice();
+    }
+
+    private async Task ChooseAsync(SelectionChoice choice)
+    {
+        // A side picked is the next bet begun: the logged one's line goes.
+        _receipt = null;
+        _market = choice.Market;
+        _outcome = choice.Outcome;
+        _moved = null;
+        // Chosen: the step folds and the next one opens.
+        _opened = null;
+        _sideChosen = true;
+        SyncUnsaved();
+
+        // A price typed over the last side's close was that side's; this side starts afresh.
+        if (_fromClose)
+        {
+            _manual = false;
+            _fromClose = false;
+        }
+
+        _keptClose = false;
+
+        if (choice.Offer is null)
+            Prefill(null);
+
+        Reprice();
+        TypeOverClose();
+        await ReadPriorAsync();
+    }
+
+    /// <summary>
+    /// A different book is a different bet: the stake and the note typed for the old one go, so
+    /// a $110 meant for DraftKings is never logged at FanDuel by a press that did not look down.
+    /// Choosing the book already chosen changes nothing.
+    /// </summary>
+    private void ChooseBook(string book)
+    {
+        if (!string.Equals(_offer?.Book, book, StringComparison.OrdinalIgnoreCase))
+        {
+            _stake = 0;
+            _note = null;
+        }
+
+        _book = book;
+        _moved = null;
+        _opened = null;
+        Reprice();
+        SyncUnsaved();
+    }
+
+    /// <summary>
+    /// Into a typed price starting from the number on screen, so changing -166 to -160 is one edit
+    /// rather than three fields; back out to the fetched price, untouched.
+    /// </summary>
+    /// <summary>
+    /// A game that has started has only its close to show, and a close could not have been
+    /// taken: the window refused it and pointed at the pencil, so a parlay of Sunday's bets,
+    /// logged on Monday, could not be built here at all. A bet on a started game was placed
+    /// earlier at a price the operator knows, so the price now opens typed, starting from the
+    /// close, and a sentence under the card says to make it the one they got — the pencil,
+    /// pressed for them. Once per side: going back to the fetched price leaves it there, closing
+    /// note and all.
+    /// </summary>
+    private void TypeOverClose()
+    {
+        if (_offer is not { IsClosing: true, Manual: false } closing || _keptClose)
+            return;
+
+        _manual = true;
+        _fromClose = true;
+        // The step stays open on the price, so the number to change is in view, not folded.
+        _opened = BetStep;
+        Prefill(closing);
+        Reprice();
+    }
+
+    // The price was typed for the operator from a started game's close (TypeOverClose).
+    private bool _fromClose;
+
+    // The operator went back to the fetched close on this side, so it is not typed over again.
+    private bool _keptClose;
+
+    private void ToggleManual()
+    {
+        _manual = !_manual;
+        _keptClose = !_manual && _fromClose;
+        _fromClose = false;
+        _moved = null;
+        // The price is being worked on: keep its step open whichever way the toggle went.
+        _opened = BetStep;
+
+        if (_manual)
+            Prefill(_offer);
+
+        Reprice();
+    }
+
+    private void Prefill(WagerOffer? from) => _typed.StartFrom(from, _book);
+
+    private void SetStake(decimal stake)
+    {
+        _stake = stake;
+        SyncUnsaved();
+    }
+
+    /// <summary>
+    /// A side the operator picked, as opposed to one a door landed on: a window opened from a
+    /// Board row already shows a side, and closing it loses nothing the operator chose.
+    /// </summary>
+    private bool _sideChosen;
+
+    /// <summary>
+    /// Tells the window whether it holds a wager the operator has started — a side picked or a
+    /// stake set — so closing or evicting it asks first. Cleared when the wager is logged and the
+    /// wizard resets, and when a new game is searched for. Banking on the slip or as a leg leaves
+    /// the bet on screen, so it leaves the mark too: a window marked clean after Add to slip could
+    /// be evicted and come back empty, the bet the operator was still looking at gone.
+    /// </summary>
+    private void SyncUnsaved() => MarkUnsaved(_sideChosen || _stake > 0, "this wager");
+
+    private bool CanLog => _offer is { IsClosing: false } && _stake > 0 && (Row is not null || _noGame);
+
+    /// <summary>
+    /// A closing price can be banked — the card carries the same block Log does — but never a
+    /// $0 stake: the slip refuses one, so the key does not offer it.
+    /// </summary>
+    private bool CanBank => _offer is not null && _stake > 0 && Row is not null;
+
+    /// <summary>
+    /// What the Filled key is waiting for, said beside it. A closing line is not said here: it is
+    /// the status note under the steps card, and a reason said twice is one too many. A missing
+    /// stake still is, closing line or not: with no stake Add to slip is out of sight, and this
+    /// line is what says the slip is a stake away.
+    /// </summary>
+    private string? Waiting
+        => _offer is null && Typing
+            ? (_noGame && string.IsNullOrWhiteSpace(_described)
+                ? "Needs a description of the bet."
+                : _typed.Waiting(_market, HasLine))
+           : _stake <= 0 && !BuildParlay ? "Needs a stake above zero."
+           : _offer is { IsClosing: true } ? null
+           : null;
+
+    /// <summary>A team's name in the header was pressed: open that team's window.</summary>
+    private void OpenTeam(Game game, int teamId)
+        => Manager.OpenTeam(teamId, teamId == game.AwayTeamId ? game.AwayTeam?.Name : game.HomeTeam?.Name);
+
+    /// <summary>
+    /// The same door the Journal's Duplicate uses: a second window on this bet, stake and note
+    /// carried, so the same bet at another book is one click. It acts on the whole bet, so it
+    /// trails the header rather than queueing behind Log; with no bet yet it is not drawn.
+    /// </summary>
+    private RenderFragment DuplicateKey => __builder =>
+    {
+        if (_offer is not null)
+        {
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ContentCopy" OnClick="Duplicate"
+                        Title="Open this bet again in a new window, to log it at another book or a second time">
+                Duplicate
+            </DeskButton>
+        }
+    };
+
+    /// <summary>The price row's first line: the side and its line, "Bills +2.5", "Over 47.5", "Chiefs".</summary>
+    private static string EchoSide(WagerOffer offer)
+        => offer.Line is { } line
+            ? $"{SelectionText.Short(offer.Outcome)} {OddsMath.FormatLine(line, offer.Outcome)}"
+            : SelectionText.Short(offer.Outcome);
+
+    /// <summary>
+    /// The price row's second line: the market by its full name and where the side stands in the
+    /// game — "Spread · at Chiefs" for the away side, "Moneyline · vs Bills" for the home side,
+    /// "Total · Bills at Chiefs" for a total.
+    /// </summary>
+    private string EchoDetail(string market, string outcome)
+    {
+        var name = market switch
+        {
+            Markets.Moneyline => "Moneyline",
+            Markets.Spread => "Spread",
+            Markets.Total => "Total",
+            _ => market
+        };
+
+        if (Row?.Game is not { } game)
+            return name;
+
+        var away = game.AwayTeam?.Name;
+        var home = game.HomeTeam?.Name;
+
+        return outcome == away && home is not null ? $"{name} · at {SelectionText.Short(home)}"
+             : outcome == home && away is not null ? $"{name} · vs {SelectionText.Short(away)}"
+             : away is not null && home is not null ? $"{name} · {SelectionText.Short(away)} at {SelectionText.Short(home)}"
+             : name;
+    }
+
+    /// <summary>
+    /// A leg is a price the market still offers, or one the operator typed: never a close, which
+    /// could not have been taken. No stake — the parlay holds the money.
+    /// </summary>
+    private bool CanBankLeg => _offer is { IsClosing: false } && Row is not null;
+
+    private int LegCount => Slip.Mode == SlipMode.Parlay ? Slip.Legs.Count : Slip.Items.Count(i => i.AsLeg);
+
+    /// <summary>What a leg key does, on the key only while it can be pressed.</summary>
+    private const string LegTitle = "Bank this bet on the slip as a parlay leg, with no stake of its own";
+
+    /// <summary>
+    /// The sentence on the key row. Building a parlay, Add leg waits for the bet when there is
+    /// none yet: that used to be its title, which a disabled key never shows. A closing line is
+    /// still the status note's to say.
+    /// </summary>
+    private string? KeyReason
+        => !BuildParlay || CanBankLeg ? Waiting
+           : Waiting ?? (_offer is null ? "The bet and its price come first." : null);
+
+    private IReadOnlyList<Check> Strip
+    {
+        get
+        {
+            if (_offer is not { } offer)
+                return [];
+
+            if (Row is null)
+                return [Checks.Value(offer, _stake), Checks.Typed(null, DateTimeOffset.UtcNow)];
+
+            return Checks.Build(offer, Row.Game.StartsAt, DateTimeOffset.UtcNow, _priorRead, _prior, _stake,
+                new CheckActions(PullLabel, _pulling ? null : (Func<Task>)PullAsync, OpenJournalAsync),
+                _priorFailed);
+        }
+    }
+
+    /// <summary>"Pull NFL lines · 2 credits": the same job the Board row's pull runs, at the cost the menu quotes.</summary>
+    private string? PullLabel
+    {
+        get
+        {
+            if (_linesJob is not { Available: true } job || Row?.Game.Sport is not { } sport)
+                return null;
+
+            var league = sport.Key.ToUpperInvariant();
+            return job.EstimatedCredits > 0 ? $"Pull {league} lines · {job.EstimatedCredits} credits" : $"Pull {league} lines";
+        }
+    }
+
+    private async Task PullAsync()
+    {
+        if (_linesJob is not { Available: true } job || _pulling)
+            return;
+
+        _pulling = true;
+
+        try
+        {
+            var outcome = await Data.RunJobAsync(job.Key);
+
+            if (outcome.Succeeded)
+                Toasts.Success(outcome.Detail ?? $"{job.Label}: {outcome.Rows:N0} rows.");
+            else
+                Toasts.Warn(outcome.Detail ?? $"{job.Label}: {outcome.Failures} source failed.");
+
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "{Job} failed", job.Label);
+            Toasts.Fail($"{job.Label} did not finish. Try again.");
+        }
+        finally
+        {
+            _pulling = false;
+        }
+    }
+
+    private Task OpenJournalAsync()
+    {
+        Manager.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        return Task.CompletedTask;
+    }
+
+    private BetChoice Chosen()
+        => new(_market, _outcome, _book, _manual, _typed.Price, _typed.Line, _typed.BookKey, _described, _sideChosen);
+
+    /// <summary>
+    /// What a successful Log does next (it was the receipt's New bet key). Everything the logged
+    /// bet chose goes — the side, a typed price or line, the described bet, the stake and the
+    /// note — and step 1 opens on the same game. The book stays as the default, since the next
+    /// bet is usually at the same book; choosing a side shows its price there or the best one,
+    /// as the first bet did. The receipt line is the caller's to set.
+    /// </summary>
+    private async Task NewBetAsync()
+    {
+        _logged = null;
+        _error = null;
+        _market = null;
+        _outcome = null;
+        _manual = false;
+        _typed.Clear();
+        _described = null;
+        _stake = 0;
+        _note = null;
+        _moved = null;
+        _opened = null;
+        _sideChosen = false;
+        _fromClose = false;
+        _keptClose = false;
+        _banked = null;
+
+        Reprice();
+        SyncUnsaved();
+        await ReadPriorAsync();
+    }
+
+    /// <summary>
+    /// The receipt line's first key: the side, the book and any typed price the logged bet had,
+    /// put back on the reset wizard, and a fresh stake — a second stake on the same side is the
+    /// one press. The duplicate check then names the bet just logged.
+    /// </summary>
+    private async Task SameBetAgainAsync()
+    {
+        if (_receipt is not { } receipt)
+            return;
+
+        var choice = receipt.Choice;
+        _receipt = null;
+        _logged = null;
+        _opened = null;
+        _market = choice.Market;
+        _outcome = choice.Outcome;
+        _book = choice.Book;
+        _manual = choice.Manual;
+        _typed.Restore(choice.TypedPrice, choice.TypedLine, choice.TypedBook);
+        _described = choice.Described;
+        _sideChosen = choice.SideChosen;
+
+        Reprice();
+        SyncUnsaved();
+        await ReadPriorAsync();
+    }
+
+    private RenderFragment ValueLine(WagerOffer offer) => @<text>
+        @if (offer.Ev is { } ev)
+        {
+            @* The state colour sits on the number it describes, and nowhere else. *@
+            <span class="wager-offer__ev @(ev > 0 ? "wager-offer__ev--up" : "wager-offer__ev--down")">@PriceCell.EvLabel(ev)</span>
+            @if (offer.Fair is { } fair)
+            {
+                <span> · @PriceCell.FairLabel(fair)</span>
+            }
+        }
+        else
+        {
+            <span>@NoFairWhy(offer)</span>
+        }
+    </text>;
+
+    /// <summary>
+    /// The echo under a typed price: the side at the line typed, not the line fetched. It read the
+    /// fetched side's label, so a -6.5 typed over a -4.5 board still said -4.5 under the price,
+    /// and the number being logged looked as if it had not taken.
+    /// </summary>
+    private string? TypedEcho
+        => Side is { } side ? _typed.Echo(side.Market, side.Outcome, HasLine, side.Offer?.Line) : null;
+
+    /// <summary>
+    /// Why a price has no value read, said rather than left as a bare "no fair price": a line
+    /// typed off the fetched one has nothing to be measured against, since the fair price is the
+    /// books' consensus on the fetched number only.
+    /// </summary>
+    private string NoFairWhy(WagerOffer offer)
+    {
+        var fetched = Side?.Offer;
+
+        if (offer.Manual && fetched?.Line is { } at && offer.Line is { } typed && typed != at)
+            return $"No fair price on {OddsMath.FormatLine(typed, offer.Outcome)}: the books' fair price is for "
+                   + $"{OddsMath.FormatLine(at, offer.Outcome)}, so value at your line is unread, not zero.";
+
+        if (offer.Manual && fetched is null)
+            return "No fair price: no book the desk scans prices this side, so value is unread, not zero.";
+
+        return "No fair price on this number: fewer than two books quote it, so value is unread, not zero.";
+    }
+
+    private static string Captured(WagerOffer offer)
+    {
+        if (offer.IsClosing)
+            return "closing price";
+
+        // The same words as the price-age check beneath it ("1h 49m", not "1.8h"), so the two
+        // lines about one number never disagree in form.
+        var age = DateTimeOffset.UtcNow - offer.CapturedAt;
+        return age < TimeSpan.FromMinutes(1) ? "captured just now" : $"captured {Checks.Span(age)} ago";
+    }
+
+    private static string LinePrice(WagerOffer offer)
+        => (offer.Line is { } line ? OddsMath.FormatLine(line, offer.Outcome) + " " : "") + Price(offer.PriceAmerican);
+
+    /// <summary>
+    /// Banks the wager on the slip, with its stake: the slip never takes a $0 bet. A closing
+    /// price is allowed: the card carries the same block the Log key does here.
+    /// </summary>
+    /// <remarks>
+    /// The window is left exactly as it was — side, price, book, stake and note — and stays
+    /// marked as holding input. It used to clear the stake and mark itself clean, so the stake
+    /// step folded empty, the bet looked lost, and the clean window could be evicted and reopen
+    /// with nothing in it. The review's "On the slip" tag is the acknowledgment beside the bet;
+    /// a press after a change banks the changed bet as a second card.
+    /// </remarks>
+    private void AddToSlip()
+    {
+        if (!CanBank || _offer is not { } offer || Row is null)
+            return;
+
+        // The duplicate check's reading travels with the card, so the slip can say it too.
+        var card = Slip.Add(offer.ToSlipItem(Row.Game, Matchup(Row.Game), _stake, _note) with
+        {
+            InJournal = _priorRead && _prior is { } prior ? Checks.Prior(prior) : null
+        });
+
+        _error = null;
+        _logged = $"Added {OddsMath.Money(_stake)} on {offer.Label} at {Price(offer.PriceAmerican)} to the slip.";
+        _banked = new Banking(card.Id, ShapeNow!);
+        Banked(_logged);
+        SyncUnsaved();
+    }
+
+    /// <summary>The empty Slip tab's key: back to this window's own form.</summary>
+    private void PickBet() => _tab = WagerTab.Wager;
+
+    /// <summary>
+    /// An addition to the slip, said as one: a green toast, with a key that turns this window
+    /// to its Slip tab. The key runs outside a render, so it asks for one.
+    /// </summary>
+    private void Banked(string message)
+        => Toasts.Added(message, "View slip", () => _ = InvokeAsync(() =>
+        {
+            _tab = WagerTab.Slip;
+            StateHasChanged();
+        }));
+
+    /// <summary>
+    /// Banks the bet as a parlay leg. On the game search the game is cleared afterwards, so the
+    /// next leg starts from the search: a parlay is several games, found one after another.
+    /// Anywhere else the bet stays on screen as it was, as Add to slip leaves it.
+    /// </summary>
+    private async Task AddLegAsync()
+    {
+        if (!CanBankLeg || _offer is not { } offer || Row is null)
+            return;
+
+        var card = Slip.AddLeg(offer.ToSlipItem(Row.Game, Matchup(Row.Game), 0m, _note) with
+        {
+            InJournal = _priorRead && _prior is { } prior ? Checks.Prior(prior) : null
+        });
+
+        var logged = $"Added {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book}) as a leg · "
+                     + $"{LegCount} {(LegCount == 1 ? "leg" : "legs")} on the slip.";
+        Banked(logged);
+        _banked = new Banking(card.Id, ShapeNow!);
+
+        if (BuildParlay && Searching)
+        {
+            _note = null;
+            await PickGameAsync(null);
+        }
+
+        _error = null;
+        _logged = logged;
+    }
+
+    private async Task PlaceAsync()
+    {
+        if (!CanLog || _offer is not { } offer)
+            return;
+
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            await Data.LogStraightsAsync([offer.ToDraft(Row?.Game.Id, _stake, _note)]);
+
+            // The bet on screen may be the one banked on the slip a moment ago, still exactly as
+            // banked. Logged here, it has gone to the journal, so its card leaves the slip:
+            // otherwise the slip's Log would record the same bet a second time.
+            if (_banked is { } banked && OnSlip)
+                Slip.Logged([banked.Card]);
+
+            // Hosted as a window there is no host to close the form, so it resets itself for the
+            // next bet on the same game (a form left exactly as it was, key still lit, logged the
+            // same wager twice on the next press) and says what it did in one line above the
+            // steps, with Same bet again for a second stake on this side.
+            var receipt = new LoggedWager(offer.Label, offer.PriceAmerican, offer.Book, _stake, offer.Manual, Chosen());
+            var logged = $"Logged {OddsMath.Money(_stake)} on {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book})"
+                         + (offer.Manual ? ", your own price." : ".");
+            Toasts.Success(logged);
+
+            // The reset re-reads the journal for a side that is no longer chosen, which clears the check.
+            await NewBetAsync();
+            _receipt = receipt;
+            _logged = logged;
+
+            await OnPlaced.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The wager was not logged");
+            _error = "The entry was not logged. Try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -1,10 +1,10 @@
-# TLS for the desk. Caddy obtains and renews a Let's Encrypt certificate for LINEOPS_HOST on
+# TLS for the desk. Caddy obtains and renews a Let's Encrypt certificate for XLINES_HOST on
 # its own; the DNS A/AAAA record must point at this server before the first start.
 {
 	email {$ACME_EMAIL}
 }
 
-{$LINEOPS_HOST} {
+{$XLINES_HOST} {
 	encode zstd gzip
 
 	# Blazor Server's circuit is a WebSocket; reverse_proxy upgrades it without being told.

@@ -1,0 +1,175 @@
+@using System.Globalization
+@using XLines.Data.Gamecast
+
+@*
+    The field, drawn as a field: a hundred yards between two end zones, the away side's on the
+    left and the home side's on the right, with the yard lines and their numbers, the drive in
+    progress laid out play by play from where it started, the line of scrimmage, the line to gain
+    and the ball, pointing the way it is going.
+
+    Every position is GamecastTelemetry's or FieldGeometry's, in the viewBox's own units (yards
+    across, the same frame as the drive log's FieldSpan), so the markup says only how each mark looks. The ball
+    and the two lines sit in groups moved by a transform, so when the server redraws on the next
+    snap they slide from the old spot to the new one: motion that says where the ball came from.
+
+    Text on the field is the yard numbers and the end zones' abbreviations, nothing else; the play
+    in words is the caption under the field, real text. No spot (nobody on the ball, or none sent)
+    draws the field alone, so the window does not jump between plays. No edge and no card: the
+    window's card holds it.
+*@
+
+@{
+    var marks = HomeBall is { } home ? FieldGeometry.Marks(YardLine, Distance, home) : null;
+    var segments = marks is not null ? GamecastTelemetry.DriveSegments(DrivePlays, HomeBall!.Value) : [];
+    var band = marks is not null ? GamecastTelemetry.Band(DriveStartYardLine, YardLine) : null;
+    var possession = HomeBall switch { true => HomeAbbrev, false => AwayAbbrev, null => null };
+    var hasCaption = !string.IsNullOrWhiteSpace(Situation) || !string.IsNullOrWhiteSpace(LastPlay);
+}
+
+<div class="fieldgraphic">
+    <svg class="fieldgraphic__svg" viewBox="0 0 @N(FieldGeometry.Width) @N(GamecastTelemetry.Height)"
+         role="img" aria-label="@Label">
+        @* The field and its two end zones. *@
+        <rect class="fieldgraphic__field" x="@N(FieldGeometry.EndZone)" y="0" width="100" height="@N(GamecastTelemetry.Height)" />
+        <rect class="fieldgraphic__zone fieldgraphic__zone--away" x="0" y="0" width="@N(FieldGeometry.EndZone)" height="@N(GamecastTelemetry.Height)" />
+        <rect class="fieldgraphic__zone fieldgraphic__zone--home" x="@N(FieldGeometry.EndZone + 100)" y="0" width="@N(FieldGeometry.EndZone)" height="@N(GamecastTelemetry.Height)" />
+
+        @* The red zone, only once the ball is inside the defence's twenty. *@
+        @if (marks is { InRedZone: true })
+        {
+            <rect class="fieldgraphic__red"
+                  x="@N(marks.RedFrom)" y="0" width="@N(marks.RedTo - marks.RedFrom)" height="@N(GamecastTelemetry.Height)" />
+        }
+
+        @* A tick at each five, top and bottom edge; a hairline at each ten, the fifty stronger. *@
+        @foreach (var x in GamecastTelemetry.FiveYardTicks)
+        {
+            <line class="fieldgraphic__tick" x1="@N(x)" x2="@N(x)" y1="0" y2="@N(GamecastTelemetry.TickLength)" />
+            <line class="fieldgraphic__tick" x1="@N(x)" x2="@N(x)" y1="@N(GamecastTelemetry.BottomTickTop)" y2="@N(GamecastTelemetry.Height)" />
+        }
+
+        @foreach (var x in GamecastTelemetry.TenYardLines)
+        {
+            <line class="fieldgraphic__yard @(x == GamecastTelemetry.Midfield ? "fieldgraphic__yard--mid" : null)"
+                  x1="@N(x)" x2="@N(x)" y1="0" y2="@N(GamecastTelemetry.Height)" />
+        }
+
+        @foreach (var number in GamecastTelemetry.YardNumbers)
+        {
+            @* A group round each pair: Razor reads a bare <text> straight inside a loop as its own tag. *@
+            <g class="fieldgraphic__nums">
+                <text class="fieldgraphic__num" x="@N(number.X)" y="@N(GamecastTelemetry.TopNumberY)">@number.Number</text>
+                <text class="fieldgraphic__num" x="@N(number.X)" y="@N(GamecastTelemetry.BottomNumberY)">@number.Number</text>
+            </g>
+        }
+
+        @* Each side's abbreviation, set up its end zone. *@
+        <text class="fieldgraphic__mark" transform="translate(@N(GamecastTelemetry.AwayMarkX) @N(GamecastTelemetry.Middle)) rotate(-90)">@AwayAbbrev</text>
+        <text class="fieldgraphic__mark" transform="translate(@N(GamecastTelemetry.HomeMarkX) @N(GamecastTelemetry.Middle)) rotate(90)">@HomeAbbrev</text>
+
+        @if (marks is not null)
+        {
+            @* The ground the drive has covered, then its plays, one lane each. *@
+            @if (band is not null)
+            {
+                <rect class="fieldgraphic__band" x="@N(band.Left)" y="@N(GamecastTelemetry.BandTop)"
+                      width="@N(band.Width)" height="@N(GamecastTelemetry.BandHeight)" />
+            }
+
+            @foreach (var segment in segments)
+            {
+                <rect class="fieldgraphic__play fieldgraphic__play--@Kind(segment.Kind) @(segment.Latest ? "fieldgraphic__play--latest" : null)"
+                      data-kind="@Kind(segment.Kind)"
+                      x="@N(segment.Left)" y="@N(segment.Top)" width="@N(segment.Width)" height="@N(segment.Thickness)" />
+            }
+
+            @if (marks.Gain is { } gain)
+            {
+                <g class="fieldgraphic__mover fieldgraphic__gain" style="transform: translateX(@(N(gain))px)">
+                    <line x1="0" x2="0" y1="@N(GamecastTelemetry.LineTop)" y2="@N(GamecastTelemetry.LineBottom)" />
+                </g>
+            }
+
+            <g class="fieldgraphic__mover fieldgraphic__scrim" style="transform: translateX(@(N(marks.Spot))px)">
+                <line x1="0" x2="0" y1="@N(GamecastTelemetry.LineTop)" y2="@N(GamecastTelemetry.LineBottom)" />
+            </g>
+
+            @* The ball at the spot, its arrow toward the goal being attacked. *@
+            <g class="fieldgraphic__mover fieldgraphic__ball" data-spot="@N(marks.Spot)" style="transform: translateX(@(N(marks.Spot))px)">
+                <polygon class="fieldgraphic__arrow" points="@(marks.Leftward ? LeftArrow : RightArrow)" />
+                <ellipse class="fieldgraphic__spot" cx="0" cy="@N(GamecastTelemetry.Middle)" rx="1.6" ry="1" />
+            </g>
+        }
+    </svg>
+
+    @if (hasCaption)
+    {
+        <p class="fieldgraphic__caption">
+            @if (!string.IsNullOrWhiteSpace(Situation))
+            {
+                <span class="fieldgraphic__situation">
+                    @if (possession is not null)
+                    {
+                        <TeamMark Sport="@Sport" Abbrev="@possession" />
+                        <span class="fieldgraphic__side">@possession</span>
+                    }
+                    @Situation
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(LastPlay))
+            {
+                <span class="fieldgraphic__lastplay">@LastPlay</span>
+            }
+        </p>
+    }
+</div>
+
+@code {
+    // The arrow, drawn about the ball at x = 0: from just behind its nose to a point ahead of it.
+    private const string LeftArrow = "-1.4,14.2 -4,16 -1.4,17.8";
+    private const string RightArrow = "1.4,14.2 4,16 1.4,17.8";
+
+    [Parameter] public string HomeAbbrev { get; set; } = "HOME";
+
+    [Parameter] public string AwayAbbrev { get; set; } = "AWAY";
+
+    /// <summary>Yards from the home goal line; null draws no ball, band or lines.</summary>
+    [Parameter] public int? YardLine { get; set; }
+
+    /// <summary>Yards to go for a first down; null draws no line to gain.</summary>
+    [Parameter] public int? Distance { get; set; }
+
+    /// <summary>True when the home side has the ball, false for the away side, null when nobody does.</summary>
+    [Parameter] public bool? HomeBall { get; set; }
+
+    /// <summary>The field in words, for a reader who cannot see it: "Field: PHI ball, 2nd and 6 at WSH 34".</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>The league's key, for the crest beside the side with the ball in the caption.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    /// <summary>The plays of the drive on the field, in sequence order; empty draws no segments.</summary>
+    [Parameter] public IReadOnlyList<GamecastPlay> DrivePlays { get; set; } = [];
+
+    /// <summary>Where the drive on the field started, on the home-goal frame; null draws no band under its plays.</summary>
+    [Parameter] public int? DriveStartYardLine { get; set; }
+
+    /// <summary>The last play in words, under the field.</summary>
+    [Parameter] public string? LastPlay { get; set; }
+
+    /// <summary>The down and the spot in words, "2nd & 6 at PHI 34", under the field.</summary>
+    [Parameter] public string? Situation { get; set; }
+
+    private static string Kind(DriveSegmentKind kind) => kind switch
+    {
+        DriveSegmentKind.Gain => "gain",
+        DriveSegmentKind.NoGain => "nogain",
+        DriveSegmentKind.Loss => "loss",
+        DriveSegmentKind.Penalty => "penalty",
+        DriveSegmentKind.Score => "score",
+        DriveSegmentKind.Turnover => "turnover",
+        _ => "gain",
+    };
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+}

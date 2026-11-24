@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-27
 **Status:** Phase 0 built (2026-09-27). Decided 2026-10-24: the project stays local (§10b); Stages 2–3 shelved. **Superseded 2026-11-22** as the statement of direction by [ADR 0031](../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md): the product is XLines, the default source is now displayable (ADR 0026), and §8–§10b are answered there. §1's table describes September; §3, §4, §6 and §7 still hold.
-**Audience:** the developer deciding how far LineOps leaves the laptop, and what it becomes
+**Audience:** the developer deciding how far XLines leaves the laptop, and what it becomes
 when it does.
 
 The desk works. It runs on one machine behind `127.0.0.1`, for one person, with no sign-in,
@@ -12,7 +12,7 @@ a product someone pays for, and a platform that other ideas are built on.
 
 The short version:
 
-- **The code is nearly ready and the data is not.** Hosting LineOps is a week of work:
+- **The code is nearly ready and the data is not.** Hosting XLines is a week of work:
   a sign-in, a reverse proxy, an image pipeline, backups. Showing its data to the public is
   a licensing question. ESPN's terms forbid automated access and commercial use, and MLB's
   data is licensed for individual, non-commercial use. The Odds API's terms *do* allow
@@ -34,7 +34,7 @@ The short version:
 
 | Area | State | Evidence |
 |---|---|---|
-| Application | .NET 10, Blazor Interactive Server, one route, windows on a desk | `src/LineOps.Web/Program.cs`, `Windowing/WindowCatalog.cs` |
+| Application | .NET 10, Blazor Interactive Server, one route, windows on a desk | `src/XLines.Web/Program.cs`, `Windowing/WindowCatalog.cs` |
 | Tests | ~720 tests: ~410 unit, fixture and Testcontainers, ~310 bUnit | `tests/` |
 | CI | Build, `dotnet format`, test, pending-migration check. **No image publish, no deploy.** | `.github/workflows/ci.yml` |
 | Containers | Hardened: non-root, read-only rootfs, `cap_drop: ALL`, loopback-only ports | `docker-compose.yml`, ADR 0006 |
@@ -116,7 +116,7 @@ and that raises the question in §8 before any code does.
 
 ### 3.2 Delivery
 
-1. Push to `main` → a workflow builds `lineops-web` and `lineops-worker` and pushes them to
+1. Push to `main` → a workflow builds `xlines-web` and `xlines-worker` and pushes them to
    GitHub Container Registry as `:main` and `:sha-<commit>`.
 2. On the server, `deploy/deploy.sh` pulls and restarts: `docker compose pull && up -d`.
    Migrations run on boot as now; EF's migration lock keeps two starting hosts from racing.
@@ -156,7 +156,7 @@ enough to want it; a key that can reach production is a secret worth not having 
 | HSTS | Web (already) and Caddy | Browsers never try HTTP again |
 | Firewall: 22 from your address, 80/443 open, nothing else | The VM | Docker's iptables rules bypass `ufw` for published ports; publishing only Caddy's ports keeps that harmless |
 | SSH keys only, unattended upgrades | The VM | The usual |
-| Secrets in `/opt/lineops/.env`, mode 600 | The VM | Same model as the laptop; sops or a vault when there is a second operator |
+| Secrets in `/opt/xlines/.env`, mode 600 | The VM | Same model as the laptop; sops or a vault when there is a second operator |
 
 ---
 
@@ -178,7 +178,7 @@ Three consequences:
 1. **Build the balldontlie adapter before Stage 2.** The `Source` row, the options class and
    the `IStatsSource` port already exist; ADR 0011's split (stats from one port, odds from a
    book market) holds unchanged. The one term to design around: balldontlie may not be the
-   *sole* source for settling wagers. LineOps grades a journal entry; it settles nothing
+   *sole* source for settling wagers. XLines grades a journal entry; it settles nothing
    with money. Say so in the ADR, and keep a second source (ESPN locally, or MySportsFeeds)
    able to confirm a final.
 2. **ESPN's reference closing line goes away in public.** It fills games no market covered
@@ -252,7 +252,7 @@ TicketMiser roadmap concluded. When they come:
 
 Prices are from third-party reviews (September 2026), except Pikkit's own page.
 
-LineOps is not an odds screen. At four books on a free tier it cannot be one, and competing
+XLines is not an odds screen. At four books on a free tier it cannot be one, and competing
 at $200 means buying Pinnacle-grade data at scale. What it does that the others do not:
 
 1. **CLV against the fair close, with the basis stated.** The value is measured against a
@@ -295,12 +295,12 @@ In order of necessity:
 
 | Piece | Domain-free? | Where |
 |---|---|---|
-| The desk: window manager, primitives, five theme families, command palette, workspaces | Yes (brand and clock are injected) | `src/LineOps.Desk` |
-| Reliability: KPIs, freshness, success rate, volume anomaly, budget burn, the alert engine, incidents that cannot close without an RCA, the runbook | Yes | `src/LineOps.Reliability` |
-| Observability: OTel wiring, KPI gauges, health checks | Yes | `src/LineOps.Observability` |
-| Ingestion kernel: the state-driven scheduler, `CreditBudgetGuard`, the allowance-paced planner, backfill coordinator, source registry, promote-then-prune retention | Yes in shape; the planner needs a seam (TicketMiser's air-travel plan §5.3) | `src/LineOps.Ingestion/Services` |
+| The desk: window manager, primitives, five theme families, command palette, workspaces | Yes (brand and clock are injected) | `src/XLines.Desk` |
+| Reliability: KPIs, freshness, success rate, volume anomaly, budget burn, the alert engine, incidents that cannot close without an RCA, the runbook | Yes | `src/XLines.Reliability` |
+| Observability: OTel wiring, KPI gauges, health checks | Yes | `src/XLines.Observability` |
+| Ingestion kernel: the state-driven scheduler, `CreditBudgetGuard`, the allowance-paced planner, backfill coordinator, source registry, promote-then-prune retention | Yes in shape; the planner needs a seam (TicketMiser's air-travel plan §5.3) | `src/XLines.Ingestion/Services` |
 | Operations shell: hardened compose, setup and snapshot scripts, CI, the working rules | Yes | repo root, `scripts/` |
-| **Access (Phase 0)** | Yes. `IDeskAccess` and `OperatorOnly` live in the desk | `src/LineOps.Desk` |
+| **Access (Phase 0)** | Yes. `IDeskAccess` and `OperatorOnly` live in the desk | `src/XLines.Desk` |
 
 TicketMiser carried the desk over "with its history", which means it is a fork. Two
 forks of the same design system already diverge: the desk changes of September 23 are an
@@ -312,13 +312,13 @@ open porting task. A third vertical would make three.
   `Deskworks.Reliability`, `Deskworks.Observability` and `Deskworks.Ingestion.Kernel`.
   It is built, tested and versioned on its own, and published to GitHub Packages as NuGet
   packages. Its static assets (CSS, JS, fonts) ship inside the Razor class library.
-- LineOps and TicketMiser reference package versions instead of project folders. A desk fix
+- XLines and TicketMiser reference package versions instead of project folders. A desk fix
   is released once, and each product takes it with a version bump, in its own time.
 - A `dotnet new deskworks-vertical` template: Core, Data, Ingestion, Web and Worker
   projects, a catalogue with one window, one source adapter against a recorded fixture,
   compose, CI and `CLAUDE.md`. A new idea starts from a running, hardened, observable desk
   on day one.
-- **Order:** extract from LineOps (the more complete desk), move TicketMiser onto the
+- **Order:** extract from XLines (the more complete desk), move TicketMiser onto the
   packages second, and create the template last, from what the two consumers turned out
   to need. Do not start before Stage 1 ships. Extraction is refactoring, and refactoring
   wants the deploy pipeline to catch what it breaks.
@@ -334,7 +334,7 @@ a licensed source.
 | Idea | Source (licensed) | The "close" | Who pays | Fit |
 |---|---|---|---|---|
 | **Ticket prices** (TicketMiser, built) | Ticketmaster Discovery, SeatGeek | Day-of price | Fans (affiliate), press (report) | Proven |
-| **Prediction markets** (Kalshi, Polymarket) | Public read APIs | Contract settlement | The same audience as LineOps | High, and the nearest to LineOps: CLV transfers unchanged. CFTC-regulated venue; reading and displaying is information |
+| **Prediction markets** (Kalshi, Polymarket) | Public read APIs | Contract settlement | The same audience as XLines | High, and the nearest to XLines: CLV transfers unchanged. CFTC-regulated venue; reading and displaying is information |
 | **Retail price history** (PC parts, GPUs) | Best Buy Products API (free, open); Amazon PA-API (affiliate-gated) | Purchase date price | Buyers (affiliate), like camelcamelcamel and Keepa | High; Keepa proves the model |
 | **Energy prices** for small business | EIA (public domain), ISO feeds (ERCOT, CAISO: public) | Settlement interval price | Businesses on time-of-use tariffs | High. A B2B vertical with public-domain data |
 | **Vendor reliability desk** | Status-page JSON (Atlassian Statuspage and the like), synthetic probes | SLA period result | Engineering teams | **The platform's own reliability layer as the product.** Freshness, incidents with RCAs, budget burn: what a team wants about its SaaS dependencies |
@@ -366,7 +366,7 @@ pipeline.*
 ## 8. Decisions that are yours
 
 1. **Is a commercial betting-analytics product compatible with your employment?** DESIGN §1
-   frames LineOps as a data-operations platform, precisely to avoid a conflict-of-interest
+   frames XLines as a data-operations platform, precisely to avoid a conflict-of-interest
    read by an employer in regulated gaming. A paid product for bettors changes that
    reading. Some gaming licensing regimes also restrict what licensed employees may do.
    Check the employment agreement before Stage 3. The showcase and the platform (§7)
@@ -408,7 +408,7 @@ starts.
 
 ### Phase 1 — The showcase is live (a weekend, after decisions 2–4)
 
-- Provision the VM, point DNS, fill `/opt/lineops/.env`, run `deploy.sh`.
+- Provision the VM, point DNS, fill `/opt/xlines/.env`, run `deploy.sh`.
 - Restore the latest snapshot into the server's Postgres, with `restore-data.ps1`'s logic
   run over SSH.
 - Uptime monitor on `/health` and `/ready`; first backup taken and **restored** into a
@@ -446,7 +446,7 @@ query the operator did not schedule.
 
 ### Phase 4 — The platform (two to three weeks, in parallel with Phase 3 or after)
 
-- Extract Deskworks (§7.2); move LineOps onto the packages; then TicketMiser.
+- Extract Deskworks (§7.2); move XLines onto the packages; then TicketMiser.
 - The vertical template.
 - Decide open source versus private kit.
 
@@ -475,7 +475,7 @@ query the operator did not schedule.
   the load and the desk stays behind a click.
 - **Credits spent by the public.** Phase 0 removes every control that spends from a visitor's
   desk. The worker's scheduler is the only automatic spender, and the budget guard caps it.
-- **A forked design system.** Every week the kit is not extracted, LineOps and TicketMiser
+- **A forked design system.** Every week the kit is not extracted, XLines and TicketMiser
   drift further apart and the extraction costs more.
 - **Terms drift.** Each provider's terms were read on 2026-09-27. Re-read them before
   Stage 2 and before Stage 3.
@@ -523,7 +523,7 @@ Decision 1 (employment) still gates Phase 5 and nothing earlier.
 
 ## 10b. Decided 2026-10-24: it stays local
 
-The developer's decision: LineOps remains a local project. The sources that make it free,
+The developer's decision: XLines remains a local project. The sources that make it free,
 ESPN and the MLB Stats API, are licensed for personal, non-commercial use, and a desk on the
 developer's own machines is exactly that use. Stages 2 and 3, and the paid data they need, are
 shelved rather than scheduled. The work that matters instead is **portability**: the same desk,

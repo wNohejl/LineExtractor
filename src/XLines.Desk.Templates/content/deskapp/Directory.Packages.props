@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Central package management: every version is declared once here and projects reference
+    packages without versions. Raise these when the Desk releases.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="XLines.Desk" Version="0.5.0" />
+    <PackageVersion Include="XLines.Desk.Hosting" Version="0.1.1" />
+  </ItemGroup>
+</Project>

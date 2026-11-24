@@ -4,7 +4,7 @@
 
 ## Intent
 
-The desk library (`LineOps.Desk`) gives every panel the same buttons, fields, tags, metrics
+The desk library (`XLines.Desk`) gives every panel the same buttons, fields, tags, metrics
 and section rules, and the panels still read as twenty different layouts. The cause is not
 the parts; it is that nothing says what order the parts go in or how far apart they sit, so
 each panel decided for itself:
@@ -137,7 +137,7 @@ Parameters: `ChildContent` (pickers and search), `Message` (string), `Actions` f
 
 `Note` as it exists, with its margins now set by the frame: `--space-3` above when it
 follows a toolbar or title, `--space-4` below. Every `Note Style="margin:12px 0"` call
-loses its style. The Journal's firewall sentence ("LineOps does not place wagers …") moves
+loses its style. The Journal's firewall sentence ("XLines does not place wagers …") moves
 from above the toolbar to this slot, under it; it is still the first prose in the window.
 *(My call: one slot order beats one panel's exception, and the sentence stays above the
 fold either way.)*
@@ -196,7 +196,7 @@ Parameters: `Title`, `ChildContent`, `Footer` (Cancel + primary), `Destructive`.
 | Controls in a row | `--space-2` |
 | Items that belong together (value + unit) | `--space-1` |
 
-All in one CSS block, `/* ---- Panel anatomy ---- */` in `lineops.css`, after the `.row`
+All in one CSS block, `/* ---- Panel anatomy ---- */` in `xlines.css`, after the `.row`
 and `.stack` rules. No `!important`. Every selector is a single class or a `.a + .b`
 sibling pair.
 
@@ -241,9 +241,9 @@ the same corner in every window.
 
 - Blazor Server, MudBlazor 9.7, the `DeskButton`/`DeskRow`/`DeskStack` splat conventions
   (class and style held out of the splat and merged, never replaced).
-- `LineOps.Desk` knows no domain types. The four components take render fragments and
+- `XLines.Desk` knows no domain types. The four components take render fragments and
   strings only.
-- Every component gets bUnit tests in `tests/LineOps.Web.Tests` on `DeskTestContext`,
+- Every component gets bUnit tests in `tests/XLines.Web.Tests` on `DeskTestContext`,
   asserting structure: the slot order, the right-pinned action container, heading rank,
   and that a caller's `class`/`style` extend rather than replace.
 - `dotnet build` clean on Web and both test projects, `dotnet test` green, the Worker host
@@ -280,7 +280,7 @@ operator; each is settled here so the plan argues from one text.
    should have had. So is the Journal note's move below the toolbar. Everything else — roles,
    aria attributes, labels, default keys — is unchanged.
 3. **No form on the desk submits on Enter.** There is no `EditForm`, no `<form>`, no
-   `ButtonType.Submit` in `LineOps.Web`; every key is a click handler. DOM order is visual
+   `ButtonType.Submit` in `XLines.Web`; every key is a click handler. DOM order is visual
    order, so the footer reorder changes tab order from Save→Cancel to Cancel→Save and nothing
    else. `PanelForm` renders the footer in the order the caller writes it.
 4. **Destructive keys never sit in a section's `Keys`.** They live in a form footer's

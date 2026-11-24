@@ -1,0 +1,309 @@
+@using XLines.Web.Services
+@implements IDisposable
+@inject IWagerData Data
+
+@*
+    Finds the game a bet was on: a search field that heads a list. Type "steelers", or
+    "steelers saints" for the matchup, and a popover under the field fills with that team's
+    games: today's and the ones to come first, soonest first, under Upcoming, then the season
+    backward under Played. The game a bet is on is nearly always this week's. Focus stays in the
+    field: the arrows move through the list, Enter picks, the first Escape closes the list and
+    the second clears the field.
+
+    The list floats (HIG 6: a search's matches are a popover, not a box drawn in the form). It
+    used to be a bordered group under the field, a box inside the form's own group, and it pushed
+    the rows beneath it down while it was open. As a DeskPopover it is one more floating
+    material, one at a time with every other popover on the desk, and it leaves the form where it
+    was.
+
+    Once a game is chosen the field gives way to the game itself, which is the link that changes
+    it: the choice is what the rest of the form is about, so it reads as a fact rather than as a
+    field still being typed in.
+*@
+<div class="game-search">
+    @if (_selected is { } chosen && !_searching)
+    {
+        @* The chosen game is the header, on the body as the Board door sets it — not a box: the
+           game is the link that changes it, as a folded step's choice is. *@
+        <div class="game-search__chosen">
+            <DeskLink Class="game-search__match" Destination="change" Icon="@Icons.Material.Filled.Search"
+                      Tooltip="Find a different game" OnClick="StartSearch">
+                @Marked(chosen)
+            </DeskLink>
+            <span class="game-search__when">@When(chosen)</span>
+        </div>
+    }
+    else if (_noGame && !_searching)
+    {
+        <div class="game-search__chosen">
+            <DeskLink Class="game-search__match" Destination="search" Icon="@Icons.Material.Filled.Search"
+                      Tooltip="Find a game instead" OnClick="StartSearch">
+                No game
+            </DeskLink>
+            <span class="game-search__when">A future, or another bet the desk does not track</span>
+        </div>
+    }
+    else
+    {
+        <DeskPopover Open="Open" OpenChanged="OnListOpenChanged" Class="game-search__pop">
+            <Anchor>
+                <DeskSearch Placeholder="Search games by team"
+                            Label="Find a game"
+                            ListId="@_listId"
+                            Expanded="Open"
+                            ActiveDescendant="@ActiveId"
+                            OnKeyDown="OnKeyAsync"
+                            Value="@_text" ValueChanged="OnTextChanged" />
+            </Anchor>
+            <ChildContent>
+                <div class="game-search__list" role="listbox" id="@_listId" aria-label="Games">
+                    @if (_results.Count == 0)
+                    {
+                        <div class="game-search__empty">No game in this season's reach matches "@_text".</div>
+                    }
+
+                    @for (var i = 0; i < _results.Count; i++)
+                    {
+                        var game = _results[i];
+                        var active = i == _active;
+
+                        @* The list is the games to come, soonest first, then the season backward. The two
+                           halves are named, so a played game is never mistaken for this week's. *@
+                        @if (i == 0 && IsAhead(game))
+                        {
+                            <div class="game-search__group" role="presentation">Upcoming</div>
+                        }
+                        @if (!IsAhead(game) && (i == 0 || IsAhead(_results[i - 1])))
+                        {
+                            <div class="game-search__group" role="presentation">Played</div>
+                        }
+                        <button type="button" role="option" id="@OptionId(i)" tabindex="-1"
+                                aria-selected="@(active ? "true" : "false")"
+                                class="menu__item game-search__opt @(active ? "game-search__opt--active" : null)"
+                                @onclick="() => PickAsync(game)">
+                            <span class="game-search__match">@Marked(game)</span>
+                            <span class="game-search__when">@When(game)</span>
+                        </button>
+                    }
+
+                    @if (OfferNoGame)
+                    {
+                        var active = _active == _results.Count;
+                        <button type="button" role="option" id="@OptionId(_results.Count)" tabindex="-1"
+                                aria-selected="@(active ? "true" : "false")"
+                                class="menu__item game-search__opt game-search__opt--none @(active ? "game-search__opt--active" : null)"
+                                @onclick="ChooseNoGameAsync">
+                            <span class="game-search__match">No game: a future or other bet</span>
+                        </button>
+                    }
+                </div>
+            </ChildContent>
+        </DeskPopover>
+    }
+</div>
+
+@code {
+    [Parameter] public int? Value { get; set; }
+    [Parameter] public EventCallback<int?> ValueChanged { get; set; }
+
+    /// <summary>The game already chosen, so an edit shows it before anything is searched.</summary>
+    [Parameter] public Game? Selected { get; set; }
+
+    /// <summary>The chosen game itself, for a form that reads more than its id.</summary>
+    [Parameter] public EventCallback<Game?> SelectedChanged { get; set; }
+
+    /// <summary>Offers "No game" at the foot of the list, for a bet on nothing the desk tracks.</summary>
+    [Parameter] public bool OfferNoGame { get; set; }
+
+    /// <summary>"No game" is the choice.</summary>
+    [Parameter] public bool NoGame { get; set; }
+    [Parameter] public EventCallback<bool> NoGameChanged { get; set; }
+
+    private readonly string _listId = "games-" + Guid.NewGuid().ToString("N")[..8];
+
+    private Game? _selected;
+    private bool _noGame;
+    private bool _searching;
+    private string? _text;
+    private List<Game> _results = [];
+    private bool _searched;
+    private bool _dismissed;
+    private int _active;
+    private CancellationTokenSource? _pending;
+
+    /// <summary>The list shows while there is a search with an answer that has not been put away.</summary>
+    private bool Open => !string.IsNullOrWhiteSpace(_text) && _searched && !_dismissed;
+
+    private int Options => _results.Count + (OfferNoGame ? 1 : 0);
+
+    private string OptionId(int index) => $"{_listId}-{index}";
+
+    private string? ActiveId => Open && Options > 0 ? OptionId(_active) : null;
+
+    // What the parameters last said: a re-render the pick itself caused, before the host has
+    // taken the new game in, must not put the old one back.
+    private (int? Value, Game? Selected, bool NoGame)? _given;
+
+    protected override void OnParametersSet()
+    {
+        var given = (Value, Selected, NoGame);
+        if (_given == given)
+            return;
+
+        _given = given;
+        _noGame = NoGame;
+        _selected = Value is null ? null
+            : Selected is not null && Selected.Id == Value ? Selected
+            : _selected?.Id == Value ? _selected
+            : null;
+    }
+
+    /// <summary>Today's or later: the search's first half. Today's finished games count, as the day's slate.</summary>
+    private static bool IsAhead(Game game)
+        => game.StartsAt >= XLines.Core.Analytics.LeagueClock.StartOf(XLines.Core.Analytics.LeagueClock.Today());
+
+    private static string Matchup(Game game)
+        => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"}";
+
+    /// <summary>
+    /// The matchup as the list and the chosen game draw it: each club's crest before its name, so
+    /// a list of one club's games is told apart by the opponent's crest before a name is read. The
+    /// small crest: it sits inside a link's label, which clips anything taller than its line.
+    /// </summary>
+    private static RenderFragment Marked(Game game) => __builder =>
+    {
+        <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" />@(game.AwayTeam?.Name ?? "Away")@(" at ")<TeamMark Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" />@(game.HomeTeam?.Name ?? "Home")
+    };
+
+    /// <summary>
+    /// The chosen game's detail line: "Oct 26 20:20 ET · NFL · final". Each part is written only
+    /// when it is there — a game read without its league left "Oct 26 20:20 ET · " with a
+    /// separator pointing at nothing.
+    /// </summary>
+    public static string When(Game game)
+    {
+        var parts = new List<string> { DisplayTime.Stamp(game.StartsAt) };
+
+        if (game.Sport?.Key is { Length: > 0 } league)
+            parts.Add(league.ToUpperInvariant());
+
+        if (game.Status is GameStatus.Final or GameStatus.Live)
+            parts.Add(game.Status == GameStatus.Final ? "final" : "live");
+
+        return string.Join(" · ", parts);
+    }
+
+    private void StartSearch()
+    {
+        _searching = true;
+        Clear();
+    }
+
+    private void Clear()
+    {
+        _text = null;
+        _results = [];
+        _searched = false;
+        _dismissed = false;
+        _active = 0;
+    }
+
+    /// <summary>
+    /// The popover put itself away — an outside press, Escape from the field, another popover
+    /// opening. The text stays, so typing on reopens the list with the next answer.
+    /// </summary>
+    private void OnListOpenChanged(bool open)
+    {
+        if (!open)
+            _dismissed = true;
+    }
+
+    private async Task OnTextChanged(string? text)
+    {
+        _text = text;
+        _active = 0;
+        _dismissed = false;
+
+        // A query per keystroke was the Players window's mistake; this waits for a pause.
+        _pending?.Cancel();
+        _pending = new CancellationTokenSource();
+        var token = _pending.Token;
+
+        try
+        {
+            await Task.Delay(200, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _results = [];
+            _searched = false;
+            return;
+        }
+
+        var found = await Data.SearchGamesAsync(text, token);
+
+        if (token.IsCancellationRequested)
+            return;
+
+        _results = found.ToList();
+        _searched = true;
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown" when Open && Options > 0:
+                _active = (_active + 1) % Options;
+                break;
+            case "ArrowUp" when Open && Options > 0:
+                _active = (_active - 1 + Options) % Options;
+                break;
+            case "Enter" when Open && _active < _results.Count:
+                await PickAsync(_results[_active]);
+                break;
+            case "Enter" when Open && OfferNoGame && _active == _results.Count:
+                await ChooseNoGameAsync();
+                break;
+            case "Escape" when Open:
+                // The first Escape closes the list; the field keeps its text.
+                _dismissed = true;
+                break;
+            case "Escape":
+                Clear();
+                _searching = false;
+                break;
+        }
+    }
+
+    private async Task PickAsync(Game game)
+    {
+        _selected = game;
+        _noGame = false;
+        _searching = false;
+        Clear();
+
+        await SelectedChanged.InvokeAsync(game);
+        await ValueChanged.InvokeAsync(game.Id);
+        await NoGameChanged.InvokeAsync(false);
+    }
+
+    private async Task ChooseNoGameAsync()
+    {
+        _selected = null;
+        _noGame = true;
+        _searching = false;
+        Clear();
+
+        await ValueChanged.InvokeAsync(null);
+        await SelectedChanged.InvokeAsync(null);
+        await NoGameChanged.InvokeAsync(true);
+    }
+
+    public void Dispose() => _pending?.Cancel();
+}

@@ -1,0 +1,129 @@
+@using XLines.Desk.Windowing
+@implements IDisposable
+@inject WindowManager Manager
+@inject IServiceProvider Services
+@inject IJSRuntime JS
+
+@*
+    The window manager's notice, said as a toast (ADR 0028). Draws nothing.
+
+    The manager still says why a window went or did not come — "Closed Incidents." with the way
+    back, or the ceiling's refusal — as a sentence it owns (WindowManager.Notice). It used to be
+    drawn in the header beside the count, over the controls the operator reaches for next. Here
+    it becomes one notice in the desk's stack, and the two stay one thing: a new sentence takes
+    the last one's toast down and raises its own; the manager clearing its sentence (an open, a
+    step back, a workspace) takes the toast down; dismissing the toast, or its expiring, clears
+    the sentence. "Reopen Incidents" walks the browser's history, as Ctrl+Z does (Desk.razor),
+    so every way back walks one list.
+
+    A closed window's notice carries Reopen, a key that only takes the close back, so it is timed
+    as an undo is (DeskToasts.UndoLife) rather than left over the desk; the ceiling's refusal is a
+    warning without a key and goes on its own.
+*@
+
+@code {
+    private DeskToasts? _toasts;
+    private string? _notice;
+    private DeskToast? _toast;
+
+    protected override void OnInitialized()
+    {
+        // A host that registers no toasts (a bare render test) has nowhere to say it; the
+        // manager's sentence stands on its own there.
+        _toasts = Services.GetService(typeof(DeskToasts)) as DeskToasts;
+
+        if (_toasts is null)
+            return;
+
+        Manager.Changed += OnManagerChanged;
+        _toasts.Departed += OnDeparted;
+        Sync();
+    }
+
+    private void OnManagerChanged() => Sync();
+
+    /// <summary>A fresh sentence is a fresh notice, even in the same words: compared by reference.</summary>
+    private void Sync()
+    {
+        if (_toasts is null)
+            return;
+
+        var notice = Manager.Notice;
+
+        if (ReferenceEquals(notice, _notice))
+            return;
+
+        var old = _toast;
+        _notice = notice;
+        _toast = null;
+
+        if (old is not null)
+            _toasts.Dismiss(old);
+
+        if (notice is null)
+            return;
+
+        var titles = Manager.NoticeTitles;
+        var reopen = Manager.CanGoBack && titles.Count > 0;
+
+        // Reopen only takes back the close, and Ctrl+Z and Back still do: the toast is timed.
+        _toast = reopen
+            ? _toasts.RaiseUndo(notice, DeskHeader.UndoLabel(titles), Reopen)
+            : _toasts.Raise(notice, DeskState.Warning);
+        _raisedFor = notice;
+    }
+
+    private string? _raisedFor;
+
+    // The toast left on its own or by the operator's hand: the sentence it was raised for goes
+    // with it — and only that sentence. All of it on the circuit's thread, because an expiry
+    // arrives on the timer's: by the time this runs a newer notice may have replaced the toast,
+    // and then there is nothing to clear.
+    private void OnDeparted(DeskToast toast)
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (!ReferenceEquals(toast, _toast) || _raisedFor is not { } said)
+                return;
+
+            _toast = null;
+            _raisedFor = null;
+            Manager.ClearNotice(said);
+        });
+    }
+
+    private void Reopen()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("history.back");
+            }
+            catch (JSDisconnectedException)
+            {
+                // The browser has gone; there is nothing to walk back.
+            }
+        });
+    }
+
+    // The toast leaves with the desk: a Reopen left standing would walk history back from a desk
+    // that is gone. The header's stack goes with the desk now too, but the list is DeskToasts',
+    // which outlives both, so the toast is taken down here; the sentence stays the manager's, and
+    // a desk drawn again says it again.
+    public void Dispose()
+    {
+        Manager.Changed -= OnManagerChanged;
+
+        if (_toasts is null)
+            return;
+
+        _toasts.Departed -= OnDeparted;
+
+        if (_toast is { } standing)
+        {
+            _toast = null;
+            _toasts.Dismiss(standing);
+        }
+    }
+}

@@ -35,7 +35,7 @@ anything personal.
   whole desk. The guest code opens a desk that reads and changes nothing. With
   `AllowAnonymousVisitors`, no code at all opens the guest desk too.
 
-**The desk asks and never answers.** `LineOps.Desk` defines `IDeskAccess.CanOperate`, and
+**The desk asks and never answers.** `XLines.Desk` defines `IDeskAccess.CanOperate`, and
 `WindowDefinition.OperatorOnly` marks a window as personal. The desk's default is
 `OpenDeskAccess`. The web host registers `CircuitDeskAccess`, which reads the circuit's
 signed-in user each time and fails closed. A state that is not yet known, or that throws,

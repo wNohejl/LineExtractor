@@ -1,0 +1,517 @@
+using System.Text.Json;
+using XLines.Core.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace XLines.Data;
+
+public class XLinesDbContext(DbContextOptions<XLinesDbContext> options) : DbContext(options)
+{
+    public DbSet<Sport> Sports => Set<Sport>();
+    public DbSet<Team> Teams => Set<Team>();
+    public DbSet<Player> Players => Set<Player>();
+    public DbSet<Source> Sources => Set<Source>();
+    public DbSet<Game> Games => Set<Game>();
+    public DbSet<Bout> Bouts => Set<Bout>();
+    public DbSet<FighterProfile> FighterProfiles => Set<FighterProfile>();
+
+    public DbSet<OddsSnapshot> OddsSnapshots => Set<OddsSnapshot>();
+    public DbSet<ClosingLine> ClosingLines => Set<ClosingLine>();
+    public DbSet<ClosingLineMiss> ClosingLineMisses => Set<ClosingLineMiss>();
+    public DbSet<StatSnapshot> StatSnapshots => Set<StatSnapshot>();
+    public DbSet<PlayerGameStat> PlayerGameStats => Set<PlayerGameStat>();
+    public DbSet<GamePlay> GamePlays => Set<GamePlay>();
+    public DbSet<GameDrive> GameDrives => Set<GameDrive>();
+    public DbSet<GamecastBackportMiss> GamecastBackportMisses => Set<GamecastBackportMiss>();
+    public DbSet<GameContext> GameContexts => Set<GameContext>();
+    public DbSet<GameOfficial> GameOfficials => Set<GameOfficial>();
+
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<Parlay> Parlays => Set<Parlay>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<JournalTombstone> JournalTombstones => Set<JournalTombstone>();
+    public DbSet<JournalAudit> JournalAudit => Set<JournalAudit>();
+    public DbSet<DataTransfer> DataTransfers => Set<DataTransfer>();
+
+    /// <summary>
+    /// Set by the journal import for the length of its save: the rows it writes keep the
+    /// <c>UpdatedAtUtc</c> the file gave them, and the audit records them as
+    /// <see cref="JournalAuditAction.Imported"/>. Every other writer leaves it false and is
+    /// stamped (<see cref="Changes.JournalAuditInterceptor"/>).
+    /// </summary>
+    public bool ImportingJournal { get; set; }
+
+    /// <summary>
+    /// The journal interceptor is the context's own, not the host's: a context made anywhere —
+    /// a host, a test, <c>dotnet ef</c> — stamps and audits its journal writes the same way.
+    /// </summary>
+    protected override void OnConfiguring(DbContextOptionsBuilder options)
+        => options.AddInterceptors(Changes.JournalAuditInterceptor.Instance);
+
+    public DbSet<IngestionRun> IngestionRuns => Set<IngestionRun>();
+    public DbSet<BackfillCheckpoint> BackfillCheckpoints => Set<BackfillCheckpoint>();
+    public DbSet<KpiDaily> KpiDailies => Set<KpiDaily>();
+    public DbSet<Alert> Alerts => Set<Alert>();
+    public DbSet<Incident> Incidents => Set<Incident>();
+
+    protected override void OnModelCreating(ModelBuilder b)
+    {
+        var jsonOptions = JsonSerializerOptions.Default;
+
+        // External-id maps are stored as jsonb: cross-source entity resolution needs a
+        // bag of per-source keys, and the shape differs by provider.
+        var dictConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<
+            Dictionary<string, string>, string>(
+            v => JsonSerializer.Serialize(v, jsonOptions),
+            v => JsonSerializer.Deserialize<Dictionary<string, string>>(v, jsonOptions) ?? new());
+
+        var dictComparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<Dictionary<string, string>>(
+            (a, c) => JsonSerializer.Serialize(a, jsonOptions) == JsonSerializer.Serialize(c, jsonOptions),
+            v => v == null ? 0 : JsonSerializer.Serialize(v, jsonOptions).GetHashCode(),
+            v => JsonSerializer.Deserialize<Dictionary<string, string>>(
+                     JsonSerializer.Serialize(v, jsonOptions), jsonOptions) ?? new());
+
+        b.Entity<Sport>(e =>
+        {
+            e.HasIndex(x => x.Key).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+        });
+
+        b.Entity<Team>(e =>
+        {
+            e.HasIndex(x => new { x.SportId, x.Name }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Abbrev).HasMaxLength(16);
+            e.Property(x => x.ExternalIds).HasColumnType("jsonb")
+                .HasConversion(dictConverter, dictComparer);
+            e.HasOne(x => x.Sport).WithMany(s => s.Teams).HasForeignKey(x => x.SportId);
+        });
+
+        b.Entity<Player>(e =>
+        {
+            e.HasIndex(x => new { x.SportId, x.FullName });
+
+            // The cross-reference starts from a game, walks to its two teams, and needs their
+            // players. Without this that first hop is a sequential scan of every player in the
+            // league on every odds view.
+            e.HasIndex(x => x.TeamId).HasDatabaseName("ix_player_team");
+
+            e.Property(x => x.FullName).HasMaxLength(160).IsRequired();
+            e.Property(x => x.Position).HasMaxLength(32);
+            e.Property(x => x.Status).HasMaxLength(32);
+            e.Property(x => x.InjuryStatus).HasMaxLength(32);
+            e.Property(x => x.InjuryNote).HasMaxLength(512);
+            e.Property(x => x.ExternalIds).HasColumnType("jsonb")
+                .HasConversion(dictConverter, dictComparer);
+            e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<Source>(e =>
+        {
+            e.HasIndex(x => x.Key).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            e.Property(x => x.BaseUrl).HasMaxLength(256);
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
+            // Stored by name, as Kind is, so a SQL step (the displayable snapshot's scrub) reads it plainly.
+            e.Property(x => x.Licence).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.FailureMode).HasMaxLength(32);
+        });
+
+        b.Entity<Game>(e =>
+        {
+            e.HasIndex(x => new { x.SportId, x.StartsAt });
+            e.HasIndex(x => new { x.SportId, x.SeasonYear, x.StartsAt });
+            e.Property(x => x.SeasonType).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.HomeProbablePitcher).HasMaxLength(128);
+            e.Property(x => x.AwayProbablePitcher).HasMaxLength(128);
+            e.Property(x => x.ExternalIds).HasColumnType("jsonb")
+                .HasConversion(dictConverter, dictComparer);
+
+            // The state of play. The possession is one of this game's two teams; deleting a team
+            // never deletes a game, it only forgets who had the ball.
+            e.Property(x => x.DisplayClock).HasMaxLength(Game.DisplayClockLength);
+            e.Property(x => x.StatusDetail).HasMaxLength(Game.StatusDetailLength);
+            e.Property(x => x.DownDistanceText).HasMaxLength(Game.DownDistanceTextLength);
+            e.Property(x => x.PossessionText).HasMaxLength(Game.PossessionTextLength);
+            e.Property(x => x.Linescore).HasColumnType("jsonb");
+            e.Property(x => x.Situation).HasColumnType("jsonb");
+            e.HasOne<Team>().WithMany().HasForeignKey(x => x.PossessionTeamId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(x => x.HomeTeam).WithMany().HasForeignKey(x => x.HomeTeamId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.AwayTeam).WithMany().HasForeignKey(x => x.AwayTeamId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // A fight's card and result (ADR 0021). Keyed by its game: a bout is that game's detail,
+        // and deleting the game takes it.
+        b.Entity<Bout>(e =>
+        {
+            e.HasKey(x => x.GameId);
+            e.Property(x => x.EventId).HasMaxLength(32).IsRequired();
+            e.Property(x => x.EventName).HasMaxLength(160).IsRequired();
+            e.Property(x => x.EventShortName).HasMaxLength(64);
+            e.Property(x => x.CardSegment).HasMaxLength(32);
+            e.Property(x => x.WeightClass).HasMaxLength(48);
+            e.Property(x => x.HomeRecord).HasMaxLength(16);
+            e.Property(x => x.AwayRecord).HasMaxLength(16);
+            e.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Method).HasMaxLength(64);
+            e.Property(x => x.MethodDetail).HasMaxLength(96);
+
+            // "The rest of this card" — the board and the game window read a card as one.
+            e.HasIndex(x => x.EventId);
+
+            e.HasOne(x => x.Game).WithOne().HasForeignKey<Bout>(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // A fighter's few typed facts and ESPN's figures kept whole, one per fighter's Team row.
+        b.Entity<FighterProfile>(e =>
+        {
+            e.HasKey(x => x.TeamId);
+            e.Property(x => x.Nickname).HasMaxLength(64);
+            e.Property(x => x.Country).HasMaxLength(64);
+            e.Property(x => x.Association).HasMaxLength(128);
+            e.Property(x => x.Stance).HasMaxLength(32);
+            e.Property(x => x.WeightClass).HasMaxLength(48);
+            e.Property(x => x.HeightInches).HasPrecision(5, 1);
+            e.Property(x => x.ReachInches).HasPrecision(5, 1);
+            e.Property(x => x.Record).HasMaxLength(24);
+            e.Property(x => x.Career).HasColumnType("jsonb");
+            e.Property(x => x.History).HasColumnType("jsonb");
+
+            e.HasOne(x => x.Team).WithOne().HasForeignKey<FighterProfile>(x => x.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<OddsSnapshot>(e =>
+        {
+            // Composite key led by the partition column: Postgres requires the partition
+            // key to participate in every unique constraint on a partitioned table.
+            e.HasKey(x => new { x.CapturedAt, x.Id });
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+
+            e.Property(x => x.Book).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Market).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Outcome).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Line).HasPrecision(10, 2);
+
+            // The workhorse index: "line movement for this game/market/book, newest first".
+            e.HasIndex(x => new { x.GameId, x.Market, x.Book, x.CapturedAt })
+                .HasDatabaseName("ix_odds_snapshot_game_market_book_captured");
+
+            // Idempotency: a re-run of the same window must not double-insert.
+            e.HasIndex(x => new { x.GameId, x.SourceId, x.Book, x.Market, x.Outcome, x.CapturedAt })
+                .IsUnique()
+                .HasDatabaseName("ux_odds_snapshot_natural_key");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+            e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<ClosingLine>(e =>
+        {
+            e.Property(x => x.Book).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Market).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Outcome).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Line).HasPrecision(10, 2);
+            e.Property(x => x.OpenLine).HasPrecision(10, 2);
+
+            // One close per game/book/market/outcome. Promotion is idempotent because of this:
+            // a second pass over an already-promoted game has nowhere to put a duplicate.
+            e.HasIndex(x => new { x.GameId, x.Book, x.Market, x.Outcome })
+                .IsUnique()
+                .HasDatabaseName("ux_closing_line");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+            e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<StatSnapshot>(e =>
+        {
+            e.Property(x => x.Payload).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.GameId, x.CapturedAt });
+        });
+
+        b.Entity<PlayerGameStat>(e =>
+        {
+            e.Property(x => x.StatLine).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.PlayerId, x.GameId, x.SourceId })
+                .IsUnique()
+                .HasDatabaseName("ux_player_game_stat");
+
+            // The second hop of the cross-reference: "recent lines for these games". The
+            // ux_ index above is led by PlayerId, which answers one player at a time; a
+            // matchup asks about fifty at once and filters by game, so it reads this way round
+            // instead.
+            e.HasIndex(x => x.GameId).HasDatabaseName("ix_player_game_stat_game");
+
+            // A team's season roster is read from the appearances made for it rather than from
+            // who is on its books today, so the side a line was made for is a lookup path too.
+            e.HasIndex(x => x.TeamId).HasDatabaseName("ix_player_game_stat_team");
+
+            e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId);
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId);
+            e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // The gamecast's play store (spec §6.2). Upserted by the provider's id, so the natural key
+        // is unique; the window reads a game's plays in order and asks for those after the last it
+        // holds, which is the second index. Deleting the game takes its plays and drives.
+        b.Entity<GamePlay>(e =>
+        {
+            e.Property(x => x.SourcePlayId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Clock).HasMaxLength(16);
+            e.Property(x => x.TypeId).HasMaxLength(16);
+            e.Property(x => x.Type).HasMaxLength(64);
+            e.Property(x => x.StartSituation).HasColumnType("jsonb");
+            e.Property(x => x.EndSituation).HasColumnType("jsonb");
+
+            // Fractions of one, to four places: the provider sends more than a window can show,
+            // and the writer rounds to this before it compares, or every poll would read as a change.
+            e.Property(x => x.HomeWinPct).HasPrecision(6, 4);
+            e.Property(x => x.SpreadCoverPctHome).HasPrecision(6, 4);
+            e.Property(x => x.TotalOverPct).HasPrecision(6, 4);
+
+            e.HasIndex(x => new { x.GameId, x.SourceId, x.SourcePlayId })
+                .IsUnique()
+                .HasDatabaseName("ux_game_play");
+            e.HasIndex(x => new { x.GameId, x.Sequence }).HasDatabaseName("ix_game_play_game_sequence");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+            e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<GameDrive>(e =>
+        {
+            e.Property(x => x.SourceDriveId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Result).HasMaxLength(64);
+            e.Property(x => x.TimeElapsed).HasMaxLength(16);
+            e.Property(x => x.StartClock).HasMaxLength(16);
+            e.Property(x => x.EndClock).HasMaxLength(16);
+
+            e.HasIndex(x => new { x.GameId, x.SourceId, x.SourceDriveId })
+                .IsUnique()
+                .HasDatabaseName("ux_game_drive");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+            e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // One row per game the backport could not fill, keyed by the game: the backport asks
+        // "was this tried lately?" of every candidate, and a game is tried for one source.
+        b.Entity<GamecastBackportMiss>(e =>
+        {
+            e.HasKey(x => x.GameId);
+            e.Property(x => x.Reason).HasMaxLength(512);
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+        });
+
+        // A game's circumstances as one provider states them: one row per game and source, so two
+        // providers describing one game never overwrite each other. Deleting the game takes it.
+        b.Entity<GameContext>(e =>
+        {
+            e.HasKey(x => new { x.GameId, x.SourceId });
+            e.Property(x => x.VenueName).HasMaxLength(GameContext.VenueNameLength);
+            e.Property(x => x.VenueCity).HasMaxLength(GameContext.VenueCityLength);
+            e.Property(x => x.VenueState).HasMaxLength(GameContext.VenueStateLength);
+            e.Property(x => x.Surface).HasMaxLength(GameContext.SurfaceLength);
+            e.Property(x => x.WeatherCondition).HasMaxLength(GameContext.WeatherConditionLength);
+            e.Property(x => x.WindDirection).HasMaxLength(GameContext.WindDirectionLength);
+            e.Property(x => x.DayNight).HasMaxLength(GameContext.DayNightLength);
+            e.Property(x => x.HomeWinPercent).HasPrecision(5, 2);
+            e.Property(x => x.AwayWinPercent).HasPrecision(5, 2);
+            e.Property(x => x.MatchupQuality).HasPrecision(5, 2);
+            e.Property(x => x.HomeLineup).HasColumnType("jsonb");
+            e.Property(x => x.AwayLineup).HasColumnType("jsonb");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+        });
+
+        // A game's officials, one row each. Read two ways: a game's crew (the first index) and an
+        // official's games (the second), which is what a referee or umpire tendency is asked by.
+        b.Entity<GameOfficial>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(GameOfficial.NameLength).IsRequired();
+            e.Property(x => x.Role).HasMaxLength(GameOfficial.RoleLength);
+
+            e.HasIndex(x => new { x.GameId, x.SourceId, x.Order })
+                .IsUnique()
+                .HasDatabaseName("ux_game_official");
+            e.HasIndex(x => x.Name).HasDatabaseName("ix_game_official_name");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+        });
+
+        // One row per game a closing-line source could not answer for, keyed by the game and the
+        // source that was asked. The refill skips a game whose RetryAt is still ahead.
+        b.Entity<ClosingLineMiss>(e =>
+        {
+            e.HasKey(x => new { x.GameId, x.SourceId });
+            e.HasIndex(x => x.RetryAt);
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+        });
+
+        b.Entity<JournalEntry>(e =>
+        {
+            e.Property(x => x.Market).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Outcome).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Book).HasMaxLength(64).IsRequired();
+            e.Property(x => x.FreeTextMarket).HasMaxLength(256);
+            e.Property(x => x.Result).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Stake).HasPrecision(12, 2);
+            e.Property(x => x.Payout).HasPrecision(12, 2);
+            e.Property(x => x.LineTaken).HasPrecision(10, 2);
+            e.Property(x => x.PriceTaken).HasPrecision(11, 4);
+            e.Property(x => x.ClosingPoints).HasPrecision(10, 2);
+            e.Property(x => x.ClosingBook).HasMaxLength(64);
+            e.Property(x => x.ClosingFairBasis).HasMaxLength(32);
+            e.HasIndex(x => x.PlacedAt);
+            e.HasIndex(x => x.ParlayGroupId);
+
+            // The portable identity (ADR 0025). The database's default covers a row inserted by
+            // SQL — a pg_dump of the older journal restored into this schema — as the entity's
+            // own initialiser covers one made here.
+            e.Property(x => x.SyncId).HasDefaultValueSql("gen_random_uuid()");
+            e.HasIndex(x => x.SyncId).IsUnique();
+            e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now()");
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.Ignore(x => x.NetReturn);
+            e.Ignore(x => x.IsSettled);
+            e.Ignore(x => x.IsGraded);
+            e.Ignore(x => x.IsParlayLeg);
+        });
+
+        b.Entity<Parlay>(e =>
+        {
+            e.Property(x => x.Book).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Stake).HasPrecision(12, 2);
+            e.Property(x => x.Payout).HasPrecision(12, 2);
+            e.Property(x => x.PriceQuoted).HasPrecision(11, 4);
+            e.Property(x => x.Result).HasConversion<string>().HasMaxLength(16);
+            e.HasIndex(x => x.PlacedAt);
+            e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now()");
+
+            // A parlay's legs are part of it: deleting the parlay deletes them.
+            e.HasMany(x => x.Legs).WithOne(x => x.Parlay).HasForeignKey(x => x.ParlayGroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.Ignore(x => x.NetReturn);
+            e.Ignore(x => x.IsSettled);
+            e.Ignore(x => x.IsGraded);
+        });
+
+        b.Entity<AppSetting>(e =>
+        {
+            e.HasKey(x => x.Key);
+            e.Property(x => x.Key).HasMaxLength(64);
+            e.Property(x => x.Value).HasMaxLength(1024).IsRequired();
+            e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now()");
+        });
+
+        // ADR 0025: what the journal merge needs to tell a deletion from an absence, what every
+        // journal write was, and when this machine last moved data. All three are the
+        // operator's own and stay out of the committed snapshot (publish-data.ps1).
+        b.Entity<JournalTombstone>(e =>
+        {
+            e.HasKey(x => x.SyncId);
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+        });
+
+        b.Entity<JournalAudit>(e =>
+        {
+            e.ToTable("JournalAudit");
+            e.Property(x => x.Entity).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Action).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Machine).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Before).HasColumnType("jsonb");
+            e.Property(x => x.After).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.EntrySyncId, x.AtUtc });
+        });
+
+        b.Entity<DataTransfer>(e =>
+        {
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Machine).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Detail).HasColumnType("jsonb");
+            e.HasIndex(x => x.AtUtc);
+        });
+
+        b.Entity<IngestionRun>(e =>
+        {
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.JobKey).HasMaxLength(64);
+            e.HasIndex(x => new { x.SourceId, x.StartedAt });
+            e.Ignore(x => x.Duration);
+        });
+
+        b.Entity<KpiDaily>(e =>
+        {
+            e.HasKey(x => new { x.Day, x.SourceId });
+        });
+
+        b.Entity<BackfillCheckpoint>(e =>
+        {
+            // The unique key is the whole point: the backfill asks "have I walked this day?"
+            // before every fetch, and a duplicate would mean a day fetched twice.
+            e.HasIndex(x => new { x.SourceId, x.SportId, x.Date })
+                .IsUnique()
+                .HasDatabaseName("ux_backfill_checkpoint");
+
+            // "What is still missing, oldest first" — the query the History panel runs.
+            e.HasIndex(x => new { x.SourceId, x.Date });
+
+            e.Property(x => x.Error).HasMaxLength(512);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+            e.HasOne(x => x.Sport).WithMany().HasForeignKey(x => x.SportId);
+            e.Ignore(x => x.Succeeded);
+        });
+
+        b.Entity<Alert>(e =>
+        {
+            e.Property(x => x.RuleKey).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Severity).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Message).HasMaxLength(1024);
+            e.HasIndex(x => new { x.RuleKey, x.SourceId, x.ResolvedAt });
+            e.Ignore(x => x.IsOpen);
+            e.HasOne(x => x.Incident).WithMany(i => i.Alerts).HasForeignKey(x => x.IncidentId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<Incident>(e =>
+        {
+            e.Property(x => x.Title).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Severity).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Timeline).HasColumnType("jsonb");
+            e.Ignore(x => x.TimeToResolve);
+        });
+    }
+}

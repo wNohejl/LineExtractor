@@ -12,7 +12,7 @@
 services:
   aspire-dashboard:
     image: mcr.microsoft.com/dotnet/aspire-dashboard:13.4.2
-    container_name: lineops-aspire
+    container_name: xlines-aspire
     restart: unless-stopped
     environment:
       # Anonymous access, deliberately, and only because of the binding below: the dashboard
@@ -40,7 +40,7 @@ services:
   web:
     environment:
       Observability__Enabled: "true"
-      Observability__ServiceName: lineops-web
+      Observability__ServiceName: xlines-web
       # Container-to-container over the compose network, not localhost.
       Observability__OtlpEndpoint: "http://aspire-dashboard:18889"
     depends_on:
@@ -53,5 +53,5 @@ services:
   worker:
     environment:
       Observability__Enabled: "true"
-      Observability__ServiceName: lineops-worker
+      Observability__ServiceName: xlines-worker
       Observability__OtlpEndpoint: "http://aspire-dashboard:18889"

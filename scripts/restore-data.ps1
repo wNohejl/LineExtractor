@@ -30,7 +30,7 @@
     .\scripts\restore-data.ps1 -InFile D:\lineops.dump
 #>
 param(
-    [string]$Container = "lineops-postgres",
+    [string]$Container = "xlines-postgres",
     [string]$Database = "lineops",
     [string]$User = "lineops",
     [string]$InFile,
@@ -53,7 +53,7 @@ if (-not (Test-Path $dump -PathType Leaf)) {
 No snapshot at $dump.
 The snapshot is the owner's and lives in a private repository; this public one carries none. A new desk fills itself instead:
   the Board's Date range key on the desk, or
-  dotnet run --project src/LineOps.Worker -- --job espn:range --sport nfl --from <date> --to <date>
+  dotnet run --project src/XLines.Worker -- --job espn:range --sport nfl --from <date> --to <date>
   (Docker: docker compose run --rm worker --job espn:range --sport nfl --from <date> --to <date>)
 The owner: clone the private journal repository at data/personal and pull it, or name a dump with -InFile.
 "@
@@ -112,6 +112,6 @@ pg_restore -U $User -d $Database --no-owner --no-privileges /snapshots/$(Split-P
 
     $games = Invoke-Native { 'select s."Key" || '': '' || count(*) from "Games" g join "Sports" s on s."Id"=g."SportId" group by s."Key" order by s."Key"' | docker exec -i -e $pgEnv $Container psql -U $User -d $Database -X -q -A -t }
     Write-Host "Restored. Games by sport:"; Write-Host $games
-    Write-Host "Now: dotnet run --project src/LineOps.Web --launch-profile http"
+    Write-Host "Now: dotnet run --project src/XLines.Web --launch-profile http"
 }
 finally { Pop-Location }

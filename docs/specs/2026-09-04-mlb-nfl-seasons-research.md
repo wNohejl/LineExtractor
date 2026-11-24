@@ -215,7 +215,7 @@ Everything in §5 except the coverage report in the History window, in one pass:
   another machine. Both stream through `cmd` because the container's `/tmp` is a tmpfs that
   `docker cp` cannot reach. `CLAUDE.md` carries the workflow.
 
-Tests: 362 in `LineOps.Tests`, 262 in `LineOps.Web.Tests`, all green.
+Tests: 362 in `XLines.Tests`, 262 in `XLines.Web.Tests`, all green.
 
 ### 8.1 A stat line keeps the team it was made for (2026-09-26)
 

@@ -26,10 +26,10 @@ jobs:
     strategy:
       matrix:
         image:
-          - name: lineops-web
-            dockerfile: src/LineOps.Web/Dockerfile
-          - name: lineops-worker
-            dockerfile: src/LineOps.Worker/Dockerfile
+          - name: xlines-web
+            dockerfile: src/XLines.Web/Dockerfile
+          - name: xlines-worker
+            dockerfile: src/XLines.Worker/Dockerfile
 
     steps:
       # workflow_run starts on the default branch's head; build the commit CI actually tested.

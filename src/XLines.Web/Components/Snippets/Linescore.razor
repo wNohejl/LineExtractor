@@ -1,0 +1,69 @@
+@using System.Globalization
+@using XLines.Core.Analytics
+
+@*
+    A game's score by period: away over home, as a title has them, with the total last.
+
+    One part for every window that shows a game, and for every league: the columns are whatever
+    the sport calls its periods (Periods.Column) — quarters and overtimes, innings, rounds — and
+    the last one is its total (runs, in baseball). The side that is ahead is marked, so the result
+    reads before a number is compared. Nothing is drawn until a period has been played, and a
+    period one side has no figure for yet is left blank rather than called zero.
+*@
+
+@{
+    var periods = Math.Max(Home.Count, Away.Count);
+}
+
+@if (periods > 0)
+{
+    <div class="linescore @Class">
+        <table class="linescore__table">
+            <caption class="sr-only">Score by period</caption>
+            <thead>
+                <tr>
+                    <th scope="col"><span class="sr-only">Team</span></th>
+                    @for (var p = 1; p <= periods; p++)
+                    {
+                        <th scope="col" class="linescore__n">@Periods.Column(Sport, p)</th>
+                    }
+                    <th scope="col" class="linescore__n linescore__total">@Periods.TotalColumn(Sport)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @Row(AwayAbbrev, Away, AwayTotal, periods, (AwayTotal ?? 0) > (HomeTotal ?? 0))
+                @Row(HomeAbbrev, Home, HomeTotal, periods, (HomeTotal ?? 0) > (AwayTotal ?? 0))
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    /// <summary>The league's key, for what its periods are called and its teams' marks.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    [Parameter, EditorRequired] public string AwayAbbrev { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string HomeAbbrev { get; set; } = string.Empty;
+
+    /// <summary>Points by period, first period first; empty until one has been played.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<int> Away { get; set; } = [];
+
+    /// <summary>The same, for the home side.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<int> Home { get; set; } = [];
+
+    [Parameter] public int? AwayTotal { get; set; }
+    [Parameter] public int? HomeTotal { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    private RenderFragment Row(string abbrev, IReadOnlyList<int> scores, int? total, int periods, bool ahead) => @<text>
+        <tr class="@(ahead ? "linescore__ahead" : null)" data-line="@abbrev">
+            <th scope="row" class="linescore__team"><TeamMark Sport="@Sport" Abbrev="@abbrev" />@abbrev</th>
+            @for (var p = 0; p < periods; p++)
+            {
+                <td class="linescore__n">@(p < scores.Count ? scores[p].ToString(CultureInfo.InvariantCulture) : string.Empty)</td>
+            }
+            <td class="linescore__n linescore__total">@(total?.ToString(CultureInfo.InvariantCulture) ?? "–")</td>
+        </tr>
+    </text>;
+}

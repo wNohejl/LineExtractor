@@ -1,0 +1,209 @@
+/* The Gamecast window (GamecastPanel.razor). Its cards flow in the Desk's .wflow (ADR 0032) and
+   are the desk's .wgroup — a fill with one hairline — and rows inside them are divided by its
+   inset hairlines, so nothing here draws an edge. Every figure is tabular, so a clock or a yardage changing does not shuffle the words
+   after it. */
+
+.gc__clock {
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__situation {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* The last play is a tooltip's trigger (HIG 12), so MudTooltip's root stands between it and
+   the title line's flex row: the span is a block inside it, to keep its ellipsis, and the dot
+   follows the situation across the root. The root's own sizing is in xlines.css, since the
+   root is drawn by the tooltip and carries no scope of this window's. */
+.gc__last {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gc__situation + .mud-tooltip-root > .gc__last::before {
+    content: "·";
+    margin-right: var(--space-2);
+}
+
+/* The settings behind a quiet feed: on the note, on a line of their own, in its quieter ink. */
+.gc__quiet-keys {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
+}
+
+/* What the field and the comparison cards hold is not rows, so it is the card's to inset (ADR
+   0032): its text starts where the bar's title does, and gives the inset back under 480px of card
+   as the bar does. Neither part draws an edge; the card's is the one edge. */
+.gc__cardbody {
+    padding: var(--space-3) var(--space-4);
+}
+
+@container (max-width: 480px) {
+    .gc__cardbody {
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
+    }
+}
+
+/* A period's heading in the drive log: a quiet line the drives of that period sit under. */
+.gc__period {
+    min-height: 0;
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+}
+
+/* A drive's line is its disclosure: the triangle, the side and the result, one press. A
+   <button>, so the browser's look is undone and the row's type kept. */
+.gc__drive {
+    justify-content: space-between;
+}
+
+button.gc__toggle {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    min-height: 28px;
+    margin: 0 0 0 calc(-1 * var(--space-1));
+    padding: 0 var(--space-2) 0 var(--space-1);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    color: var(--text-primary);
+    text-align: start;
+    cursor: pointer;
+}
+
+button.gc__toggle:hover {
+    background: var(--surface-3);
+}
+
+/* With every play shown there is nothing to fold: the same line, as a heading. */
+.gc__toggle--still {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    min-height: 28px;
+}
+
+/* The side with the ball, its crest before its abbreviation (TeamMark's own rules, from
+   xlines.css). Wide enough for the crest and three letters, so a drive by BUF and one by KC
+   start their results at one edge. */
+.gc__team {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: baseline;
+    min-width: calc(18px + var(--space-2) + 3ch);
+    white-space: nowrap;
+    font-weight: var(--weight-semibold);
+}
+
+.gc__result {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__drive--open .gc__result {
+    color: var(--text-primary);
+}
+
+/* What a drive came to, at the row's trailing edge: where it ran, its result, the score it left. */
+.gc__drive-trail {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+/* A narrow window keeps the words: the field line goes first, then the score a drive that
+   did not score left unchanged. The group is the container (.wgroup). */
+@container (max-width: 620px) {
+    .gc__drive-trail ::deep .fieldspan {
+        display: none;
+    }
+}
+
+@container (max-width: 460px) {
+    .gc__tally--quiet {
+        display: none;
+    }
+}
+
+/* An open drive's plays read as its row's continuation: no hairline between them, indented to
+   the side's leading edge as a disclosure's content is. */
+.gc__plays {
+    display: block;
+    padding-top: 0;
+    padding-left: calc(var(--space-3) + 12px + var(--space-2));
+}
+
+.gc__plays::before {
+    display: none;
+}
+
+/* A scoring row is stamped as a play is (PlayLog.razor.css holds the play rows' own rules). */
+.gc__when {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.gc__score {
+    display: grid;
+    grid-template-columns: 7ch calc(18px + var(--space-2) + 4ch) minmax(0, 1fr) auto;
+    column-gap: var(--space-3);
+    align-items: baseline;
+}
+
+.gc__tally {
+    white-space: nowrap;
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__tally--quiet {
+    font-weight: var(--weight-regular);
+    color: var(--text-secondary);
+}
+
+/* The probability chart spans the section at a reading width and keeps its own proportions.
+   MudChart draws into a fixed view box and, given a height, scales itself down and centres
+   itself; given the width instead its axis labels stay near the footnote size. The Performance
+   window's chart solves the same thing the same way (xlines.css). */
+.gc__chart {
+    max-width: 720px;
+}
+
+.gc__chart ::deep .mud-chart {
+    width: 100%;
+}
+
+.gc__chart ::deep svg.mud-chart-line {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0;
+}
+
+.gc__chart ::deep .mud-chart text {
+    font-size: var(--text-footnote);
+    fill: var(--text-secondary);
+}

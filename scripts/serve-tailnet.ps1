@@ -6,14 +6,14 @@
 .DESCRIPTION
     For the desktop that runs the desk from source:
 
-        dotnet run --project src/LineOps.Web --launch-profile http
+        dotnet run --project src/XLines.Web --launch-profile http
 
     Tailscale Serve on this machine then terminates HTTPS at https://<machine>.<tailnet>.ts.net
     and proxies to the http profile's port on 127.0.0.1. Only devices signed in to your tailnet
     (and allowed by its ACLs) can reach it. Nothing is published to the internet: that would be
     Tailscale Funnel, which this script never runs and refuses to leave on. See ADR 0022.
 
-    Two settings must be on in the desk this proxies to, in src/LineOps.Web/appsettings.Local.json
+    Two settings must be on in the desk this proxies to, in src/XLines.Web/appsettings.Local.json
     (gitignored, read on every start; make the hash with scripts/new-access-code.ps1):
 
         {
@@ -45,7 +45,7 @@
 
 .PARAMETER Port
     The port to proxy to. Left out, the http profile's port is read from
-    src/LineOps.Web/Properties/launchSettings.json.
+    src/XLines.Web/Properties/launchSettings.json.
 
 .PARAMETER Database
     Forwards this machine's Postgres to the tailnet instead of the desk: raw TCP on
@@ -157,7 +157,7 @@ if (-not $status.CertDomains) {
 }
 
 if (-not $Port) {
-    $launch = Join-Path $PSScriptRoot '..\src\LineOps.Web\Properties\launchSettings.json'
+    $launch = Join-Path $PSScriptRoot '..\src\XLines.Web\Properties\launchSettings.json'
     $Port = 5000
     if (Test-Path $launch) {
         $url = (Get-Content $launch -Raw | ConvertFrom-Json).profiles.http.applicationUrl
@@ -178,7 +178,7 @@ Write-Host "The desk on your tailnet (tailnet devices only, never the internet):
 Write-Host "  https://$hostName"
 Write-Host "  -> http://127.0.0.1:$Port"
 Write-Host ""
-Write-Host "In src/LineOps.Web/appsettings.Local.json, if not already:" -ForegroundColor Cyan
+Write-Host "In src/XLines.Web/appsettings.Local.json, if not already:" -ForegroundColor Cyan
 Write-Host "  Hosting:BehindProxy = true, Access:Mode = Gated (see Get-Help $PSCommandPath)"
 Write-Host "  `"AllowedHosts`": `"localhost;$hostName`""
 Write-Host ""

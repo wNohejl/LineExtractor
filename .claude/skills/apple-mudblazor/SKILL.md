@@ -1,12 +1,12 @@
 ---
 name: apple-mudblazor
-description: Use when building, restyling or reviewing anything on the Desk (the LineOps.Desk package, or its source in src/LineOps.Desk): where the tokens, Desk* primitives and MudBlazor seam live, the rules that hold them together, and when to be modal. Pairs with apple-hig-components (what to draw) and anthropic-skills:apple-hig-web (patterns).
+description: Use when building, restyling or reviewing anything on the Desk (the XLines.Desk package, or its source in src/XLines.Desk): where the tokens, Desk* primitives and MudBlazor seam live, the rules that hold them together, and when to be modal. Pairs with apple-hig-components (what to draw) and anthropic-skills:apple-hig-web (patterns).
 ---
 
 # Apple-feel MudBlazor, as the Desk builds it
 
 Apple's Human Interface Guidelines applied to MudBlazor. The system is **already built** and
-ships as the `LineOps.Desk` package (`dotnet new deskapp` starts an application on it). This
+ships as the `XLines.Desk` package (`dotnet new deskapp` starts an application on it). This
 skill exists so that every new window, panel and primitive lands *inside* the system rather
 than beside it. It was once a set of copyable templates; those are gone — the Desk is the
 template now, and its README is its manual.
@@ -15,26 +15,26 @@ template now, and its README is its manual.
 
 The Desk is read in one of two places. **In an application on the package** (one `dotnet new
 deskapp` made), the Desk is a NuGet package: its stylesheets, scripts, README and design ADRs are
-in the package folder, `~/.nuget/packages/lineops.desk/<version>/` (on Windows
-`%USERPROFILE%\.nuget\packages\lineops.desk\<version>\`), its API is the XML documentation beside
+in the package folder, `~/.nuget/packages/xlines.desk/<version>/` (on Windows
+`%USERPROFILE%\.nuget\packages\xlines.desk\<version>\`), its API is the XML documentation beside
 the assembly, and every primitive is live in the **Parts bin** window. **In the Desk's own
-repository** it is source, under `src/LineOps.Desk/`. Read the column for where you are; the
-`_content/LineOps.Desk/…` path the page loads, the namespaces and the assembly are the same in both.
+repository** it is source, under `src/XLines.Desk/`. Read the column for where you are; the
+`_content/XLines.Desk/…` path the page loads, the namespaces and the assembly are the same in both.
 
 | The system's part | In an application on the package | In the Desk's repository |
 |---|---|---|
-| The manual: wiring, every primitive, the tokens, the rules | `README.md` in the package folder | `src/LineOps.Desk/README.md` |
-| Tokens — surfaces, materials, type ramp, spacing, motion, depth, z | `staticwebassets/css/desk.css` (first token block) | `src/LineOps.Desk/wwwroot/css/desk.css` |
-| Theme families (dark + light blocks per family) and the five accents | `staticwebassets/css/themes.css` | `src/LineOps.Desk/wwwroot/css/themes.css` |
-| Control recipes — buttons, fields, the gate, tags, sheet, alert, steps | `staticwebassets/css/controls.css` and `desk.css` | `src/LineOps.Desk/wwwroot/css/controls.css` and `desk.css` |
-| The MudBlazor seam (re-points Mud's variables at the tokens; never `!important`) | `staticwebassets/css/mud-bridge.css` — loads **last** | `src/LineOps.Desk/wwwroot/css/mud-bridge.css` |
+| The manual: wiring, every primitive, the tokens, the rules | `README.md` in the package folder | `src/XLines.Desk/README.md` |
+| Tokens — surfaces, materials, type ramp, spacing, motion, depth, z | `staticwebassets/css/desk.css` (first token block) | `src/XLines.Desk/wwwroot/css/desk.css` |
+| Theme families (dark + light blocks per family) and the five accents | `staticwebassets/css/themes.css` | `src/XLines.Desk/wwwroot/css/themes.css` |
+| Control recipes — buttons, fields, the gate, tags, sheet, alert, steps | `staticwebassets/css/controls.css` and `desk.css` | `src/XLines.Desk/wwwroot/css/controls.css` and `desk.css` |
+| The MudBlazor seam (re-points Mud's variables at the tokens; never `!important`) | `staticwebassets/css/mud-bridge.css` — loads **last** | `src/XLines.Desk/wwwroot/css/mud-bridge.css` |
 | Why the system is shaped this way | `docs/adr/` in the package folder | `docs/adr/` (0007, 0008, 0013, 0016, 0020; in this repository also 0030 and 0032) |
-| Primitives, their parameters, and the enums (`DeskEmphasis`, `DeskRole`, `DeskKeySize`, `DeskState`) | `lib/net10.0/LineOps.Desk.xml`, the README's Primitives table, and the Parts bin | `src/LineOps.Desk/Primitives/` |
-| Window chrome — Desk, AppWindow, WindowBar, header, footer, rail, palette, Parts bin | the README's Wiring section | `src/LineOps.Desk/Windowing/` |
-| The C# palette MudBlazor and the charts read | `DeskPalettes`, `DeskTheme`, `ThemeService` in the XML docs | `src/LineOps.Desk/Theming/` |
-| The application's own sheet (spends tokens; defines none) | `wwwroot/css/app.css` | `src/LineOps.Web/wwwroot/css/lineops.css` |
-| Render tests on the `DeskTestContext` bench, and the Desk's conventions as calls | a test project on `LineOps.Desk.Testing` (`DeskConventions.All`) | `tests/LineOps.Desk.Tests/`, `tests/LineOps.Web.Tests/` |
-| Fonts — SF via `-apple-system`, self-hosted Inter elsewhere | `staticwebassets/fonts/` | `src/LineOps.Desk/wwwroot/fonts/` |
+| Primitives, their parameters, and the enums (`DeskEmphasis`, `DeskRole`, `DeskKeySize`, `DeskState`) | `lib/net10.0/XLines.Desk.xml`, the README's Primitives table, and the Parts bin | `src/XLines.Desk/Primitives/` |
+| Window chrome — Desk, AppWindow, WindowBar, header, footer, rail, palette, Parts bin | the README's Wiring section | `src/XLines.Desk/Windowing/` |
+| The C# palette MudBlazor and the charts read | `DeskPalettes`, `DeskTheme`, `ThemeService` in the XML docs | `src/XLines.Desk/Theming/` |
+| The application's own sheet (spends tokens; defines none) | `wwwroot/css/app.css` | `src/XLines.Web/wwwroot/css/xlines.css` |
+| Render tests on the `DeskTestContext` bench, and the Desk's conventions as calls | a test project on `XLines.Desk.Testing` (`DeskConventions.All`) | `tests/XLines.Desk.Tests/`, `tests/XLines.Web.Tests/` |
+| Fonts — SF via `-apple-system`, self-hosted Inter elsewhere | `staticwebassets/fonts/` | `src/XLines.Desk/wwwroot/fonts/` |
 
 **An application never edits the package's files.** A change the Desk needs — a new primitive,
 a token, a fix to a recipe — is made in the Desk's repository and released; the application's
@@ -103,7 +103,7 @@ variation; it produces an interface that looks like MudBlazor wearing a costume.
   block, because a preference a component can out-specify is not a preference.
 - **No domain in the Desk.** Its code and documentation name no application's records
   (`DeskVocabularyTests`). Anything that knows about the application's own records lives in
-  the application (in LineOps, `LineOps.Web`).
+  the application (in XLines, `XLines.Web`).
 
 ## The second theme, and the others
 

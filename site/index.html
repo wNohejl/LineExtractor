@@ -13,11 +13,11 @@
   own repository (ADR 0031, Phase B), change `content` here and nothing else. `data-branch` is the
   branch the Quick start clones.
 -->
-<meta name="xlines-repository" content="https://github.com/wNohejl/LineExtractor" data-branch="LineX_Development">
+<meta name="xlines-repository" content="https://github.com/wNohejl/XLines" data-branch="LineX_Development">
 <!-- An inline icon, so the browser asks no server for /favicon.ico. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231C1C1E'/%3E%3Cpath d='M9 9l14 14M23 9L9 23' stroke='%23449EFF' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
-/* Tokens: the desk's Standard family (src/LineOps.Desk/wwwroot/css/desk.css), dark first. */
+/* Tokens: the desk's Standard family (src/XLines.Desk/wwwroot/css/desk.css), dark first. */
 :root {
   --surface-0: #1C1C1E;
   --surface-1: #232326;
@@ -484,7 +484,7 @@ footer p { margin: 0 0 6px; }
       <p>The journal records bets placed elsewhere so their performance can be analysed against stored market data. There is no bet-placement path anywhere in the codebase.</p>
       <h3>Why it exists</h3>
       <p>Most side projects demonstrate that you can build a feature. This one is built to demonstrate that you can operate one: the interesting part is not the odds, it is the layer that notices when a feed silently breaks at 3am and produces a written RCA afterwards.</p>
-      <p class="quiet">XLines is the product; LineOps is the platform it is built on. Every project, path, image and command in the repository still says <code>LineOps</code>. The two names mean the same desk.</p>
+      <p class="quiet">XLines is the product; XLines is the platform it is built on. Every project, path, image and command in the repository still says <code>XLines</code>. The two names mean the same desk.</p>
     </div>
   </section>
 
@@ -552,9 +552,9 @@ footer p { margin: 0 0 6px; }
         <li>
           <h3>Clone, on the development branch</h3>
           <p><code>main</code> is the stable branch and trails it; the steps are written for <code>LineX_Development</code>.</p>
-          <div class="code"><pre><code data-repo-clone="">git clone -b LineX_Development &lt;repository address&gt; LineOps</code></pre></div>
+          <div class="code"><pre><code data-repo-clone="">git clone -b LineX_Development &lt;repository address&gt; XLines</code></pre></div>
           <noscript><p class="quiet">The repository address is filled in by a short script on this page. With scripts off, use the address of the XLines repository on GitHub.</p></noscript>
-          <div class="code"><pre><code>cd LineOps</code></pre></div>
+          <div class="code"><pre><code>cd XLines</code></pre></div>
         </li>
         <li>
           <h3>Generate the local secrets, and decide about ESPN</h3>
@@ -626,7 +626,7 @@ footer p { margin: 0 0 6px; }
       <li><a data-repo-href="/tree/{branch}/docs/adr" href="#source">Decision records</a></li>
       <li><a data-repo-href="/blob/{branch}/LICENSE" href="#source">Licence</a></li>
     </ul>
-    <p>XLines 1.0.0, built on the LineOps platform. Copyright 2026 Wade Nohejl, MIT License.</p>
+    <p>XLines 1.0.0, built on the XLines platform. Copyright 2026 Wade Nohejl, MIT License.</p>
     <p>XLines does not place wagers and does not integrate with any wagering system.</p>
   </div>
 </footer>
@@ -644,7 +644,7 @@ footer p { margin: 0 0 6px; }
     a.setAttribute('href', repo + a.getAttribute('data-repo-href').replace('{branch}', branch));
   });
   document.querySelectorAll('[data-repo-clone]').forEach(function (c) {
-    c.textContent = 'git clone -b ' + branch + ' ' + repo + '.git LineOps';
+    c.textContent = 'git clone -b ' + branch + ' ' + repo + '.git XLines';
   });
 
   if (!navigator.clipboard) return;

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <!--
+    The standalone ingestion host. Optional in a personal deployment — the web app hosts the
+    same scheduler in-process — but it exists so ingestion can be run and scaled as its own
+    process without the UI.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-LineOps.Worker-32c633aa-a693-4f8c-9bc8-c4a232e886a1</UserSecretsId>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\XLines.Core\XLines.Core.csproj" />
+    <ProjectReference Include="..\XLines.Data\XLines.Data.csproj" />
+    <ProjectReference Include="..\XLines.Reliability\XLines.Reliability.csproj" />
+    <ProjectReference Include="..\XLines.Ingestion\XLines.Ingestion.csproj" />
+    <ProjectReference Include="..\XLines.Observability\XLines.Observability.csproj" />
+  </ItemGroup>
+</Project>

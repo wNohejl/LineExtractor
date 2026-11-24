@@ -1,0 +1,55 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace XLines.Data;
+
+public static class ServiceCollectionExtensions
+{
+    public const string ConnectionStringName = "LineOps";
+
+    public static IServiceCollection AddXLinesData(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString(ConnectionStringName)
+            ?? throw new InvalidOperationException(
+                $"No '{ConnectionStringName}' connection string configured. Set " +
+                "ConnectionStrings__LineOps (compose does this from .env), or use " +
+                "`dotnet user-secrets` for host-side runs.");
+
+        // Blazor Server components outlive a request, so they take a factory and own the
+        // context lifetime per operation. Background services and the ingestion pipeline
+        // still want a scoped context, so one is resolved from the same factory.
+        //
+        // Every context announces its saves (Changes/ChangeNotifier), so an open window hears
+        // about new rows whichever process wrote them.
+        services.AddSingleton<Changes.ChangeNotifier>();
+        services.AddDbContextFactory<XLinesDbContext>((sp, options) =>
+            options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(3))
+                .AddInterceptors(sp.GetRequiredService<Changes.ChangeNotifier>()));
+
+        services.AddScoped<XLinesDbContext>(sp =>
+            sp.GetRequiredService<IDbContextFactory<XLinesDbContext>>().CreateDbContext());
+
+        // Which tier the readers below may show (ADR 0024). Everything, unless the host says who is
+        // reading — the web host does, the Worker and the tests do not.
+        services.TryAddSingleton<XLines.Core.Contracts.IDataTier>(XLines.Core.Contracts.FullDataTier.Instance);
+
+        // Against another machine's database the initializer migrates nothing unless told to by
+        // name (ADR 0023): the machine that owns the database is the one that migrates it.
+        services.AddSingleton(new MigrationPlacementOptions(
+            bool.TryParse(configuration[Placement.MigrationPlacement.AllowRemoteMigrationKey], out var allowRemote)
+            && allowRemote));
+        services.AddScoped<DatabaseInitializer>();
+        services.AddScoped<CrossReference.MatchupCrossReference>();
+        services.AddScoped<CrossReference.GameLogService>();
+        services.AddScoped<CrossReference.BoardService>();
+        services.AddScoped<Gamecast.GamecastService>();
+        services.AddScoped<CrossReference.SearchService>();
+        services.AddScoped<CrossReference.FightService>();
+
+        return services;
+    }
+}

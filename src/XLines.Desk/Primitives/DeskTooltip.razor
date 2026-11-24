@@ -1,0 +1,171 @@
+@namespace XLines.Desk.Primitives
+
+@*
+    A tooltip: a sentence of explanation that appears beside the thing it explains.
+
+    For the explanation a native title attribute cannot carry — more than a line, a line break
+    that matters, a measure that keeps a sentence readable. Everywhere one short phrase will do,
+    title stays: it costs nothing, and a component per cell of a large grid would cost a great
+    deal for the same words.
+
+    It wraps MudTooltip rather than drawing its own, the way DeskButton wraps MudButton, and for
+    the same kind of reason. css/mud-bridge.css already themes .mud-tooltip in the desk's tokens,
+    and the behaviour the HIG asks of a tooltip — raised by hover and by keyboard focus alike,
+    after a short pause so a passing pointer does not flash it, held to a measure, placed so it
+    stays on screen — is exactly what MudBlazor supplies. Drawing it again would be a second
+    copy of that behaviour to keep right.
+
+    Two shapes. Text alone is a sentence, exactly as it always was. Title, Caption, Rows,
+    Footnote (or a free Content fragment) are the structured shape the desk owns — a semibold
+    title line, a secondary caption held to a measure, a compact table of label-and-value rows in
+    tabular numerals, and a quiet last line — for an explanation that is a small table rather
+    than a sentence, where one long line of figures would run across the window.
+
+    The structured shape is drawn for the eye and hidden from the accessibility tree; beside it,
+    visually hidden, the plain Text is what a screen reader is told (composed from the parts when
+    the caller gives none). So a reader hears one clean sentence rather than a grid's cells read
+    out of order, the test can still reach what is said through Text, and the tooltip describes
+    its trigger without renaming it: whatever the wrapped control is called is still what is
+    announced. It holds no controls: a tooltip cannot be clicked into.
+
+    The measure lives on .desk-tip, the element this component draws inside Mud's popover, not on
+    .mud-tooltip: Mud's positioner writes max-width: none inline on the popover at runtime, and
+    an inline style beats every rule short of !important. The inner element is ours, so its
+    measure holds and the popover shrinks to fit it (mudblazor-seam.md).
+*@
+
+@if (IsStructured)
+{
+    <MudTooltip Placement="@Mapped"
+                Arrow="true"
+                Delay="300"
+                ShowOnFocus="true"
+                ShowOnHover="true">
+        <ChildContent>@ChildContent</ChildContent>
+        <TooltipContent>
+            <div class="desk-tip">
+                <div class="desk-tip__face" aria-hidden="true">
+                    @if (!string.IsNullOrWhiteSpace(Title))
+                    {
+                        <div class="desk-tip__title">@Title</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Caption))
+                    {
+                        <div class="desk-tip__caption">@Caption</div>
+                    }
+                    @if (Content is not null)
+                    {
+                        <div class="desk-tip__content">@Content</div>
+                    }
+                    @if (Rows is { Count: > 0 })
+                    {
+                        <div class="desk-tip__rows">
+                            @foreach (var row in Rows)
+                            {
+                                <div class="desk-tip__row@(row.Emphasis ? " desk-tip__row--emphasis" : null)">
+                                    <span class="desk-tip__label">@row.Label</span>
+                                    <span class="desk-tip__value">@row.Value</span>
+                                    <span class="desk-tip__qualifier">@row.Qualifier</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Footnote))
+                    {
+                        <div class="desk-tip__footnote">@Footnote</div>
+                    }
+                </div>
+                <span class="sr-only">@Spoken</span>
+            </div>
+        </TooltipContent>
+    </MudTooltip>
+}
+else
+{
+    <MudTooltip Text="@Text"
+                Placement="@Mapped"
+                Arrow="true"
+                Delay="300"
+                ShowOnFocus="true"
+                ShowOnHover="true">
+        @ChildContent
+    </MudTooltip>
+}
+
+@code {
+    /// <summary>
+    /// What the reader is told, in sentences. A line break in it is kept: two short lines read
+    /// better than one long one. With the structured parts it is the spoken version of them —
+    /// optional there, composed from the parts when left empty.
+    /// </summary>
+    [Parameter] public string Text { get; set; } = string.Empty;
+
+    /// <summary>A short first line, drawn semibold: what the trigger is. Structured shape only.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>
+    /// A line or two under the title, in secondary text, wrapped at the tooltip's measure. A line
+    /// break in it is kept.
+    /// </summary>
+    [Parameter] public string? Caption { get; set; }
+
+    /// <summary>
+    /// A compact table: label leading, value trailing and right-aligned in tabular numerals, a
+    /// quiet qualifier after it. Keep it short — a tooltip is read at a glance and cannot scroll;
+    /// say how many were left out in <see cref="Footnote"/>.
+    /// </summary>
+    [Parameter] public IReadOnlyList<DeskTooltipRow>? Rows { get; set; }
+
+    /// <summary>A quiet last line — where the rest is, or what pressing the trigger does.</summary>
+    [Parameter] public string? Footnote { get; set; }
+
+    /// <summary>
+    /// Free content between the caption and the rows, for what the house parts do not cover. It
+    /// is drawn for the eye only: what it says must also be in <see cref="Text"/>.
+    /// </summary>
+    [Parameter] public RenderFragment? Content { get; set; }
+
+    /// <summary>The trigger — the control or the text the tooltip explains.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Which side of the trigger it opens on. Above unless that would be clipped.</summary>
+    [Parameter] public DeskTooltipPlacement Placement { get; set; } = DeskTooltipPlacement.Top;
+
+    /// <summary>Whether the structured shape is drawn — any of its parts given.</summary>
+    public bool IsStructured
+        => !string.IsNullOrWhiteSpace(Title) || !string.IsNullOrWhiteSpace(Caption)
+           || Rows is { Count: > 0 } || !string.IsNullOrWhiteSpace(Footnote) || Content is not null;
+
+    /// <summary>
+    /// What a screen reader is told when the structured shape is drawn: <see cref="Text"/> where
+    /// the caller wrote it, otherwise the parts in reading order, one sentence each.
+    /// </summary>
+    public string Spoken => !string.IsNullOrWhiteSpace(Text) ? Text : Compose(Title, Caption, Rows, Footnote);
+
+    /// <summary>The structured parts as plain lines: title, caption, one line per row, footnote.</summary>
+    public static string Compose(string? title, string? caption, IReadOnlyList<DeskTooltipRow>? rows, string? footnote)
+    {
+        var lines = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(title))
+            lines.Add(title.Trim());
+        if (!string.IsNullOrWhiteSpace(caption))
+            lines.Add(caption.Trim());
+        foreach (var row in rows ?? [])
+            lines.Add(string.IsNullOrWhiteSpace(row.Qualifier)
+                ? $"{row.Label} {row.Value}"
+                : $"{row.Label} {row.Value}, {row.Qualifier}");
+        if (!string.IsNullOrWhiteSpace(footnote))
+            lines.Add(footnote.Trim());
+
+        return string.Join("\n", lines);
+    }
+
+    private MudBlazor.Placement Mapped => Placement switch
+    {
+        DeskTooltipPlacement.Bottom => MudBlazor.Placement.Bottom,
+        DeskTooltipPlacement.Start => MudBlazor.Placement.Start,
+        DeskTooltipPlacement.End => MudBlazor.Placement.End,
+        _ => MudBlazor.Placement.Top
+    };
+}

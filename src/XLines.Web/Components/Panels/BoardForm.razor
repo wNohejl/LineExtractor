@@ -1,0 +1,132 @@
+@using XLines.Data.CrossReference
+@using XLines.Desk.Primitives
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    Recent form for both rosters, beside the price.
+
+    Same lookup the Line movement window uses — read live from the stats history by reference,
+    nothing copied. The reason it is worth a floating panel rather than a window is that it is
+    consulted *while* deciding: it wants to sit next to the board, not replace it.
+*@
+
+@* The failure line sits above whatever the window already holds, as the Board's does: a new
+   lookback that failed leaves the rosters it was replacing on screen beneath it. Before this a
+   read that threw left the skeleton up for as long as the window stayed open. *@
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (_fight)
+{
+    @* A fight has no rosters: the form worth reading beside its price is the two fighters (ADR 0021). *@
+    <XLines.Web.Components.Snippets.TaleOfTheTape GameId="GameId" />
+}
+else if (!Loaded)
+{
+    @if (!Failed)
+    {
+        @* The lookback row and the first roster's rows, where they will land. Only on the first
+           read: changing the window keeps the rosters on screen until the new ones arrive. *@
+        <DeskSkeleton Width="40%" />
+        <DeskGrid T="PlayerForm" Items="@(Array.Empty<PlayerForm>())" Loading="true" SkeletonRows="3"
+                  LoadingLabel="@($"Reading the last {_windowDays} days")" />
+    }
+}
+else if (_form is null)
+{
+    @* Read, and not there: the lookup holds no game by this id. *@
+    <EmptyState Kind="EmptyStateKind.Filtered">This game is not on record, so there are no rosters to read.</EmptyState>
+}
+else if (_form.IsEmpty)
+{
+    @* The way to the fix is a key where the gap is stated (HIG 16), as the Line movement
+       window's is, not a sentence naming a window somewhere else. *@
+    <EmptyState Kind="EmptyStateKind.Filtered">
+        <ChildContent>
+            No appearances on record for either roster in the last @_windowDays days. History is
+            gathered separately, by the walk that reaches back over past days.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.History"
+                        OnClick="() => Manager.OpenHistory()">
+                Open History
+            </DeskButton>
+        </Action>
+    </EmptyState>
+}
+else
+{
+    <PanelToolbar>
+        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
+        <span class="meta">
+            @_form.LinesRead.ToString("N0") stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
+        </span>
+    </PanelToolbar>
+
+    @RenderSide(_form.Away, Row?.Game.AwayTeam?.Name ?? "Away", Row?.Game.AwayTeam?.Abbrev)
+    @RenderSide(_form.Home, Row?.Game.HomeTeam?.Name ?? "Home", Row?.Game.HomeTeam?.Abbrev)
+}
+
+@code {
+    /// <summary>
+    /// The game this view is about. Taken as an id rather than a row so the view can be hosted
+    /// as a desk window, which is rebuilt from its parameters and cannot carry an object.
+    /// </summary>
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    private BoardRow? Row;
+    private MatchupForm? _form;
+    private int _windowDays = 30;
+    private bool _fight;
+
+    protected override string LoadSubject => "Recent form";
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    private async Task SetWindowAsync(int days)
+    {
+        _windowDays = days;
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// The game's row once, then the rosters' form over the lookback — through the rail every
+    /// window loads on, so a read that throws stays in this window as a failure line with a
+    /// retry rather than escaping the lifecycle and taking the circuit with it.
+    /// </summary>
+    private Task LoadAsync()
+        => WithActivityAsync(async () =>
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+
+            Row ??= await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(GameId);
+
+            _fight = FightSports.IsFight(Row?.Game.Sport?.Key);
+            if (_fight)
+                return;
+
+            var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
+            _form = await lookup.GetAsync(GameId, TimeSpan.FromDays(_windowDays), maxPlayersPerTeam: 8);
+        }, settle: () => PulseState.Healthy);
+
+
+    private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName, string? abbrev) => @<text>
+        @if (side.Count > 0)
+        {
+            @* The side's crest leads its rule at the large size, as the Game window's rosters do. *@
+            <PanelSection Class="psection--subject">
+            <TitleContent><TeamMark Sport="@Row?.Game.Sport?.Key" Abbrev="@abbrev" Size="TeamMarkSize.Large" />@teamName</TitleContent>
+            <ChildContent>
+            <XLines.Web.Components.Snippets.RosterTable Side="side" />
+            </ChildContent>
+            </PanelSection>
+        }
+    </text>;
+}

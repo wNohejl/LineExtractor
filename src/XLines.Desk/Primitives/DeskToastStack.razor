@@ -1,0 +1,456 @@
+@namespace XLines.Desk.Primitives
+@implements IAsyncDisposable
+@inject DeskToasts Toasts
+@inject IJSRuntime JS
+
+@*
+    The desk's notices, drawn (ADR 0028). DeskToasts owns the list and the clocks; this draws it.
+    To the operator the stack is "Activities": its region's name, the line over the fanned list,
+    and the count's key all say so. The type names stay DeskToasts and DeskToastStack.
+
+    Where: in the header bar, in the free stretch between the window strip and the desk's own
+    keys (DeskHeader renders it there). It takes only that stretch — it never covers or pushes the
+    wordmark, the strip, search or the count — as one capsule a title bar tall. Where the stretch
+    is too narrow for a notice (a narrow header, or a wrapped one), the capsule folds to its key
+    alone, "Activities · 4", which drops the list beneath it as the wide capsule does.
+
+    How several are drawn: layered horizontally, as a tab group's key is (ADR 0027). The count's
+    key leads; the newest is in front, its words and its key cut to one line; up to two more show
+    as edges stepped out to its right. Pointing at the stack, focusing into it, or pressing the
+    count fans them out: the capsule becomes the line "Activities · 4" with Clear all, and the
+    list drops beneath it as a popover, newest at the top, every notice whole and wrapped.
+    Whether it is fanned is decided here, once (Fanned), and drawn from
+    that: the count pressed with the pointer pins it open (hovering has fanned it already), Escape
+    or the count folds it, and it stays folded while the pointer or focus that fanned it is still
+    there, so what aria-expanded says is what is on screen. Focus moving from key to key inside
+    the stack is no change (toasts.js), so Tab neither folds nor undoes a fold. The DOM is in the
+    order it is drawn, top to bottom, so Tab walks it as the eye does.
+
+    Clocks: every clock stops while the pointer or focus is on the stack. The container is always
+    on the page, so leaving it is always heard, and a stack that empties lets go of the hold
+    whatever it last heard — a toast dismissed with the pointer takes its element with it, and no
+    leave event follows an element that is gone.
+
+    Focus: a notice dismissed or acted on from the keyboard moves focus to the next notice's
+    dismiss key, or back to where focus came from when none is left (toasts.js). Focus the pointer
+    put there is not focus on the stack: toasts.js passes on only focus that shows (:focus-visible),
+    and a key pressed with the pointer (a click that counts its presses) moves no focus and lets go
+    of the hold once the pointer leaves.
+
+    How it is heard: two live regions that are always on the page, polite and assertive, carry
+    each new notice's words once, in the order raised, and are emptied when those notices have
+    gone. The visible stack is not itself live, so nothing is read twice. A failure is assertive.
+
+    Layers: it is part of the header, so it sits under an open alert's or sheet's scrim with the
+    rest of the desk, under the palette, and its fanned list under the header's own menus and
+    drawers (desk.css; ADR 0028).
+*@
+
+@{
+    var shown = Toasts.Shown;
+    var ordered = Drawn(shown); // newest first: the order it is drawn, top to bottom
+    var fanned = Fanned(shown.Count);
+}
+
+@* Two logs, always on the page: each standing notice is a line added in the order raised, so
+   every one is announced once (not only the last of a burst), and a line leaves with its notice. *@
+<div class="sr-only" role="status" aria-live="polite" aria-atomic="false" aria-relevant="additions">
+    @foreach (var toast in shown.Where(t => !t.Assertive).OrderBy(t => t.Id))
+    {
+        <p @key="toast.Id">@Words(toast)</p>
+    }
+</div>
+<div class="sr-only" role="alert" aria-live="assertive" aria-atomic="false" aria-relevant="additions">
+    @foreach (var toast in shown.Where(t => t.Assertive).OrderBy(t => t.Id))
+    {
+        <p @key="toast.Id">@Words(toast)</p>
+    }
+</div>
+
+<section @ref="_section"
+         class="toasts @(fanned ? "toasts--fanned" : null) @(shown.Count > 1 ? "toasts--stacked" : null) @(shown.Count == 0 ? "toasts--empty" : null)"
+         aria-label="@(shown.Count == 0 ? null : RegionLabel(shown.Count))"
+         aria-hidden="@(shown.Count == 0 ? "true" : null)"
+         inert="@(shown.Count == 0)">
+    @* The capsule is what the pointer and focus are heard on — not the slot, which spans the
+       header's whole free stretch, and would fan the list and hold every clock as the pointer
+       merely crossed empty header. Always on the page, so leaving it is always heard. *@
+    <div class="toasts__capsule"
+         @onpointerenter="() => SetPointer(true)"
+         @onpointerleave="() => SetPointer(false)"
+         @onfocusin="() => SetFocus(true)"
+         @onfocusout="() => SetFocus(false)"
+         @onkeydown="OnKeyDown">
+    @if (shown.Count > 0)
+    {
+        @* The count's key leads the capsule: a bare figure beside the layers while folded, the
+           words "Activities · 4" once fanned or where the header has room only for the key. *@
+        <button class="toast__count" type="button"
+                aria-expanded="@(fanned ? "true" : "false")"
+                aria-controls="@ListId"
+                aria-label="@ToggleLabel(shown.Count, fanned)"
+                @onclick="Toggle">
+            <span class="toasts__title">@HeadLabel(shown.Count)</span>
+            <span class="toast__count-figure num">@shown.Count</span>
+        </button>
+
+        @if (shown.Count > 1)
+        {
+            <button class="toasts__clear" type="button" aria-label="Clear all activities" @onclick="ClearAll">Clear all</button>
+        }
+
+        <ol class="toasts__list" id="@ListId">
+            @for (var i = 0; i < ordered.Count; i++)
+            {
+                var toast = ordered[i];
+                var depth = i;
+
+                <li @key="toast.Id"
+                    class="toast toast--@StateName(toast.State) @DepthClass(depth)"
+                    data-toast-id="@toast.Id">
+                    @if (IconOf(toast.State) is { } icon)
+                    {
+                        <span class="toast__icon" aria-hidden="true"><Glyph Icon="@icon" /></span>
+                    }
+                    @* In the capsule both the words and the key are cut to one line; the whole
+                       of each is their title, and the fanned list wraps them in full. *@
+                    <p class="toast__text" title="@toast.Message">@toast.Message</p>
+                    @if (toast.ActionLabel is { } label)
+                    {
+                        <button class="toast__action" type="button" title="@label" @onclick="e => Act(e, toast)">@label</button>
+                    }
+                    <button class="toast__dismiss" type="button"
+                            aria-label="@($"Dismiss: {toast.Message}")"
+                            @onclick="e => Dismiss(e, toast)">
+                        <Glyph Icon="@Icons.Material.Filled.Close" />
+                    </button>
+                </li>
+            }
+        </ol>
+    }
+    </div>
+</section>
+
+@code {
+    private ElementReference _section;
+    private IJSObjectReference? _module;
+
+    private bool _open;
+    private bool _folded;
+    private bool _pointer;
+    private bool _focus;
+
+
+    private bool _refocus;
+    private long? _refocusTo;
+
+    /// <summary>
+    /// Whether the stack is fanned out: pinned open by the count, or reached by the pointer or focus
+    /// and not folded since. The one source the markup, the stylesheet and aria-expanded all read.
+    /// </summary>
+    /// <remarks>
+    /// One notice fans only when its key is pressed — which happens only where the header has
+    /// room for nothing but the key; pointing at a lone notice shows it already.
+    /// </remarks>
+    private bool Fanned(int count) => count > 0 && (_open || (count > 1 && (_pointer || _focus) && !_folded));
+
+    /// <summary>The list's id, for the count key's aria-controls.</summary>
+    private string ListId { get; } = $"activities-{Guid.NewGuid():N}"[..20];
+
+    protected override void OnInitialized() => Toasts.Changed += OnChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("toasts.js"));
+                if (_module is not null)
+                    await _module.InvokeVoidAsync("watch", _section);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (!_refocus)
+            return;
+
+        _refocus = false;
+        var to = _refocusTo;
+        _refocusTo = null;
+
+        if (to is null)
+            _focus = false;
+
+        try
+        {
+            if (_module is not null)
+                await _module.InvokeVoidAsync("refocus", _section, to);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(() =>
+    {
+        var count = Toasts.Shown.Count;
+
+        // An empty stack holds nothing: whatever it last heard of the pointer and focus, the hold
+        // ends with the last notice, and the next one arrives layered, not fanned.
+        if (count == 0)
+        {
+            if (_focus)
+            {
+                _refocus = true;
+                _refocusTo = null;
+            }
+
+            CancelLeave();
+            _open = false;
+            _folded = false;
+            _pointer = false;
+            _focus = _refocus && _focus;
+            Toasts.Held = false;
+        }
+        else if (count == 1)
+        {
+            _open = false;
+        }
+
+        StateHasChanged();
+    });
+
+
+    private static string Words(DeskToast toast)
+        => toast.ActionLabel is { } label ? $"{toast.Message} {label} is available." : toast.Message;
+
+    /// <summary>
+    /// How long the pointer may be off the capsule before that counts as leaving: long enough to
+    /// cross from the capsule into the list beneath it, or to drift off an edge and back, without
+    /// the list folding under it. Zero hears a leave at once (the tests' bench).
+    /// </summary>
+    [Parameter] public TimeSpan LeaveGrace { get; set; } = TimeSpan.FromMilliseconds(300);
+
+    private CancellationTokenSource? _leaving;
+
+    private void SetPointer(bool on)
+    {
+        CancelLeave();
+
+        if (on || LeaveGrace <= TimeSpan.Zero)
+        {
+            _pointer = on;
+            Settle();
+            return;
+        }
+
+        var leaving = _leaving = new CancellationTokenSource();
+        _ = LeaveAfterGraceAsync(leaving.Token);
+    }
+
+    private async Task LeaveAfterGraceAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(LeaveGrace, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        await InvokeAsync(() =>
+        {
+            if (token.IsCancellationRequested)
+                return;
+
+            _pointer = false;
+            Settle();
+            StateHasChanged();
+        });
+    }
+
+    private void CancelLeave()
+    {
+        _leaving?.Cancel();
+        _leaving?.Dispose();
+        _leaving = null;
+    }
+
+    private void SetFocus(bool on)
+    {
+        _focus = on;
+        Settle();
+    }
+
+    // Once the pointer and focus have both left, a fold is spent: the next visit fans it again.
+    private void Settle()
+    {
+        if (!_pointer && !_focus)
+            _folded = false;
+
+        Toasts.Held = (_pointer || _focus) && Toasts.Shown.Count > 0;
+    }
+
+    /// <summary>
+    /// The count. Pinned, it folds. Fanned only because the pointer is over it, a press of the
+    /// pointer pins it: hovering fanned it before the press could, and the press means keep it.
+    /// From the keyboard it does what aria-expanded says it will: a fanned stack folds.
+    /// </summary>
+    private void Toggle(MouseEventArgs e)
+    {
+        var fanned = Fanned(Toasts.Shown.Count);
+
+        if (_open || (fanned && !ByPointer(e)))
+        {
+            _open = false;
+            _folded = true;
+        }
+        else
+        {
+            _open = true;
+            _folded = false;
+        }
+    }
+
+    // A press of the pointer counts its clicks; Enter and Space on a key, and a screen reader's
+    // activation, count none.
+    private static bool ByPointer(MouseEventArgs e) => e.Detail > 0;
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape")
+            return;
+
+        _open = false;
+        _folded = true;
+    }
+
+    /// <summary>The notice whose dismiss key takes focus when <paramref name="leaving"/> goes: the one after it as drawn, else the one before.</summary>
+    private long? Neighbour(DeskToast leaving)
+    {
+        var ordered = Drawn(Toasts.Shown);
+        var at = ordered.FindIndex(t => t.Id == leaving.Id);
+
+        if (at < 0)
+            return null;
+
+        if (at + 1 < ordered.Count)
+            return ordered[at + 1].Id;
+
+        return at > 0 ? ordered[at - 1].Id : null;
+    }
+
+    private void Dismiss(MouseEventArgs e, DeskToast toast)
+    {
+        FollowFocus(e, toast);
+        Toasts.Dismiss(toast);
+    }
+
+    private void Act(MouseEventArgs e, DeskToast toast)
+    {
+        FollowFocus(e, toast);
+        Toasts.Act(toast);
+    }
+
+    // Only a key pressed from the keyboard hands focus on. A pointer's press put focus on the key
+    // only because the browser focuses what it clicks: that focus holds nothing, so once the
+    // pointer leaves, the clocks run and the stack folds.
+    private void FollowFocus(MouseEventArgs e, DeskToast leaving)
+    {
+        if (ByPointer(e))
+        {
+            _focus = false;
+            Settle();
+            return;
+        }
+
+        if (!_focus)
+            return;
+
+        _refocus = true;
+        _refocusTo = Neighbour(leaving);
+    }
+
+    private void ClearAll(MouseEventArgs e)
+    {
+        if (ByPointer(e))
+            _focus = false;
+        else if (_focus)
+        {
+            _refocus = true;
+            _refocusTo = null;
+        }
+
+        Toasts.DismissAll();
+    }
+
+    /// <summary>
+    /// The notices in the order they are drawn: newest first — in front in the capsule, at the top
+    /// of the fanned list — so the DOM and Tab follow the eye.
+    /// </summary>
+    private static List<DeskToast> Drawn(IReadOnlyList<DeskToast> shown) => shown.ToList();
+
+    /// <summary>How many the stack holds, in words: "1 activity", "4 activities".</summary>
+    public static string CountLabel(int count) => count == 1 ? "1 activity" : $"{count} activities";
+
+    /// <summary>The line over the fanned stack: "Activities · 4" ("Activity · 1" for one).</summary>
+    public static string HeadLabel(int count) => $"{(count == 1 ? "Activity" : "Activities")} · {count}";
+
+    /// <summary>The stack's accessible name: "Activities, 4 activities".</summary>
+    public static string RegionLabel(int count) => $"Activities, {CountLabel(count)}";
+
+    /// <summary>The count's key, which fans or folds the stack: "Show all 4 activities", "Fold all 4 activities".</summary>
+    public static string ToggleLabel(int count, bool fanned)
+        => count == 1
+            ? $"{(fanned ? "Fold" : "Show")} {CountLabel(count)}"
+            : $"{(fanned ? "Fold" : "Show")} all {CountLabel(count)}";
+
+    private static string DepthClass(int depth) => depth switch
+    {
+        0 => "toast--front",
+        1 => "toast--behind toast--depth-1",
+        2 => "toast--behind toast--depth-2",
+        _ => "toast--behind toast--deep"
+    };
+
+    private static string StateName(DeskState state) => state switch
+    {
+        DeskState.Positive => "positive",
+        DeskState.Info => "info",
+        DeskState.Warning => "warning",
+        DeskState.Negative => "negative",
+        _ => "neutral"
+    };
+
+    /// <summary>The state's glyph; a neutral notice draws none, as a neutral tag has no dot.</summary>
+    public static string? IconOf(DeskState state) => state switch
+    {
+        DeskState.Positive => Icons.Material.Filled.CheckCircle,
+        DeskState.Info => Icons.Material.Filled.Info,
+        DeskState.Warning => Icons.Material.Filled.Warning,
+        DeskState.Negative => Icons.Material.Filled.Error,
+        _ => null
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        Toasts.Changed -= OnChanged;
+        Toasts.Held = false;
+        CancelLeave();
+
+        if (_module is null)
+            return;
+
+        try
+        {
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

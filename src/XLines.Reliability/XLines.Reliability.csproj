@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\XLines.Core\XLines.Core.csproj" />
+    <ProjectReference Include="..\XLines.Data\XLines.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+  <!-- The runbook travels with the library that raises the alerts it documents. Embedded rather
+       than copied so the triage steps are available to the incident UI in a container without
+       the docs folder having to be published alongside it, and so there is exactly one copy to
+       keep true. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\runbook.md" LogicalName="XLines.Reliability.runbook.md" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

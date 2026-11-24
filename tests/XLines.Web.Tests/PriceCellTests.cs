@@ -1,0 +1,727 @@
+using Bunit;
+using XLines.Core.Analytics;
+using XLines.Data.CrossReference;
+using XLines.Desk.Primitives;
+using XLines.Web.Components.Desk;
+
+namespace XLines.Web.Tests;
+
+/// <summary>
+/// One market's best offer, and where the rest of the market stands. The rail is the point:
+/// a tick per book, the best one marked, and a label that says whether shopping repays the
+/// work — including when the thing that varies is the line rather than the price.
+/// </summary>
+public class PriceCellTests : DeskTestContext
+{
+    private static BookPrice Rung(string book, int american, double implied, decimal? line = null)
+        => new(book, american, line, implied);
+
+    /// <summary>Three hours before the sample close was captured, so a lead time is assertable.</summary>
+    private static readonly DateTimeOffset Captured = new(2026, 8, 29, 20, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Start = Captured.AddHours(3);
+
+    private static BestOffer Offer(
+        string outcome = "home",
+        string book = "draftkings",
+        int american = -110,
+        decimal? line = null,
+        double? edgePoints = null,
+        bool linesVary = false,
+        bool isClosing = false,
+        params BookPrice[] rungs)
+        => new(outcome, book, american, line, isClosing ? Captured : DateTimeOffset.UnixEpoch,
+            edgePoints, linesVary, isClosing, rungs);
+
+    [Fact]
+    public void No_offer_reads_as_a_dash()
+    {
+        var cut = RenderComponent<PriceCell>();
+
+        Assert.Equal("—", cut.Find("span.dim").TextContent);
+        Assert.Empty(cut.FindAll(".price"));
+    }
+
+    [Fact]
+    public void Renders_the_price_and_the_books_monogram()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 145, rungs: Rung("draftkings", 145, 0.408))));
+
+        Assert.Equal("+145", cut.Find(".price__odds").TextContent);
+        Assert.Equal("DK", cut.Find(".price__book").TextContent);
+    }
+
+    /// <summary>
+    /// Two prices sit next to each other in every market, and a home-first convention the
+    /// reader cannot see is not a convention. Taking the wrong side of +331 / -380 is not a
+    /// cosmetic mistake.
+    /// </summary>
+    [Fact]
+    public void Names_the_side_it_is_quoting_when_the_caller_supplies_one()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(american: 331, rungs: Rung("draftkings", 331, 0.232)))
+            .Add(x => x.Selection, "LAL"));
+
+        Assert.Equal("LAL", cut.Find(".price__sel").TextContent);
+    }
+
+    [Fact]
+    public void Says_nothing_about_the_side_when_the_caller_supplies_none()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Empty(cut.FindAll(".price__sel"));
+    }
+
+    [Theory]
+    [InlineData("fanduel", "FD")]
+    [InlineData("bet365", "B3")]
+    [InlineData("betmgm", "MG")]
+    [InlineData("caesars", "CZ")]
+    [InlineData("pointsbet", "PB")]
+    [InlineData("novelbook", "NO")]
+    public void An_unknown_book_still_gets_a_two_character_mark(string book, string expected)
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(book: book, rungs: Rung(book, -110, 0.524))));
+
+        Assert.Equal(expected, cut.Find(".price__book").TextContent);
+    }
+
+    [Fact]
+    public void A_handicap_is_signed_and_a_total_is_not()
+    {
+        var spread = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(outcome: "home", line: 3.5m, rungs: Rung("draftkings", -110, 0.524, 3.5m))));
+
+        var total = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(outcome: "over", line: 223m, rungs: Rung("draftkings", -110, 0.524, 223m))));
+
+        Assert.Equal("+3.5", spread.Find(".price__line").TextContent);
+        Assert.Equal("o223", total.Find(".price__line").TextContent);
+    }
+
+    [Fact]
+    public void A_lone_book_has_nothing_to_shop_so_it_draws_no_rail()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Empty(cut.FindAll(".rail"));
+        Assert.Empty(cut.FindAll(".price__edge"));
+    }
+
+    [Fact]
+    public void Every_book_gets_a_tick_and_the_best_one_is_marked()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(book: "fanduel", edgePoints: 1.2, rungs:
+            [
+                Rung("draftkings", -115, 0.535),
+                Rung("fanduel", -105, 0.512),
+                Rung("betmgm", -110, 0.524)
+            ])));
+
+        Assert.Equal(3, cut.FindAll(".rail__tick").Count);
+        Assert.Single(cut.FindAll(".rail__tick--best"));
+    }
+
+    /// <summary>
+    /// 0% at the best implied price, 100% at the worst — so the width of the group is the
+    /// value of shopping. Written invariant so a comma-decimal machine still emits valid CSS.
+    /// </summary>
+    [Fact]
+    public void Ticks_are_placed_between_the_best_and_the_worst()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(book: "fanduel", edgePoints: 1.2, rungs:
+            [
+                Rung("fanduel", -105, 0.50),
+                Rung("betmgm", -110, 0.55),
+                Rung("draftkings", -115, 0.60)
+            ])));
+
+        var lefts = cut.FindAll(".rail__tick")
+            .Select(t => t.GetAttribute("style"))
+            .ToList();
+
+        Assert.Equal("left:0%", lefts[0]);
+        Assert.Equal("left:50%", lefts[1]);
+        Assert.Equal("left:100%", lefts[2]);
+    }
+
+    [Fact]
+    public void Books_quoting_the_same_number_all_land_on_the_left()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(rungs:
+            [
+                Rung("draftkings", -110, 0.524),
+                Rung("fanduel", -110, 0.524)
+            ])));
+
+        Assert.All(cut.FindAll(".rail__tick"), t => Assert.Equal("left:0%", t.GetAttribute("style")));
+    }
+
+    [Fact]
+    public void Books_that_agree_say_so()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(edgePoints: 0, rungs:
+            [
+                Rung("draftkings", -110, 0.524),
+                Rung("fanduel", -110, 0.524)
+            ])));
+
+        Assert.Equal("books agree", cut.Find(".price__edge").TextContent);
+    }
+
+    [Fact]
+    public void A_real_gap_is_priced_against_the_worst_on_offer()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(edgePoints: 1.4, rungs:
+            [
+                Rung("draftkings", -115, 0.535),
+                Rung("fanduel", -105, 0.512)
+            ])));
+
+        Assert.Equal("+1.4 pts vs worst", cut.Find(".price__edge").TextContent);
+    }
+
+    /// <summary>
+    /// A differing line outranks the price gap — books quoting -110 on totals of 7, 8 and 9
+    /// have a price spread of zero and the largest real difference on the board.
+    /// </summary>
+    [Fact]
+    public void A_varying_line_is_reported_as_such_not_folded_into_the_price_gap()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(outcome: "over", line: 7m, linesVary: true, edgePoints: 0, rungs:
+            [
+                Rung("draftkings", -110, 0.524, 7m),
+                Rung("fanduel", -110, 0.524, 8m)
+            ])));
+
+        var edge = cut.Find(".price__edge");
+
+        Assert.Equal("line varies", edge.TextContent);
+        Assert.Contains("price__edge--wide", edge.GetAttribute("class"));
+    }
+
+    [Fact]
+    public void A_varying_line_with_a_gap_reports_both()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(outcome: "over", line: 7m, linesVary: true, edgePoints: 1.5, rungs:
+            [
+                Rung("draftkings", -120, 0.545, 7m),
+                Rung("fanduel", -105, 0.512, 8m)
+            ])));
+
+        Assert.Equal("line varies · +1.5 pts", cut.Find(".price__edge").TextContent);
+    }
+
+    [Fact]
+    public void A_wide_gap_is_flagged_even_when_the_lines_agree()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(edgePoints: 2.0, rungs:
+            [
+                Rung("draftkings", -130, 0.565),
+                Rung("fanduel", -105, 0.512)
+            ])));
+
+        Assert.Contains("price__edge--wide", cut.Find(".price__edge").GetAttribute("class"));
+    }
+
+    [Fact]
+    public void A_narrow_gap_is_not_flagged()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(edgePoints: 0.4, rungs:
+            [
+                Rung("draftkings", -113, 0.531),
+                Rung("fanduel", -110, 0.524)
+            ])));
+
+        Assert.DoesNotContain("price__edge--wide", cut.Find(".price__edge").GetAttribute("class") ?? "");
+    }
+
+    /// <summary>The tooltip is the whole market, so hovering answers "who else?" without a click.</summary>
+    [Fact]
+    public void The_tooltip_lists_every_book()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(outcome: "over", line: 7m, edgePoints: 0.5, rungs:
+            [
+                Rung("draftkings", -110, 0.524, 7m),
+                Rung("fanduel", 105, 0.488, 7.5m)
+            ])));
+
+        var tooltip = cut.FindComponent<DeskTooltip>().Instance.Text;
+
+        Assert.Contains("DraftKings (best) o7 -110", tooltip);
+        Assert.Contains("FanDuel o7.5 +105", tooltip);
+    }
+
+    // ---- The closing line ---------------------------------------------------------------
+    //
+    // ADR 0010 deletes the scan tier once a game starts and keeps one closing line per book.
+    // The board read only the scans, so a game in play went blank — sixteen empty rows on a
+    // nineteen-game slate. The close is the number worth having: it is what the market
+    // concluded and what CLV is measured against. It stays, muted, and says what it is.
+
+    [Fact]
+    public void A_closing_price_is_shown_rather_than_dropped()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: -108, isClosing: true, rungs: Rung("draftkings", -108, 0.519))));
+
+        Assert.Equal("-108", cut.Find(".price__odds").TextContent);
+        Assert.Empty(cut.FindAll("span.dim"));
+    }
+
+    [Fact]
+    public void A_closing_price_is_muted_so_it_is_not_mistaken_for_a_live_one()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Contains("price--closing", cut.Find(".price").GetAttribute("class"));
+    }
+
+    [Fact]
+    public void A_live_price_carries_no_closing_treatment()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.DoesNotContain("price--closing", cut.Find(".price").GetAttribute("class") ?? "");
+    }
+
+    /// <summary>
+    /// A lone book leaves no rail, and the rail is what would otherwise have carried the fact.
+    /// So the cell says it in a word rather than rendering as an ordinary price.
+    /// </summary>
+    [Fact]
+    public void A_lone_closing_book_still_says_the_market_is_closed()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Equal("closed", cut.Find(".price__edge").TextContent);
+    }
+
+    /// <summary>
+    /// "+1.4 pts vs worst" on a finished game invites moving to a book that is no longer
+    /// quoting it. The gap is still reported — it is real — but as where the books finished.
+    /// </summary>
+    [Fact]
+    public void A_closed_market_reports_its_gap_as_history_not_as_an_opportunity()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, edgePoints: 1.4, rungs:
+            [
+                Rung("draftkings", -115, 0.535),
+                Rung("fanduel", -105, 0.512)
+            ])));
+
+        var edge = cut.Find(".price__edge");
+
+        Assert.Equal("+1.4 pts vs worst at close", edge.TextContent);
+
+        // And never flagged as wide: "wide" is a call to go and shop, and there is nothing
+        // left to shop.
+        Assert.DoesNotContain("price__edge--wide", edge.GetAttribute("class") ?? "");
+    }
+
+    /// <summary>
+    /// A tooltip's body reaches the DOM only once it is shown, so the assertion is against
+    /// the DeskTooltip's own text rather than rendered markup. That is the thing under test
+    /// anyway: what the reader is told when they hover a number they cannot take.
+    /// </summary>
+    [Fact]
+    public void A_closing_price_explains_itself_and_says_how_early_it_was_taken()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.StartsAt, Start));
+
+        var why = cut.FindComponent<DeskTooltip>().Instance.Text;
+
+        Assert.Contains("closing price", why, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("captured 3.0h before it", why);
+
+        // The book breakdown the live cell puts in a title attribute rides along, because a
+        // native tooltip cannot hold a sentence and a table.
+        Assert.Contains("DraftKings -110", why);
+    }
+
+    [Fact]
+    public void Without_a_start_time_the_closing_price_still_says_what_it_is()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        var why = cut.FindComponent<DeskTooltip>().Instance.Text;
+
+        Assert.Contains("closing price", why, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("captured", why);
+    }
+
+    /// <summary>
+    /// A takeable price is a button, which takes focus, so its native title reaches the
+    /// keyboard and stays — a MudBlazor component in nineteen rows × six columns to say the
+    /// same thing would cost the board a great deal for no gain.
+    /// </summary>
+    [Fact]
+    public void A_takeable_price_keeps_the_native_tooltip_and_grows_no_second_one()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => { }));
+
+        Assert.NotNull(cut.Find("button.price").GetAttribute("title"));
+        Assert.Empty(cut.FindComponents<DeskTooltip>());
+    }
+
+    // ---- The structured tooltip -----------------------------------------------------------
+    //
+    // Ten books written as one string ran as a single line ~1100px wide across the window. The
+    // tooltip is a title, a caption and a table now: one book a row, by name, five at most, best
+    // first (the cell's own book, then by value against fair, so nothing left out beats a row
+    // that shows), and a last line saying where the rest are.
+
+    private static BookPrice Scored(string book, int american, double implied, double ev, double? hold = null)
+        => Rung(book, american, implied) with { Ev = ev, Hold = hold };
+
+    private static readonly BookPrice[] TenBooks =
+    [
+        Scored("lowvig", 170, 0.370, -0.064, 0.025),
+        Scored("betrivers", 185, 0.351, -0.012, 0.050),
+        Scored("pinnacle", 181, 0.356, -0.026, 0.020),
+        Scored("fanduel", 176, 0.362, -0.044, 0.045),
+        Scored("bovada", 175, 0.364, -0.048, 0.055),
+        Scored("draftkings", 174, 0.365, -0.050, 0.048),
+        Scored("betmgm", 170, 0.370, -0.064, 0.060),
+        Scored("espnbet", 172, 0.368, -0.057),
+        Scored("hardrockbet", 173, 0.366, -0.053, 0.058),
+        Scored("betonlineag", 171, 0.369, -0.060, 0.030),
+    ];
+
+    private IRenderedComponent<PriceCell> Closing(string book = "betrivers", int american = 185)
+        => RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(book: book, american: american, isClosing: true, rungs: TenBooks)
+                with { Fair = new FairPrice(0.346, 189, FairValue.SharpBook, 1) })
+            .Add(x => x.StartsAt, Captured.AddHours(3.6)));
+
+    /// <summary>The fair line is spelt as every book table spells it: "Fair +189 (Pinnacle, no-vig)".</summary>
+    [Fact]
+    public void A_closing_tooltip_has_a_title_a_caption_and_the_fair_on_its_own_line()
+    {
+        var tip = Closing().FindComponent<DeskTooltip>().Instance;
+
+        Assert.True(tip.IsStructured);
+        Assert.Equal("Closing price", tip.Title);
+        Assert.Equal("The last number before the start, captured 3.6h before it.\nFair +189 (Pinnacle, no-vig)", tip.Caption);
+    }
+
+    [Fact]
+    public void The_books_are_rows_by_name_best_first_and_five_at_most()
+    {
+        var tip = Closing().FindComponent<DeskTooltip>().Instance;
+
+        // The cell's own book, then by value: +176, +175, +174 show; +173 and below are counted.
+        Assert.Equal(["BetRivers", "Pinnacle", "FanDuel", "Bovada", "DraftKings"], tip.Rows!.Select(r => r.Label));
+        Assert.Equal("+185", tip.Rows![0].Value);
+        Assert.Equal("−1.2% EV", tip.Rows![0].Qualifier);
+        Assert.Equal("+5 more in More bets", tip.Footnote);
+    }
+
+    [Fact]
+    public void The_cell_s_own_book_leads_and_is_the_one_emphasised_row()
+    {
+        var tip = Closing(book: "lowvig", american: 170).FindComponent<DeskTooltip>().Instance;
+
+        Assert.Equal(5, tip.Rows!.Count);
+        Assert.Equal("LowVig.ag", tip.Rows![0].Label);
+        Assert.True(tip.Rows![0].Emphasis);
+        Assert.Single(tip.Rows!, r => r.Emphasis);
+    }
+
+    [Fact]
+    public void What_a_screen_reader_hears_is_one_book_a_line_never_a_ribbon()
+    {
+        var text = Closing().FindComponent<DeskTooltip>().Instance.Text;
+        var lines = text.Split('\n');
+
+        Assert.Equal("Closing price", lines[0]);
+        Assert.Contains("BetRivers (best) +185, −1.2% EV", lines);
+        Assert.Equal("+5 more in More bets", lines[^1]);
+        Assert.DoesNotContain("BR ", text);
+    }
+
+    [Fact]
+    public void A_takeable_price_s_title_keeps_one_book_a_line()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(book: "betrivers", american: 185, rungs: TenBooks))
+            .Add(x => x.OnTake, () => { }));
+
+        var title = cut.Find("button.price").GetAttribute("title")!;
+
+        Assert.StartsWith("Best price\n", title);
+        Assert.Contains("\nBetRivers (best) +185, −1.2% EV\n", title);
+        Assert.EndsWith("+5 more in More bets\nClick to log this price.", title);
+    }
+
+    /// <summary>
+    /// A live price nobody can take is a div, and a title on it reached a pointer only
+    /// (HIG 12). It takes focus and says the same thing in a tooltip, with no title left to compete.
+    /// </summary>
+    [Fact]
+    public void A_live_price_that_cannot_be_taken_explains_itself_on_focus()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(rungs: Rung("draftkings", -110, 0.524))));
+
+        var cell = cut.Find(".price");
+        Assert.Equal("0", cell.GetAttribute("tabindex"));
+        Assert.Null(cell.GetAttribute("title"));
+        Assert.Contains("DraftKings -110", cut.FindComponent<DeskTooltip>().Instance.Text);
+    }
+
+    /// <summary>The muted cell must not also carry the native tooltip, or the two compete.</summary>
+    [Fact]
+    public void A_closing_price_drops_the_native_tooltip_the_rendered_one_replaces()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Null(cut.Find(".price").GetAttribute("title"));
+    }
+
+    /// <summary>
+    /// The tooltip describes the closing cell and does not rename it: the cell is still read by
+    /// its own figures, with no label laid over them by the wrapper.
+    /// </summary>
+    [Fact]
+    public void The_tooltip_wraps_the_closing_cell_without_renaming_it()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        var tip = cut.FindComponent<DeskTooltip>();
+        var cell = tip.Find(".price");
+
+        Assert.Contains("-110", cell.TextContent);
+        Assert.Null(cell.GetAttribute("aria-label"));
+        Assert.Null(cell.ParentElement?.GetAttribute("aria-label"));
+    }
+
+    // ---- Value against the fair price ---------------------------------------------------
+
+    private static readonly FairPrice FairCoin = new(0.5, 100, FairValue.SharpBook, 1);
+
+    [Fact]
+    public void A_price_worth_taking_says_so_without_a_hover()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 110, rungs: Rung("draftkings", 110, 0.476)) with { Fair = FairCoin, Ev = 0.05 }));
+
+        var ev = cut.Find(".price__ev");
+        Assert.Equal("+5.0% EV", ev.TextContent);
+        Assert.Contains("price__ev--plus", ev.ClassName);
+    }
+
+    [Fact]
+    public void A_price_below_fair_is_a_detail_not_a_signal()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: -110, rungs: Rung("draftkings", -110, 0.524)) with { Fair = FairCoin, Ev = -1.0 / 22 }));
+
+        var ev = cut.Find(".price__ev");
+        Assert.Equal("−4.5% EV", ev.TextContent);
+        Assert.DoesNotContain("price__ev--plus", ev.ClassName);
+    }
+
+    [Fact]
+    public void No_fair_price_means_no_value_reading_rather_than_zero()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 110, rungs: Rung("draftkings", 110, 0.476))));
+
+        Assert.Empty(cut.FindAll(".price__ev"));
+    }
+
+    [Fact]
+    public void A_closing_price_is_not_scored_as_something_to_take()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 110, isClosing: true, rungs: Rung("draftkings", 110, 0.476)) with { Fair = FairCoin, Ev = 0.05 }));
+
+        Assert.Empty(cut.FindAll(".price__ev"));
+    }
+
+    [Fact]
+    public void The_tooltip_names_what_value_is_measured_against()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 110, rungs: Rung("draftkings", 110, 0.476)) with { Fair = FairCoin, Ev = 0.05 }));
+
+        Assert.Equal("Fair +100 (Pinnacle, no-vig)", cut.FindComponent<DeskTooltip>().Instance.Caption);
+    }
+
+    [Fact]
+    public void Pinnacle_has_its_own_monogram()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(book: "pinnacle", rungs: Rung("pinnacle", -110, 0.524))));
+
+        Assert.Equal("PN", cut.Find(".price__book").TextContent);
+    }
+
+    // ---- Door 2: a live price opens the wager window on itself --------------------------
+
+    [Fact]
+    public void A_live_cell_offers_the_take_and_says_so()
+    {
+        var taken = 0;
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => taken++));
+
+        var cell = cut.Find("button.price");
+        Assert.EndsWith("Click to log this price.", cell.GetAttribute("title"));
+
+        cell.Click();
+        Assert.Equal(1, taken);
+    }
+
+    [Fact]
+    public void A_closing_cell_offers_no_take()
+    {
+        var taken = 0;
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => taken++));
+
+        // Not a button, and nothing listening: a click on the reading has nothing to reach.
+        var cell = cut.Find(".price");
+        Assert.Empty(cut.FindAll("button"));
+
+        Assert.Throws<MissingEventHandlerException>(() => cell.Click());
+        Assert.Equal(0, taken);
+    }
+
+    // ---- Door 2, shifted: a live price banks itself on the slip as a parlay leg ----------
+
+    [Fact]
+    public void Shift_click_banks_the_price_and_a_plain_click_still_takes_it()
+    {
+        var (taken, banked) = (0, 0);
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => taken++)
+            .Add(x => x.OnBank, () => banked++));
+
+        var cell = cut.Find("button.price");
+        Assert.EndsWith("Shift-click adds it to the slip as a parlay leg.", cell.GetAttribute("title"));
+
+        // Shift+Enter needs no handler of its own: a focused button pressed with Enter is
+        // clicked by the browser, and that click carries the Shift key like a mouse's does.
+        cell.Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true });
+        cell.Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true });
+        Assert.Equal((0, 2), (taken, banked));
+
+        cell.Click();
+        Assert.Equal((1, 2), (taken, banked));
+    }
+
+    [Fact]
+    public void A_closing_cell_banks_nothing()
+    {
+        var banked = 0;
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => { })
+            .Add(x => x.OnBank, () => banked++));
+
+        Assert.Throws<MissingEventHandlerException>(() =>
+            cut.Find(".price").Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true }));
+        Assert.Equal(0, banked);
+    }
+
+    [Fact]
+    public void Without_a_take_handler_the_cell_is_not_a_button()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Empty(cut.FindAll("button"));
+        Assert.DoesNotContain("Click to log", cut.FindComponent<DeskTooltip>().Instance.Text);
+    }
+
+    // ---- HIG 2: a door is a real button --------------------------------------------------
+    //
+    // A div with role=button and a keydown handler is a button the browser does not know about:
+    // Space scrolled the Board before the handler saw it. A <button type="button"> presses on
+    // Enter and Space natively and scrolls nothing.
+
+    [Fact]
+    public void A_takeable_price_is_a_button()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(edgePoints: 1.0, rungs:
+            [
+                Rung("draftkings", -110, 0.524),
+                Rung("fanduel", -105, 0.512)
+            ]))
+            .Add(x => x.OnTake, () => { }));
+
+        var cell = cut.Find("button[type=button].price");
+
+        Assert.Contains("price--take", cell.ClassName);
+        Assert.Null(cell.GetAttribute("role"));
+        Assert.Null(cell.GetAttribute("tabindex"));
+
+        // A button holds phrasing content only, so its inside is spans — the rail included.
+        Assert.Empty(cell.QuerySelectorAll("div"));
+        Assert.NotNull(cell.QuerySelector("span.rail"));
+
+        // Named by its own figures, as the reading is: no label laid over them.
+        Assert.Contains("-110", cell.TextContent);
+        Assert.Null(cell.GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Pressing_it_takes_the_price()
+    {
+        var taken = 0;
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => taken++));
+
+        cut.Find("button.price").Click();
+
+        Assert.Equal(1, taken);
+    }
+
+    [Fact]
+    public void A_closing_price_is_not_a_button()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(isClosing: true, edgePoints: 1.0, rungs:
+            [
+                Rung("draftkings", -115, 0.535),
+                Rung("fanduel", -105, 0.512)
+            ]))
+            .Add(x => x.OnTake, () => { }));
+
+        Assert.Empty(cut.FindAll("button"));
+        Assert.Empty(cut.FindAll("[role=button]"));
+        Assert.Equal("DIV", cut.Find(".price").TagName);
+    }
+}

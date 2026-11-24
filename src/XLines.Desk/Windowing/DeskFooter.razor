@@ -1,0 +1,66 @@
+@using XLines.Desk.Windowing
+@implements IDisposable
+@inject WindowManager Manager
+@inject DeskSignals Signals
+@inject DeskClock Clock
+
+@*
+    Fixed footer: the desk's operating conditions — column count, effective size, live or
+    polling, and the desk's clock. Status only, and none of it critical: the HIG keeps a bottom
+    bar for that. The notice of a closed window is a toast in the header's Activities stack
+    (DeskToastStack, ADR 0028); the column and window figures here agree with the header's count.
+*@
+
+<footer class="ftr">
+    <span class="ftr__spacer"></span>
+
+    <span class="ftr__stat" title="Windows tile as a horizontal row; past the column limit they share a column as tabs">
+        @* The same window figure the header shows, beside the columns it fills. *@
+        @($"{Manager.ColumnCount} {(Manager.ColumnCount == 1 ? "column" : "columns")}, {DeskHeader.WindowsLabel(Manager.OpenCount)}")
+    </span>
+    <span class="ftr__divider"></span>
+    <span class="ftr__stat num" title="@ResolutionTitle">
+        @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight)
+        @if (Manager.Settings.ResolutionMode == ResolutionMode.Fixed)
+        {
+            <span class="ftr__flag">fixed</span>
+        }
+    </span>
+    <span class="ftr__divider"></span>
+    <span class="ftr__stat" title="@(Signals.Live
+                                        ? "Windows refresh as soon as the data under them changes."
+                                        : "The change feed is not connected; windows refresh once a minute.")">
+        @(Signals.Live ? "live" : "polling")
+    </span>
+    <span class="ftr__divider"></span>
+    <span class="ftr__stat num" title="Desk time: every time shown here is in this zone">@Clock.Now().ToString("HH:mm") @Clock.Label</span>
+</footer>
+
+@code {
+    private Timer? _clock;
+
+    private string ResolutionTitle => Manager.Settings.ResolutionMode == ResolutionMode.Fixed
+        ? $"Declared size. Browser is {(int)Manager.ViewportWidth}×{(int)Manager.ViewportHeight}."
+        : "Following the browser window.";
+
+    protected override void OnInitialized()
+    {
+        // The desk's changes only — the count and the size. A window's status is not the
+        // footer's to show, so it does not redraw for one.
+        Manager.Changed += OnChanged;
+        Signals.LiveChanged += OnLiveChanged;
+        _clock = new Timer(_ => InvokeAsync(StateHasChanged), null,
+            TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20));
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnLiveChanged(bool _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Manager.Changed -= OnChanged;
+        Signals.LiveChanged -= OnLiveChanged;
+        _clock?.Dispose();
+    }
+}

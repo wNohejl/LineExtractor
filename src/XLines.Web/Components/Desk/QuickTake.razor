@@ -1,0 +1,609 @@
+@namespace XLines.Web.Components.Desk
+@using XLines.Core.Analytics
+@using XLines.Core.Entities
+@using XLines.Data.CrossReference
+@using XLines.Web.Services
+@inject IWagerData Data
+@inject WagerSlip Slip
+@inject DeskToasts Toasts
+@inject ILogger<QuickTake> Log
+@inject IJSRuntime JS
+
+@*
+    A Board price, taken where it was pressed.
+
+    Pressing a price used to float a wager window over the board: a second surface, three steps,
+    and the board an operator was reading from pushed behind it, for what is usually one number
+    and one stake. The price already says the side, the line and the book; what is left is how
+    much, a glance at what is worth knowing, and a commit. So the answer opens in the row under the
+    game, as the row's glances do, and the full wager form stays one press away for anything the
+    row cannot say — parlay legs, a note, a different game.
+
+    Three states in one place, so the operator's eye never leaves the row:
+
+    - Ready: the price (PricePicker: every book quoting the side, best first, and Custom price…),
+      the stake with its quick keys and what it returns, the checks that need saying, and the
+      wager keys, Add to slip then Log (WagerKey). Custom price… turns the price line into the
+      typed price's fields, in the row: the price, the line where the market has one, and the
+      book — the Place wager window's own fields and reading (TypedPriceFields, TypedPrice), so
+      a price typed here logs exactly what the window would have logged. "Use the fetched price"
+      puts the picker back on the best book. It used to open the whole window in another column
+      for one number.
+    - Asking: Log turns the key row into the question — "Log $25 on PHI ML at −120 (DK)?" — with
+      Cancel and Log wager, an InlineConfirm rather than an alert, because the bet is in plain view
+      and easy to void from the Journal.
+    - Logged: the receipt, with Same again (the same side and book, a fresh stake) and Done.
+
+    The offer is read from the row on every render, not kept, so a pull that re-prices the board
+    re-prices this too; a price that has gone to its close says so instead of logging it.
+*@
+
+<SnippetShell Title="Take this price" Icon="@Icons.Material.Filled.Bolt"
+              Note="@Headline" OpenLabel="Full wager form" OnOpen="OpenFormAsync">
+    @* A press or a key inside belongs to the take: the grid row's own click would close the
+       row around it (RowActions stops the same way). *@
+    <div class="qtake@(_typing ? " qtake--typed" : "")" data-take="@_id"
+         @onkeydown="OnKeyAsync" @onkeydown:stopPropagation="true" @onclick:stopPropagation="true">
+        @* A side no book quotes any more is gone — unless a price is typed: that needs nothing
+           fetched, and a refresh that dropped the side replaced the fields being typed into. *@
+        @if (Best is null && !_typing)
+        {
+            <p class="qtake__gone">This side is no longer quoted. Pick another price on the row.</p>
+        }
+        else if (Best is { IsClosing: true })
+        {
+            <p class="qtake__gone">This price has closed — the game is under way, so it cannot be taken.</p>
+        }
+        else if (_receipt is { } receipt)
+        {
+            <div class="qtake__receipt" role="status">
+                <span class="qtake__receipt-mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.CheckCircle" /></span>
+                <span class="qtake__receipt-text">@receipt</span>
+                <span class="qtake__receipt-keys">
+                    <DeskButton Size="DeskKeySize.Small" OnClick="Again">Same again</DeskButton>
+                    <DeskButton Size="DeskKeySize.Small" OnClick="CloseAsync">Done</DeskButton>
+                </span>
+            </div>
+        }
+        else if (_typing || Offer is not null)
+        {
+            var offer = Offer;
+
+            @* The side and its price leading, then the shared price picker: its key names the
+               book the price is from ("DraftKings · Best"), and its list is every book quoting
+               the side, best first, with each price, the edge against fair and a stale price's
+               age (PricePicker), as the Place wager window's is. It used to be a segmented
+               control of monograms that stopped at five books. Custom price… turns this line's
+               price into the typed fields beneath it, without leaving the row. *@
+            <div class="qtake__line">
+                <span class="qtake__bet">
+                    @* Which bet: every side of the game a book prices, moneyline, spread and
+                       total, in the same pop-up the book is chosen from. The take opened on one
+                       side — the price pressed, or the row's most value — and that was the only
+                       side it could log; another meant closing it and finding the cell. While a
+                       price is typed the side stays put: the fields are that side's. *@
+                    @if (!_typing && OnChooseSide.HasDelegate && Bets.Count > 1)
+                    {
+                        <DeskPopUp TValue="string" Label="Bet" Placeholder="Bet" Options="Bets"
+                                   Value="@BetKey(ActiveMarket, ActiveOutcome)" ValueChanged="ChooseBetAsync"
+                                   ShowFigure="false" Class="bet-picker qtake__sel" />
+                    }
+                    else
+                    {
+                        <span class="qtake__sel">@HeadLabel</span>
+                    }
+                    <strong class="qtake__price num">@HeadPrice</strong>
+                    @if (!_typing && offer is not null)
+                    {
+                        <PricePicker Books="Books" Chosen="@offer.Book" OnChoose="ChooseBook"
+                                     OnCustom="StartTyping" />
+                    }
+                </span>
+            </div>
+
+            @if (_typing)
+            {
+                @* The typed price's fields on one line under the headline, each as wide as what it
+                   holds and labelled above, the way back at the line's end (TypedPriceFields,
+                   Inline). Not a box inside the take: the take is the card. The side is the
+                   headline's to say; the stake follows, labelled as the fields above it are. *@
+                <div class="qtake__typed">
+                    <TypedPriceFields @ref="_fields" Model="_typed" Market="@ActiveMarket" HasLine="HasLine"
+                                      Inline="true" KnownBooks="_knownBooks"
+                                      CanUseFetched="@(Best is not null)" OnUseFetched="UseFetched"
+                                      OnChanged="TypedChanged" />
+                    <span class="field-lbl qtake__stake-lbl" aria-hidden="true">Stake</span>
+                </div>
+            }
+
+            <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="offer?.PriceAmerican" />
+
+            @* Only what needs saying: the value always (it is the first thing asked of a price),
+               then a stale price or a side already in the journal. A clean bill reads as nothing
+               more, where the wager window lists every pass for the record. *@
+            <CheckList Items="Worth" Title="Before you log" ShowTitle="false" />
+
+            @if (_error is { } error)
+            {
+                <p class="field-err" role="alert">@error</p>
+            }
+
+            @if (_asking && offer is not null)
+            {
+                @* The question answers its own Escape (Cancel); stopped here, so the same key
+                   does not also reach the take and put the whole row away. *@
+                <div @onkeydown:stopPropagation="true">
+                    <InlineConfirm ConfirmLabel="Log wager" ConfirmIcon="@WagerKey.Glyph"
+                                   ConfirmEmphasis="DeskEmphasis.Filled"
+                                   Busy="_saving" OnConfirm="LogAsync" OnCancel="() => _asking = false"
+                                   Class="qtake__confirm">
+                        Log <strong>@OddsMath.Money(_stake)</strong> on @offer.Label at @OddsMath.FormatPrice(offer.PriceAmerican) (@BookNames.Display(offer.Book))?
+                    </InlineConfirm>
+                </div>
+            }
+            else
+            {
+                @* The reason is the price's first, as the Place wager window's is: a typed price
+                   that cannot be read says so before the stake is asked for. *@
+                <KeyRow Class="qtake__keys" Reason="@KeyReason">
+                    <Secondary>
+                        <WagerKey Kind="WagerKind.AddToSlip" Size="DeskKeySize.Small"
+                                  Disabled="@(!CanCommit)" OnClick="AddToSlip" />
+                    </Secondary>
+                    <Primary Context="reason">
+                        @* Filled: the take is its own context, one open at a time under the row,
+                           and Log is the one thing it is for. The Board's row strip stays Tinted
+                           (it repeats per row); this is the single commit in view. *@
+                        <WagerKey Kind="WagerKind.Log" Size="DeskKeySize.Small" Stake="_stake"
+                                  Disabled="@(!CanCommit)" DescribedBy="@reason" OnClick="Ask" />
+                    </Primary>
+                </KeyRow>
+            }
+        }
+    </div>
+</SnippetShell>
+
+@code {
+    /// <summary>The game's row as the Board holds it now; read each render, so a pull re-prices the take.</summary>
+    [Parameter, EditorRequired] public BoardRow Row { get; set; } = default!;
+
+    [Parameter, EditorRequired] public string Market { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Outcome { get; set; } = string.Empty;
+
+    /// <summary>The book the press came from — the cell's best, or the value pick's. Null: the best.</summary>
+    [Parameter] public string? Book { get; set; }
+
+    /// <summary>"Phillies at Mets", for the slip card.</summary>
+    [Parameter] public string Matchup { get; set; } = string.Empty;
+
+    /// <summary>Opens the full wager form on this side and book, with the stake typed so far.</summary>
+    [Parameter] public EventCallback<(string Book, decimal Stake)> OnOpenForm { get; set; }
+
+    /// <summary>
+    /// Full wager form pressed while a price is typed here: the form on this side with the typed
+    /// price, line and book carried, so the number is not typed twice. Unbound, the plain form.
+    /// </summary>
+    [Parameter] public EventCallback<TypedTake> OnOpenTyped { get; set; }
+
+    /// <summary>Puts the take away: Done, or Escape.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Turns the desk to the slip, for the Added toast's key.</summary>
+    [Parameter] public Action? OnViewSlip { get; set; }
+
+    private string? _book;
+    private decimal _stake;
+    private bool _asking;
+    private bool _saving;
+    private string? _error;
+    private string? _receipt;
+
+    private (int Game, string Market, string Outcome)? _readFor;
+    private JournalEntry? _prior;
+    private bool _priorRead;
+    private bool _priorFailed;
+
+    /// <summary>
+    /// The side was chosen here: the take's bet pop-up names another side of the same game, and
+    /// the host follows it (its open take, the cell it lights, the form its escape opens).
+    /// Unbound, the take is of the one side it was opened on and shows no pop-up.
+    /// </summary>
+    [Parameter] public EventCallback<(string Market, string Outcome)> OnChooseSide { get; set; }
+
+    /// <summary>The side chosen in the take, until the host hands it back as the parameters.</summary>
+    private (string Market, string Outcome)? _side;
+
+    private string ActiveMarket => _side?.Market ?? Market;
+
+    private string ActiveOutcome => _side?.Outcome ?? Outcome;
+
+    private static string BetKey(string market, string outcome) => market + "\n" + outcome;
+
+    /// <summary>
+    /// Every side a book prices now, moneyline then spread then total, each with its best price,
+    /// where it is best and its edge against fair. The side in hand is named at the chosen book's
+    /// number, as the headline was.
+    /// </summary>
+    private IReadOnlyList<DeskPopUpOption<string>> Bets
+        => SelectionChoice.All(Row)
+            .Where(c => c.Offer is { IsClosing: false })
+            .Select(c =>
+            {
+                var best = WagerOffer.Best(c.Market, c.Offer!);
+                var inHand = c.Market == ActiveMarket && c.Outcome == ActiveOutcome;
+
+                return new DeskPopUpOption<string>(BetKey(c.Market, c.Outcome),
+                    inHand && HeadLabel.Length > 0 ? HeadLabel : c.Label)
+                {
+                    Figure = best is null ? null : OddsMath.FormatPrice(best.PriceAmerican),
+                    Detail = best is null ? null : $"Best at {BookNames.Display(best.Book)}",
+                    DetailFigure = best is null ? null : PricePicker.Edge(best),
+                    DetailFigureState = best?.Ev > 0 ? DeskState.Positive : DeskState.Warning
+                };
+            })
+            .ToList();
+
+    /// <summary>
+    /// Another side of the game: its best book, the stake kept, a question asked of the old side
+    /// withdrawn, and the journal read again for the new one.
+    /// </summary>
+    private async Task ChooseBetAsync(string? key)
+    {
+        if (key?.Split('\n') is not [var market, var outcome]
+            || (market == ActiveMarket && outcome == ActiveOutcome))
+            return;
+
+        // _readFor stays the side the host last named: a host that does not follow the choice
+        // hands the same parameters back on its next render, and the choice is kept through it.
+        _side = (market, outcome);
+        _book = null;
+        _typedHere = false;
+        _asking = false;
+        _error = null;
+        _receipt = null;
+
+        await OnChooseSide.InvokeAsync((market, outcome));
+        await ReadPriorAsync();
+    }
+
+    private MarketPair? Pair => ActiveMarket switch
+    {
+        _ when Row.Moneyline.Market == ActiveMarket => Row.Moneyline,
+        _ when Row.Spread.Market == ActiveMarket => Row.Spread,
+        _ when Row.Total.Market == ActiveMarket => Row.Total,
+        _ => null
+    };
+
+    /// <summary>The side's best offer on the row now, or null once no book quotes it.</summary>
+    private BestOffer? Best
+        => Pair is { } pair
+            ? new[] { pair.First, pair.Second }.FirstOrDefault(o => o is not null && o.Outcome == ActiveOutcome)
+            : null;
+
+    private IReadOnlyList<WagerOffer> Books => Best is { } best ? WagerOffer.Books(ActiveMarket, best) : [];
+
+    /// <summary>The chosen book's price, or the best when that book has stopped quoting.</summary>
+    private WagerOffer? Fetched
+        => Best is not { } best ? null
+            : (_book is { } book ? WagerOffer.AtBook(ActiveMarket, best, book) : null) ?? WagerOffer.Best(ActiveMarket, best);
+
+    /// <summary>
+    /// The price the take logs: the fetched one, or — while a price is typed — the typed one,
+    /// read as the Place wager window reads it (null until the fields stand for a price).
+    /// </summary>
+    private WagerOffer? Offer
+        => _typing ? _typed.Offer(ActiveMarket, ActiveOutcome, HasLine, Best, DateTimeOffset.UtcNow) : Fetched;
+
+    /// <summary>A spread or a total: the typed price asks for the line it was taken at.</summary>
+    private bool HasLine => ActiveMarket is Markets.Spread or Markets.Total;
+
+    /// <summary>The side at the line typed, under the Price label, as the window says it.</summary>
+    private string? TypedEcho => _typed.Echo(ActiveMarket, ActiveOutcome, HasLine, Best?.Line);
+
+    /// <summary>The headline's side: the offer's label, or while typed, the side at the line typed.</summary>
+    private string HeadLabel => Offer?.Label ?? TypedEcho ?? string.Empty;
+
+    /// <summary>The headline's number: the price logged, or a dash while the typed one cannot be read.</summary>
+    private string HeadPrice => Offer is { } offer ? OddsMath.FormatPrice(offer.PriceAmerican) : "—";
+
+    private bool CanCommit => Offer is { IsClosing: false } && _stake > 0;
+
+    /// <summary>What Log waits for: a price that can be read first, then a stake.</summary>
+    private string? KeyReason
+        => Offer is null && _typing ? _typed.Waiting(ActiveMarket, HasLine)
+           : _stake > 0 ? null
+           : "A stake comes first.";
+
+    /// <summary>The bar's qualifier: the matchup, so a take reads as this game's even scrolled to.</summary>
+    private string? Headline => Matchup.Length > 0 ? Matchup : null;
+
+    // ---- The typed price, in the row ------------------------------------------------------
+
+    /// <summary>Custom price… was chosen: the price line is the typed fields until the way back.</summary>
+    private bool _typing;
+
+    /// <summary>The fields were started on this take, so choosing Custom price… again keeps what was typed.</summary>
+    private bool _typedHere;
+
+    /// <summary>The fields and their one reading, shared with the Place wager window.</summary>
+    private readonly TypedPrice _typed = new();
+
+    private TypedPriceFields? _fields;
+
+    private IReadOnlyList<string> _knownBooks = [];
+    private bool _booksRead;
+
+    /// <summary>Where focus goes after the next render: the price field, or back to the picker.</summary>
+    private enum FocusTo { None, Price, Picker }
+
+    private FocusTo _focus;
+
+    private readonly string _id = "take-" + Guid.NewGuid().ToString("N")[..8];
+
+    private IReadOnlyList<Check> Worth
+    {
+        get
+        {
+            if (Offer is not { } offer)
+                return [];
+
+            var all = Checks.Build(offer, Row.Game.StartsAt, DateTimeOffset.UtcNow,
+                _priorRead, _prior, _stake, null, _priorFailed);
+
+            // The value first and always; the rest only when they have something to say.
+            return all.Take(1).Concat(all.Skip(1).Where(c => c.State != DeskState.Positive)).ToList();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = (Row.Game.Id, Market, Outcome);
+        if (_readFor == key)
+            return;
+
+        _readFor = key;
+
+        // The side chosen here, handed back by the host: the take is already on it, with its
+        // book, its stake and its journal read, and only stops holding the choice itself.
+        if (_side is { } chosen && chosen == (Market, Outcome))
+        {
+            _side = null;
+            return;
+        }
+
+        // The host named another side: one pressed on the row.
+        _side = null;
+        _book = Book;
+        _typing = false;
+        _typedHere = false;
+        await ReadPriorAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var to = _focus;
+        _focus = FocusTo.None;
+
+        if (to == FocusTo.Price && _fields is not null)
+            await _fields.FocusPriceAsync();
+        else if (to == FocusTo.Picker)
+            await DeskFocus.WhenDrawnAsync(JS, $"[data-take=\"{_id}\"] .price-picker .popup__key");
+    }
+
+    /// <summary>
+    /// Custom price…: the price line becomes the typed fields, starting from the number shown, as
+    /// the Place wager window's Custom price… does; the stake typed so far stays. Focus goes to
+    /// the price, its number selected to type over. Chosen again on the same take, what was typed
+    /// then comes back as it was, not the fetched number over it.
+    /// </summary>
+    private async Task StartTyping()
+    {
+        if (!_typedHere)
+            _typed.StartFrom(Fetched);
+
+        _typedHere = true;
+        _typing = true;
+        _asking = false;
+        _error = null;
+        _focus = FocusTo.Price;
+
+        if (!_booksRead)
+        {
+            try
+            {
+                _knownBooks = await Data.KnownBooksAsync();
+            }
+            catch (Exception ex)
+            {
+                // Suggestions only: the book can still be typed in full.
+                Log.LogError(ex, "The journal's books were not read for the take's typed price");
+            }
+
+            _booksRead = true;
+        }
+    }
+
+    /// <summary>"Use the fetched price": the picker again, on the best book, and focus back on it.</summary>
+    private void UseFetched()
+    {
+        _typing = false;
+        _book = null;
+        _asking = false;
+        _error = null;
+        _focus = FocusTo.Picker;
+    }
+
+    /// <summary>A typed field changed: a question asked of the old number is withdrawn.</summary>
+    private void TypedChanged()
+    {
+        _asking = false;
+        _error = null;
+    }
+
+    private async Task ReadPriorAsync()
+    {
+        _priorRead = false;
+        _priorFailed = false;
+
+        // The side is chosen in the take, so a read for the side before can land after the one
+        // for the side now in hand: only the read of the side still in hand is kept, or one
+        // side's "already in the journal" was said of another.
+        var side = (Row.Game.Id, ActiveMarket, ActiveOutcome);
+
+        try
+        {
+            var prior = await Data.LatestOnSideAsync(side.Id, side.ActiveMarket, side.ActiveOutcome, DateTimeOffset.UtcNow - Checks.DuplicateWindow);
+
+            if (side != (Row.Game.Id, ActiveMarket, ActiveOutcome))
+                return;
+
+            _prior = prior;
+            _priorRead = true;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The journal was not read for the Board's duplicate check");
+
+            if (side != (Row.Game.Id, ActiveMarket, ActiveOutcome))
+                return;
+
+            _prior = null;
+            _priorFailed = true;
+        }
+    }
+
+    private void ChooseBook(string book)
+    {
+        _book = book;
+        _asking = false;
+    }
+
+    private void SetStake(decimal stake)
+    {
+        _stake = Math.Max(0, stake);
+        _asking = false;
+        _error = null;
+    }
+
+    private void Ask()
+    {
+        if (_typing)
+            _typed.TouchAll();
+
+        if (CanCommit)
+            _asking = true;
+    }
+
+    private async Task LogAsync()
+    {
+        if (Offer is not { IsClosing: false } offer || _stake <= 0 || _saving)
+            return;
+
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            await Data.LogStraightsAsync([offer.ToDraft(Row.Game.Id, _stake, null)]);
+
+            // A typed price is said as the Place wager window says it.
+            var logged = $"Logged {OddsMath.Money(_stake)} on {offer.Label} at {OddsMath.FormatPrice(offer.PriceAmerican)} ({BookNames.Display(offer.Book)})"
+                         + (offer.Manual ? ", your own price." : ".");
+            Toasts.Success(logged);
+
+            _receipt = logged;
+            _asking = false;
+
+            // The side is in the journal now; the next take on it should say so.
+            await ReadPriorAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The Board's wager was not logged");
+            _error = "The wager was not logged. Try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void AddToSlip()
+    {
+        if (_typing)
+            _typed.TouchAll();
+
+        if (Offer is not { IsClosing: false } offer || _stake <= 0)
+            return;
+
+        Slip.Add(offer.ToSlipItem(Row.Game, Matchup, _stake, null) with
+        {
+            InJournal = _priorRead && _prior is { } prior ? Checks.Prior(prior) : null
+        });
+
+        Toasts.Added($"Added {OddsMath.Money(_stake)} on {offer.Label} at {OddsMath.FormatPrice(offer.PriceAmerican)} ({BookNames.Display(offer.Book)}) to the slip.",
+            OnViewSlip is null ? null : "View slip", OnViewSlip);
+
+        _asking = false;
+    }
+
+    /// <summary>The same side and book again, with the stake to be chosen afresh.</summary>
+    private void Again()
+    {
+        _receipt = null;
+        _stake = 0;
+        _asking = false;
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+
+    /// <summary>
+    /// The take's escape. A price typed here goes with it, so the form opens typed as it is
+    /// (<see cref="OnOpenTyped"/>); otherwise the side, the book and the stake.
+    ///
+    /// <para>
+    /// A price typed only in part goes too, as typed: the form's fields take it and say there what
+    /// is still wrong, where it used to open on the fetched number and drop it. What the form
+    /// cannot take is a typed line or book with the price field emptied — its typed fields open
+    /// only on a price — so that opens the plain form, and a book field cleared comes back as the
+    /// fetched book.
+    /// </para>
+    /// </summary>
+    private Task OpenFormAsync()
+    {
+        if (_typing && OnOpenTyped.HasDelegate)
+        {
+            if (Offer is { Manual: true } typed)
+                return OnOpenTyped.InvokeAsync(new TypedTake(typed.Book, _stake, typed.PriceAmerican, typed.Line));
+
+            if (_typed.Price is { } asTyped)
+                return OnOpenTyped.InvokeAsync(new TypedTake(_typed.BookKey ?? Fetched?.Book ?? Book ?? string.Empty,
+                    _stake, asTyped, HasLine ? _typed.Line : null));
+        }
+
+        return OnOpenForm.InvokeAsync((Fetched?.Book ?? Book ?? string.Empty, _stake));
+    }
+
+    /// <summary>
+    /// Escape steps back one state: the question to the keys, a typed price to the fetched one,
+    /// the keys to the row.
+    /// </summary>
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape")
+            return;
+
+        if (_asking)
+            _asking = false;
+        else if (_typing && !_typed.Edited)
+            UseFetched();
+        else if (_typing)
+        {
+            // Something is typed: Escape (often only dismissing the book list) keeps it. The way
+            // back to the fetched price is its own key, beside the price.
+        }
+        else
+            await CloseAsync();
+    }
+}

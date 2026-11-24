@@ -1,0 +1,108 @@
+@using XLines.Data.CrossReference
+@using XLines.Web.Components.Panels
+
+@*
+    One side's players and what they have done: name, position, games played, then the stats
+    worth the width.
+
+    The Board's form, the Game window's rosters and Line movement's each drew this table for
+    themselves, a column template apart. It is one part now, so the rules they shared are stated
+    once:
+
+    - Stat keys differ per sport and per source, so the columns are derived from the data
+      (StatColumns.Pick) rather than declared; the header is the stat's name, not the provider's
+      key — "passing.YDS" is how the line is filed, "Pass yds" is how it is read.
+    - Rates are averaged and counts are totalled, and the header says which ("/g"), so a number
+      is never ambiguous. A season's yards run to four figures, so a count takes its separator.
+    - A player with no reading gets a dash, not a zero — they are different facts — and sorts
+      below every real one rather than beside the zeroes, because sorting a stat descending is
+      how you find the top of it.
+
+    What differs is the caller's: how many stat columns fit, whether the day last played closes
+    the row, what the name cell holds (a link, a row's actions), and whether a row opens. The
+    heading above the table is the caller's too, since each window titles its sides its own way.
+*@
+
+<div class="gridwrap @Class">
+    <DeskGrid T="PlayerForm" Items="Side" Class="@(OnRowClick.HasDelegate ? "deskgrid--clickable" : null)"
+              RowClassFunc="@((p, _) => RowClass?.Invoke(p) ?? string.Empty)"
+              OnRowClick="@(e => OnRowClick.InvokeAsync(e.Item))"
+              EmptyText="No appearances on record.">
+
+        <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name" Title="Player"
+                        HeaderClass="@(GrowName ? "ops-col--grow" : null)"
+                        CellClass="@(GrowName ? "trunc ops-col--grow" : "trunc")">
+            <CellTemplate>
+                @if (NameContent is not null)
+                {
+                    @NameContent(context.Item)
+                }
+                else
+                {
+                    <span title="@context.Item.Name">@context.Item.Name</span>
+                }
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos"
+                        HeaderClass="col--wide" CellClass="col--wide">
+            <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
+                        Title="GP" Align="Align.Right" />
+
+        @foreach (var c in StatColumns.Pick(Side.Select(p => p.Totals.Keys), MaxColumns))
+        {
+            var key = c;
+
+            <TemplateColumn T="PlayerForm" Sortable="true"
+                            Title="@(StatLabels.StatLabel(key) + (StatColumns.IsRate(Side, key) ? "/g" : ""))"
+                            Align="Align.Right"
+                            SortBy="@(p => p.Summary(key) ?? double.MinValue)">
+                <CellTemplate>
+                    @(context.Item.Summary(key) is { } v
+                        ? v.ToString(context.Item.IsCounting(key) ? "#,0.##" : "0.000")
+                        : "—")
+                </CellTemplate>
+            </TemplateColumn>
+        }
+
+        @if (ShowLastPlayed)
+        {
+            <PropertyColumn T="PlayerForm" TProperty="DateTimeOffset" Property="p => p.LastPlayed"
+                            Title="Last" Align="Align.Right"
+                            HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                <CellTemplate>
+                    <span class="dim">@DisplayTime.Day(context.Item.LastPlayed)</span>
+                </CellTemplate>
+            </PropertyColumn>
+        }
+    </DeskGrid>
+</div>
+
+@code {
+    /// <summary>The players of one side, or of one unit of it.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<PlayerForm> Side { get; set; } = [];
+
+    /// <summary>How many stat columns the window has room for.</summary>
+    [Parameter] public int MaxColumns { get; set; } = 4;
+
+    /// <summary>Close each row with the day the player last played.</summary>
+    [Parameter] public bool ShowLastPlayed { get; set; }
+
+    /// <summary>Let the name column take the width the others leave, where the table spans a wide window.</summary>
+    [Parameter] public bool GrowName { get; set; }
+
+    /// <summary>The name cell, when it is more than the name: a link to the player, a row's actions.</summary>
+    [Parameter] public RenderFragment<PlayerForm>? NameContent { get; set; }
+
+    /// <summary>A class for a player's row — the open one, say. Null leaves every row plain.</summary>
+    [Parameter] public Func<PlayerForm, string?>? RowClass { get; set; }
+
+    /// <summary>A row was pressed. Supplying it is what makes the rows read as pressable.</summary>
+    [Parameter] public EventCallback<PlayerForm> OnRowClick { get; set; }
+
+    /// <summary>A class beside the table's wrapper, for a window that sizes its columns itself.</summary>
+    [Parameter] public string? Class { get; set; }
+}

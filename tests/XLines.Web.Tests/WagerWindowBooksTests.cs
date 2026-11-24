@@ -1,0 +1,413 @@
+using AngleSharp.Dom;
+using Bunit;
+using XLines.Core.Entities;
+using XLines.Data.CrossReference;
+using XLines.Web.Components.Panels;
+using XLines.Web.Tests.Support;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace XLines.Web.Tests;
+
+/// <summary>
+/// The wager window as the one form a bet is recorded with: the best price is the default, the
+/// book is the operator's to change, a price of their own can be typed, and the Journal's door
+/// opens it on a game search.
+/// </summary>
+public class WagerWindowBooksTests : WagerTestContext
+{
+    private IRenderedComponent<BoardWager> Render(string? market = null, string? outcome = null, bool withGame = true)
+        => RenderComponent<BoardWager>(p =>
+        {
+            if (withGame) p.Add(x => x.GameId, BoardRows.GameId);
+            if (market is not null) p.Add(x => x.Market, market);
+            if (outcome is not null) p.Add(x => x.Outcome, outcome);
+        });
+
+    private static IElement Key(IRenderedFragment cut, string startsWith)
+        => cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith(startsWith, StringComparison.Ordinal));
+
+    private static IElement Log(IRenderedFragment cut) => cut.Find("button.desk-btn--filled");
+
+    private static string Headline(IRenderedFragment cut) => cut.Find(".wager-offer__price").TextContent.Trim();
+
+    /// <summary>
+    /// The books are a menu on the price; their rows exist only while it is open, and the price
+    /// step itself is folded once it is done, so this opens both.
+    /// </summary>
+    private static void OpenBooks(IRenderedFragment cut)
+    {
+        if (!PricePickers.Shown(cut))
+            Change(cut, "Bet");
+        PricePickers.Open(cut);
+    }
+
+    private static void OpenPrice(IRenderedFragment cut)
+    {
+        if (!PricePickers.Shown(cut))
+            Change(cut, "Bet");
+    }
+
+    /// <summary>The book menu's rows: one radio item per book quoting the side.</summary>
+    private static IReadOnlyList<IElement> Books(IRenderedFragment cut) => PricePickers.Rows(cut);
+
+    /// <summary>Text with its runs of whitespace folded, as it reads: a crest between two names adds layout, not words.</summary>
+    private static string Squash(string text) => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    // ---- Books ----------------------------------------------------------------------------
+
+    [Fact]
+    public void Every_book_quoting_the_side_is_listed_best_first_and_marked()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
+
+        var rows = Books(cut);
+        Assert.Equal(2, rows.Count);
+        Assert.Contains("DraftKings", rows[0].TextContent);
+        Assert.Contains("Best", rows[0].TextContent);
+        Assert.Contains("-128", rows[0].TextContent);
+        Assert.Contains("FanDuel", rows[1].TextContent);
+        Assert.Contains("-135", rows[1].TextContent);
+        Assert.DoesNotContain("Best", rows[1].TextContent);
+    }
+
+    /// <summary>
+    /// The book is a pop-up: a choice of one among several, so a radio menu with the current
+    /// book checked, driven from the keyboard as every desk menu is — one Tab stop, arrows
+    /// inside (DeskMenu). The key says it opens a menu and shows the book it is on.
+    /// </summary>
+    [Fact]
+    public void Book_menu_has_radio_roles_and_one_checked()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
+
+        var trigger = cut.Find(PricePickers.Key);
+        Assert.Equal("menu", trigger.GetAttribute("aria-haspopup"));
+        Assert.Equal("true", trigger.GetAttribute("aria-expanded"));
+        Assert.Equal("true", trigger.GetAttribute("data-popover-return"));
+
+        Assert.NotNull(cut.Find("[role=menu]").GetAttribute("aria-label"));
+
+        var rows = Books(cut);
+        var checkedRow = Assert.Single(rows, r => r.GetAttribute("aria-checked") == "true");
+        Assert.Contains("DraftKings", checkedRow.TextContent);
+        Assert.Single(rows, r => r.GetAttribute("tabindex") == "0");
+
+        cut.Find("[role=menu]").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Empty(Books(cut));
+        Assert.Equal("false", cut.Find(PricePickers.Key).GetAttribute("aria-expanded"));
+    }
+
+    // ---- Unsaved input --------------------------------------------------------------------
+
+    /// <summary>
+    /// A wager with a side or a stake chosen is input the operator would lose by closing the
+    /// window, so the window asks first (WindowManager.SetUnsaved); a window a door landed on a
+    /// side has nothing of the operator's yet. Logging it hands it over, and the window is clean;
+    /// banking it on the slip keeps the mark, because the bet stays on screen to be changed and
+    /// banked again, and a clean window is one the desk may evict.
+    /// </summary>
+    [Fact]
+    public void Wager_marks_its_window_unsaved_once_a_side_is_chosen()
+    {
+        var manager = Services.GetRequiredService<XLines.Desk.Windowing.WindowManager>();
+        var window = manager.Open(XLines.Web.Windowing.WindowCatalog.Find(XLines.Web.Windowing.WindowCatalog.Wager)!);
+
+        var cut = RenderComponent<Microsoft.AspNetCore.Components.CascadingValue<string>>(p => p
+            .Add(x => x.Name, "WindowId")
+            .Add(x => x.Value, window.Id)
+            .Add(x => x.IsFixed, true)
+            .AddChildContent<BoardWager>(w => w.Add(x => x.GameId, BoardRows.GameId)));
+
+        Assert.False(window.HasUnsavedInput);
+
+        cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Bills").Click();
+
+        Assert.True(window.HasUnsavedInput);
+        Assert.Equal("this wager", window.UnsavedInputLabel);
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Log(cut).Click();
+
+        Assert.Single(Data.Straights);
+        Assert.False(window.HasUnsavedInput);
+    }
+
+    [Fact]
+    public void A_stake_alone_marks_the_window_unsaved_and_adding_to_the_slip_keeps_it()
+    {
+        var manager = Services.GetRequiredService<XLines.Desk.Windowing.WindowManager>();
+        var window = manager.Open(XLines.Web.Windowing.WindowCatalog.Find(XLines.Web.Windowing.WindowCatalog.Wager)!);
+
+        var cut = RenderComponent<Microsoft.AspNetCore.Components.CascadingValue<string>>(p => p
+            .Add(x => x.Name, "WindowId")
+            .Add(x => x.Value, window.Id)
+            .Add(x => x.IsFixed, true)
+            .AddChildContent<BoardWager>(w => w
+                .Add(x => x.GameId, BoardRows.GameId)
+                .Add(x => x.Market, Markets.Moneyline)
+                .Add(x => x.Outcome, BoardRows.Home)));
+
+        Assert.False(window.HasUnsavedInput);
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Assert.True(window.HasUnsavedInput);
+
+        Key(cut, "Add to slip").Click();
+
+        Assert.True(window.HasUnsavedInput);
+    }
+
+    [Fact]
+    public void Choosing_a_book_reprices_the_window_and_logs_at_that_book()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
+
+        Books(cut).First(r => r.TextContent.Contains("FanDuel")).Click();
+
+        Assert.Equal("-135", Headline(cut));
+        Assert.Equal("FanDuel", cut.Find(".wager-offer__book").TextContent.Trim());
+        Assert.Contains("Price captured 40 min ago", cut.Markup);
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Log(cut).Click();
+
+        var bet = Assert.Single(Data.Straights);
+        Assert.Equal("fanduel", bet.Book);
+        Assert.Equal(-135, bet.PriceTaken);
+        Assert.False(bet.ManualPrice);
+    }
+
+    [Fact]
+    public void Changing_the_book_clears_the_stake_and_the_note()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        Key(cut, 50m.ToString("C0")).Click();
+        cut.Find("input[aria-label='Note']").Input("fade the public");
+        Assert.False(Log(cut).HasAttribute("disabled"));
+
+        OpenBooks(cut);
+        Books(cut).First(r => r.TextContent.Contains("FanDuel")).Click();
+
+        // A bet at another book is another bet: the amount and the note were the old one's.
+        Assert.True(Log(cut).HasAttribute("disabled"));
+        Assert.Equal("Needs a stake above zero.", cut.Find(".keyrow__reason").TextContent.Trim());
+        Assert.Empty(cut.Find("input[aria-label='Note']").GetAttribute("value") ?? string.Empty);
+    }
+
+    [Fact]
+    public void Choosing_the_book_already_chosen_keeps_the_stake()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        Key(cut, 50m.ToString("C0")).Click();
+
+        OpenBooks(cut);
+        Books(cut).First(r => r.TextContent.Contains("DraftKings")).Click();
+
+        Assert.False(Log(cut).HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void The_chosen_book_is_kept_when_the_side_changes()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
+        Books(cut).First(r => r.TextContent.Contains("FanDuel")).Click();
+
+        Change(cut, "Bet");
+        cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Bills").Click();
+
+        Assert.Equal("FanDuel", cut.Find(".wager-offer__book").TextContent.Trim());
+        Assert.Equal("+110", Headline(cut));
+    }
+
+    [Fact]
+    public void A_side_the_chosen_book_does_not_quote_falls_back_to_the_best_price()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
+        Books(cut).First(r => r.TextContent.Contains("FanDuel")).Click();
+
+        Change(cut, "Bet");
+        cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "Spread · Chiefs -2.5").Click();
+
+        Assert.Equal("DraftKings", cut.Find(".wager-offer__book").TextContent.Trim());
+        Assert.Equal("-110", Headline(cut));
+    }
+
+    // ---- A price of your own --------------------------------------------------------------
+
+    [Fact]
+    public void Enter_a_price_starts_from_the_number_on_screen_and_logs_it_as_manual()
+    {
+        var cut = Render(Markets.Spread, BoardRows.Home);
+        OpenPrice(cut);
+
+        PricePickers.TypePrice(cut);
+
+        var price = cut.Find("input[placeholder='-110']");
+        Assert.Equal("-110", price.GetAttribute("value"));
+        Assert.Equal("-2.5", cut.Find("input[placeholder='-3']").GetAttribute("value"));
+
+        price.Input("-105");
+        cut.Find("input[placeholder='-3']").Input("-3");
+        Key(cut, 50m.ToString("C0")).Click();
+        Log(cut).Click();
+
+        var bet = Assert.Single(Data.Straights);
+        Assert.Equal(-105, bet.PriceTaken);
+        Assert.Equal(-3m, bet.LineTaken);
+        Assert.Equal("draftkings", bet.Book);
+        Assert.True(bet.ManualPrice);
+        Assert.Contains("your own price", cut.Find(".wreceipt__bet").TextContent);
+    }
+
+    [Fact]
+    public void A_typed_price_is_read_by_the_checks_and_not_overwritten_by_a_refresh()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenPrice(cut);
+        PricePickers.TypePrice(cut);
+        cut.Find("input[placeholder='-110']").Input("-120");
+
+        Assert.Contains("Your own price", cut.Markup);
+        Assert.DoesNotContain("Price captured", cut.Markup);
+
+        Data.Row = BoardRows.Row(homeMl: -140);
+        cut.InvokeAsync(() => Services.GetRequiredService<XLines.Desk.Windowing.DeskSignals>()
+            .Publish(new HashSet<string> { XLines.Data.Changes.DataTopics.Odds }));
+
+        cut.WaitForAssertion(() => Assert.True(Data.RowReads >= 2), TimeSpan.FromSeconds(5));
+        Assert.Equal("-120", cut.Find("input[placeholder='-110']").GetAttribute("value"));
+        Assert.Empty(cut.FindAll(".wager-moved"));
+    }
+
+    [Fact]
+    public void A_started_game_opens_on_a_typed_price_from_its_close_and_logs_it()
+    {
+        Data.Row = BoardRows.Row(closing: true, startsAt: DateTimeOffset.UtcNow.AddMinutes(-42));
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+
+        // Typed already, from the close, so the block never stands in the way.
+        Assert.Equal("-128", cut.Find("input[placeholder='-110']").GetAttribute("value"));
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Assert.False(Log(cut).HasAttribute("disabled"));
+        Assert.Contains("the game started 42 min ago, so this records the price you took", cut.Markup);
+
+        Log(cut).Click();
+
+        var bet = Assert.Single(Data.Straights);
+        Assert.Equal(-128, bet.PriceTaken);
+        Assert.True(bet.ManualPrice);
+    }
+
+    [Fact]
+    public void A_side_no_book_prices_can_be_chosen_and_opens_on_a_typed_price()
+    {
+        var row = BoardRows.Row();
+        Data.Row = row with { Spread = new MarketPair(Markets.Spread, null, null) };
+        var cut = Render();
+
+        var chip = cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "Spread · Chiefs");
+        chip.Click();
+
+        Assert.Contains("No book the desk scans prices this side", cut.Markup);
+        Assert.False(PricePickers.Shown(cut));
+        Assert.NotNull(cut.Find("input[placeholder='-110']"));
+    }
+
+    // ---- The Journal's door ---------------------------------------------------------------
+
+    private static Game Saints(int id, DateTimeOffset startsAt) => new()
+    {
+        Id = id,
+        Sport = new Sport { Key = "nfl", Name = "NFL" },
+        HomeTeam = new Team { Name = "New Orleans Saints", Abbrev = "NO" },
+        AwayTeam = new Team { Name = "Pittsburgh Steelers", Abbrev = "PIT" },
+        StartsAt = startsAt,
+        Status = GameStatus.Scheduled
+    };
+
+    [Fact]
+    public void Opened_without_a_game_it_is_a_search_with_one_list_beneath_it()
+    {
+        Data.Games = [Saints(BoardRows.GameId, DateTimeOffset.UtcNow.AddDays(1)), Saints(99, DateTimeOffset.UtcNow.AddDays(-6))];
+        var cut = Render(withGame: false);
+
+        Assert.Empty(cut.FindAll("select"));
+        Assert.Contains("Find the game the bet was on", cut.Markup);
+
+        cut.Find("input[aria-label='Find a game']").Input("steelers");
+
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".game-search__opt").Count), Settle);
+        var options = cut.FindAll(".game-search__opt");
+        Assert.Contains("Pittsburgh Steelers at New Orleans Saints", Squash(options[0].TextContent));
+        Assert.Contains("No game", options[2].TextContent);
+        Assert.Equal(new[] { "steelers" }, Data.Searches);
+    }
+
+    [Fact]
+    public void Picking_a_game_shows_its_sides_and_assumes_none()
+    {
+        Data.Games = [BoardRows.Game()];
+        var cut = Render(withGame: false);
+
+        cut.Find("input[aria-label='Find a game']").Input("chiefs");
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")), Settle);
+        cut.FindAll(".game-search__opt")[0].Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", Squash(cut.Find(".whead .game-search__chosen").TextContent)), Settle);
+        Assert.Equal(6, cut.FindAll(".selection-chip").Count);
+        Assert.Empty(cut.FindAll(".selection-chip--on"));
+        Assert.Contains("Pick the side you bet", cut.Markup);
+
+        cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Chiefs").Click();
+        Assert.Equal("-128", Headline(cut));
+    }
+
+    [Fact]
+    public void Arrow_keys_and_enter_pick_from_the_list()
+    {
+        Data.Games = [Saints(98, DateTimeOffset.UtcNow.AddDays(1)), BoardRows.Game()];
+        var cut = Render(withGame: false);
+
+        var field = cut.Find("input[aria-label='Find a game']");
+        field.Input("a");
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")), Settle);
+
+        cut.Find("input[aria-label='Find a game']").KeyDown("ArrowDown");
+        cut.Find("input[aria-label='Find a game']").KeyDown("Enter");
+
+        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", Squash(cut.Find(".game-search__chosen").TextContent)), Settle);
+    }
+
+    [Fact]
+    public void No_game_records_a_described_bet_at_a_typed_price()
+    {
+        var cut = Render(withGame: false);
+
+        cut.Find("input[aria-label='Find a game']").Input("afc north");
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt--none")), Settle);
+        cut.Find(".game-search__opt--none").Click();
+        cut.WaitForElement("input[aria-label='The bet']");
+
+        cut.Find("input[aria-label='The bet']").Input("Steelers to win the AFC North");
+        cut.Find("input[placeholder='-110']").Input("250");
+        cut.Find("input[placeholder='draftkings']").Input("Caesars");
+        Key(cut, 25m.ToString("C0")).Click();
+
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Add to slip"));
+        Log(cut).Click();
+
+        var bet = Assert.Single(Data.Straights);
+        Assert.Null(bet.GameId);
+        Assert.Equal("Steelers to win the AFC North", bet.FreeTextMarket);
+        Assert.Equal(250, bet.PriceTaken);
+        Assert.Equal("caesars", bet.Book);
+        Assert.True(bet.ManualPrice);
+    }
+}

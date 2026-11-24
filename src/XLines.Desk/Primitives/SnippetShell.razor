@@ -1,0 +1,116 @@
+@namespace XLines.Desk.Primitives
+@using XLines.Desk.Windowing
+
+@*
+    The frame around an inline answer.
+
+    Every snippet gets the same header and the same one way out, so a snippet component only
+    ever contains its own content. Without this each of them would re-implement the escape
+    hatch, and they would drift — different labels, different placement, some missing it
+    entirely, which is how a two-stage pattern quietly becomes a one-stage one.
+
+    The escape sits in the header rather than under the content because a snippet's height
+    varies with what it found, and a control that moves down the panel as data arrives is one
+    the operator has to look for each time.
+
+    It is on the section-card contract (ADR 0032), in one of two shapes, so a drawer under a row
+    and a window's sections read alike:
+
+    - By default the shell IS the card: section.wsection > .wgroup, the name in the card's header
+      bar (h3.wgroup__title, the headline voice every card's bar speaks in), the note beside it
+      and the escape as the bar's one trailing key, the content as the card's rows. For an answer
+      that is rows, a table or a few facts.
+
+    - Cards: the content draws its own cards (several sections, each a FormGroup in a .wflow), so
+      the shell must not be a card around them — a card inside a card is the one nesting the
+      house rule forbids. The shell is then an unframed pane header over them: the same title in
+      the same headline voice and the same trailing key, with no fill and no edge.
+
+    The bar used to be footnote type in secondary ink with a symbol, on a fill with no edge: the
+    last frame on the desk that did not read as a card.
+*@
+
+@* A region: it appears in response to a press, and announcing it as a named landmark is what
+   tells a screen-reader user that something arrived and what it is. It arrives the same way to
+   the eye: a short fade down from just above, so the answer reads as coming from the key that
+   was pressed rather than having been there all along. *@
+<section class="snippet snippet--arrive wsection@(Cards ? " snippet--panes" : null)" id="@Id" role="region" aria-label="@Title">
+    @if (Cards)
+    {
+        @Bar
+        <div class="snippet__body">
+            @ChildContent
+        </div>
+    }
+    else
+    {
+        <div class="wgroup snippet__card">
+            @Bar
+            <div class="snippet__body">
+                @ChildContent
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>DOM id, so the key that opened this can point at it with aria-controls.</summary>
+    [Parameter] public string? Id { get; set; }
+
+    /// <summary>
+    /// Kept for callers that name one. A card's bar draws no symbol — a section is named by its
+    /// title — so it is not drawn.
+    /// </summary>
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Info;
+
+    /// <summary>
+    /// A short qualifier beside the title — coverage, a window, a count. This is where a
+    /// snippet states what it is missing rather than letting a row of dashes imply it.
+    /// </summary>
+    [Parameter] public string? Note { get; set; }
+
+    [Parameter] public string? OpenLabel { get; set; }
+
+    /// <summary>
+    /// No delegate hides the escape, for a snippet that is complete on the row. A callback, so
+    /// the host that owns it is drawn after it (see <c>RowAction.OpenWindow</c>).
+    /// </summary>
+    [Parameter] public EventCallback OnOpen { get; set; }
+
+    /// <summary>
+    /// The content draws its own section cards, so the shell is an unframed pane header over them
+    /// rather than a card around them (a card in a card is forbidden). Off, the shell is the card.
+    /// </summary>
+    [Parameter] public bool Cards { get; set; }
+
+    private string OpenText => OpenLabel ?? "Open window";
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private RenderFragment Bar => __builder =>
+    {
+        <div class="wgroup__bar snippet__bar">
+            <h3 class="wgroup__title snippet__title">@Title</h3>
+
+            @if (Note is not null)
+            {
+                <span class="snippet__note">@Note</span>
+            }
+
+            @if (OnOpen.HasDelegate)
+            {
+                @* The bar's one trailing key. The word in a span of its own, so a narrow snippet
+                   can fold the key to its symbol (desk.css, @container snippet) and keep the word
+                   as the key's accessible name; the title says it to the pointer once the word is
+                   out of sight. *@
+                <div class="wgroup__keys">
+                    <button type="button" class="snippet__open" title="@OpenText" @onclick="OnOpen" @onclick:stopPropagation="true">
+                        <Glyph Icon="@Icons.Material.Filled.OpenInNew" /><span class="snippet__open-word">@OpenText</span>
+                    </button>
+                </div>
+            }
+        </div>
+    };
+}

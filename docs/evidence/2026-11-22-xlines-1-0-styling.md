@@ -8,8 +8,8 @@ off, against the local database; values are computed styles read from the page, 
 sheets. No screenshot is filed: every window that was open shows the owner's journal, which does
 not belong in this repository.
 
-Suites on the same tree: Desk 2664, Desk.Hosting 26, Web 1069, LineOps.Tests 1182, none failing;
-`dotnet build LineOps.slnx` 0 errors.
+Suites on the same tree: Desk 2664, Desk.Hosting 26, Web 1069, XLines.Tests 1182, none failing;
+`dotnet build XLines.slnx` 0 errors.
 
 ## The brand
 
@@ -104,7 +104,7 @@ profit curve is drawn in the positive ink, `rgb(45, 112, 30)`, at 5.39:1.
 
 In a narrow Line movement column, a long matchup in "Biggest moves today" ran under its own
 prices: the move's column could shrink below its unwrapped text. `.slatewatch__move` no longer
-gives up width and the matchup wraps instead (`lineops.css`). After the change, none of the
+gives up width and the matchup wraps instead (`xlines.css`). After the change, none of the
 eight rows on screen overlapped.
 
 ## The Activity stack, fanned

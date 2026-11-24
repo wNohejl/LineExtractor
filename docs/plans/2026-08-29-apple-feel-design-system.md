@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace LineOps' graphite/gloss visual system with an Apple HIG-derived dark design system (materials, SF-style typography, spring motion, Filled/Tinted/Plain buttons, sheets and alerts), then extract it as a reusable `apple-mudblazor` Claude skill package.
+**Goal:** Replace XLines' graphite/gloss visual system with an Apple HIG-derived dark design system (materials, SF-style typography, spring motion, Filled/Tinted/Plain buttons, sheets and alerts), then extract it as a reusable `apple-mudblazor` Claude skill package.
 
 **Architecture:** Token-first, in place. ADR 0008 established a three-file seam — `Theming/DeskTheme.cs` (palette in C#, because MudBlazor derives `-rgb`/`-darken`/`-lighten`/`-hover` variants CSS cannot), `wwwroot/css/mud-bridge.css` (everything non-colour), and thin `Desk*` wrapper components. That structure is kept; only its contents change. Component names and call-site signatures survive except the deliberate `Tone` → `Emphasis`+`Role` API change, which the compiler forces us to visit everywhere.
 
@@ -13,34 +13,34 @@
 - **MudBlazor version is 9.7.0**, pinned centrally in `Directory.Packages.props`. Do not add package references with inline versions.
 - **Never use `!important` in `mud-bridge.css`.** Every override raises specificity honestly or wins on source order. If a rule stops working after a MudBlazor upgrade, re-read their stylesheet.
 - **`:root:root` in `mud-bridge.css` is load-bearing.** `MudThemeProvider` injects a runtime `<style>` containing `:root { … }`, which beats an external sheet's plain `:root` on source order. The doubled pseudo-class settles it without `!important`.
-- **Stylesheet load order is fixed in `App.razor`** and must not change: `MudBlazor.min.css` → `lineops.css` (defines tokens) → `mud-bridge.css` (spends them).
-- **Colours are never written literally in `mud-bridge.css`.** They resolve through `lineops.css` tokens. The C# mirror lives in `DeskTheme.cs` and the two must agree exactly.
+- **Stylesheet load order is fixed in `App.razor`** and must not change: `MudBlazor.min.css` → `xlines.css` (defines tokens) → `mud-bridge.css` (spends them).
+- **Colours are never written literally in `mud-bridge.css`.** They resolve through `xlines.css` tokens. The C# mirror lives in `DeskTheme.cs` and the two must agree exactly.
 - **All tokens are semantic, never colour-named** (`--surface-1`, `--accent`, `--text-secondary` — not `--blue`, `--gray-800`).
 - **`color-mix(in oklab, …)` is permitted** (ADR 0008 already accepted the Chrome 111 / Safari 16.2 floor for this single-operator console).
-- **Every file created in this plan is marked `TEMPLATE-ABLE` or `LINEOPS-SPECIFIC`** in a comment at the top. Template-able files must reference only token names and MudBlazor APIs — no LineOps types, no app-specific CSS hooks. Task 18 extracts exactly the template-able ones.
+- **Every file created in this plan is marked `TEMPLATE-ABLE` or `XLINES-SPECIFIC`** in a comment at the top. Template-able files must reference only token names and MudBlazor APIs — no XLines types, no app-specific CSS hooks. Task 18 extracts exactly the template-able ones.
 - **`prefers-reduced-motion: reduce` must be honoured** by every animation or transition introduced.
-- Run tests with `dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj`.
-- Build with `dotnet build LineOps.slnx`.
+- Run tests with `dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj`.
+- Build with `dotnet build XLines.slnx`.
 
 ---
 
 ## File Structure
 
 **Phase 1 — Foundation**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — `:root` token block (lines 10–108) replaced; `.desk-key`/`.btn` recipe (lines ~1676–1875) replaced; `.field` block (lines ~1878–1972) replaced.
-- Create: `src/LineOps.Web/wwwroot/fonts/` — Inter variable font files.
-- Modify: `src/LineOps.Web/Components/App.razor` — drop Google Fonts CDN links, self-host.
-- Modify: `src/LineOps.Web/Theming/DeskTheme.cs` — Apple palette + type/shape mirror.
-- Create: `src/LineOps.Web/Components/Desk/DeskEmphasis.cs` — `DeskEmphasis`, `DeskRole` enums.
-- Delete: `src/LineOps.Web/Components/Desk/DeskTone.cs` — `DeskKeySize` moves to `DeskEmphasis.cs`.
-- Modify: `src/LineOps.Web/Components/Desk/DeskButton.razor` — new API.
-- Modify: `src/LineOps.Web/Components/Desk/RowAction.cs` — `Tone` property → `Emphasis`/`Role`.
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — `:root` token block (lines 10–108) replaced; `.desk-key`/`.btn` recipe (lines ~1676–1875) replaced; `.field` block (lines ~1878–1972) replaced.
+- Create: `src/XLines.Web/wwwroot/fonts/` — Inter variable font files.
+- Modify: `src/XLines.Web/Components/App.razor` — drop Google Fonts CDN links, self-host.
+- Modify: `src/XLines.Web/Theming/DeskTheme.cs` — Apple palette + type/shape mirror.
+- Create: `src/XLines.Web/Components/Desk/DeskEmphasis.cs` — `DeskEmphasis`, `DeskRole` enums.
+- Delete: `src/XLines.Web/Components/Desk/DeskTone.cs` — `DeskKeySize` moves to `DeskEmphasis.cs`.
+- Modify: `src/XLines.Web/Components/Desk/DeskButton.razor` — new API.
+- Modify: `src/XLines.Web/Components/Desk/RowAction.cs` — `Tone` property → `Emphasis`/`Role`.
 - Modify: 25 call-site files (Task 5 lists them).
-- Modify: `src/LineOps.Web/wwwroot/css/mud-bridge.css` — remapped to new tokens.
-- Modify/Create tests: `tests/LineOps.Web.Tests/DeskButtonTests.cs`, `DeskThemeTests.cs`.
+- Modify: `src/XLines.Web/wwwroot/css/mud-bridge.css` — remapped to new tokens.
+- Modify/Create tests: `tests/XLines.Web.Tests/DeskButtonTests.cs`, `DeskThemeTests.cs`.
 
 **Phase 2 — Chrome & surfaces**
-- Modify: `lineops.css` (window chrome, rail, grid/table, tag, skeleton, progress, empty-state, pulse blocks).
+- Modify: `xlines.css` (window chrome, rail, grid/table, tag, skeleton, progress, empty-state, pulse blocks).
 - Modify: `Components/Windowing/AppWindow.razor`, `WindowBar.razor`, `RailMenu.razor`, `DeskHeader.razor`, `DeskFooter.razor` — only where markup must change for the new chrome.
 
 **Phase 3 — Modality**
@@ -65,10 +65,10 @@
 ### Task 1: Apple-dark token block and self-hosted type
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css:1-127` (header comment, `:root`, `html, body`, `.num/.mono`)
-- Create: `src/LineOps.Web/wwwroot/fonts/InterVariable.woff2`
-- Create: `src/LineOps.Web/wwwroot/fonts/InterVariable-Italic.woff2`
-- Modify: `src/LineOps.Web/Components/App.razor:16-19`
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css:1-127` (header comment, `:root`, `html, body`, `.num/.mono`)
+- Create: `src/XLines.Web/wwwroot/fonts/InterVariable.woff2`
+- Create: `src/XLines.Web/wwwroot/fonts/InterVariable-Italic.woff2`
+- Modify: `src/XLines.Web/Components/App.razor:16-19`
 
 **Interfaces:**
 - Consumes: nothing (first task).
@@ -79,26 +79,26 @@
 Inter is SIL Open Font License 1.1, so redistribution inside the repo is fine. Fetch the two variable files:
 
 ```bash
-mkdir -p src/LineOps.Web/wwwroot/fonts
-curl -L -o src/LineOps.Web/wwwroot/fonts/InterVariable.woff2 https://github.com/rsms/inter/raw/master/docs/font-files/InterVariable.woff2
-curl -L -o src/LineOps.Web/wwwroot/fonts/InterVariable-Italic.woff2 https://github.com/rsms/inter/raw/master/docs/font-files/InterVariable-Italic.woff2
+mkdir -p src/XLines.Web/wwwroot/fonts
+curl -L -o src/XLines.Web/wwwroot/fonts/InterVariable.woff2 https://github.com/rsms/inter/raw/master/docs/font-files/InterVariable.woff2
+curl -L -o src/XLines.Web/wwwroot/fonts/InterVariable-Italic.woff2 https://github.com/rsms/inter/raw/master/docs/font-files/InterVariable-Italic.woff2
 ```
 
 Verify both files are non-trivial (each should be >300KB):
 
 ```bash
-ls -l src/LineOps.Web/wwwroot/fonts/
+ls -l src/XLines.Web/wwwroot/fonts/
 ```
 
 If the URLs 404, the fallback is the official release zip at `https://github.com/rsms/inter/releases/latest` — extract `InterVariable.woff2` and `InterVariable-Italic.woff2` from `web/`. Do not substitute a different family; the stack below depends on Inter's metrics matching SF closely.
 
 - [ ] **Step 2: Replace the header comment and `:root` block**
 
-In `src/LineOps.Web/wwwroot/css/lineops.css`, replace everything from line 1 through the closing brace of `:root` (line 108) with this. Nothing else in the file changes yet — later tasks handle the component blocks that reference the old names.
+In `src/XLines.Web/wwwroot/css/xlines.css`, replace everything from line 1 through the closing brace of `:root` (line 108) with this. Nothing else in the file changes yet — later tasks handle the component blocks that reference the old names.
 
 ```css
 /* ============================================================================
-   LineOps — "The Desk"
+   XLines — "The Desk"
    A single-operator sports-data operations console.
 
    The visual language follows Apple's Human Interface Guidelines: true-neutral
@@ -313,16 +313,16 @@ html, body {
 }
 ```
 
-The `!important` in the reduced-motion block is the one sanctioned use in the codebase — it is the standard accessibility escape hatch and lives in `lineops.css`, not in the bridge, so the "no `!important` in `mud-bridge.css`" constraint is intact.
+The `!important` in the reduced-motion block is the one sanctioned use in the codebase — it is the standard accessibility escape hatch and lives in `xlines.css`, not in the bridge, so the "no `!important` in `mud-bridge.css`" constraint is intact.
 
 - [ ] **Step 3: Stop loading Google Fonts**
 
-In `src/LineOps.Web/Components/App.razor`, delete the three CDN lines (the two `preconnect` links and the `fonts.googleapis.com` stylesheet link at lines 16–19). Leave the four stylesheet links below them exactly as they are — their order is load-bearing.
+In `src/XLines.Web/Components/App.razor`, delete the three CDN lines (the two `preconnect` links and the `fonts.googleapis.com` stylesheet link at lines 16–19). Leave the four stylesheet links below them exactly as they are — their order is load-bearing.
 
 - [ ] **Step 4: Build and eyeball the result**
 
 ```bash
-dotnet build LineOps.slnx
+dotnet build XLines.slnx
 ```
 
 Expected: build succeeds. The desk will look half-migrated at this point — surfaces and type are Apple, but buttons still carry the old gloss recipe referencing now-deleted tokens like `--ink-600` and `--chalk`, so they will render with invalid colours. That is expected and Tasks 3–7 close it. Do not "fix" it by re-adding old tokens.
@@ -330,7 +330,7 @@ Expected: build succeeds. The desk will look half-migrated at this point — sur
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/LineOps.Web/wwwroot/css/lineops.css src/LineOps.Web/wwwroot/fonts src/LineOps.Web/Components/App.razor
+git add src/XLines.Web/wwwroot/css/xlines.css src/XLines.Web/wwwroot/fonts src/XLines.Web/Components/App.razor
 git commit -m "feat(theme): Apple-dark token vocabulary and self-hosted Inter"
 ```
 
@@ -339,8 +339,8 @@ git commit -m "feat(theme): Apple-dark token vocabulary and self-hosted Inter"
 ### Task 2: The C# palette mirror
 
 **Files:**
-- Modify: `src/LineOps.Web/Theming/DeskTheme.cs`
-- Test: `tests/LineOps.Web.Tests/DeskThemeTests.cs` (create)
+- Modify: `src/XLines.Web/Theming/DeskTheme.cs`
+- Test: `tests/XLines.Web.Tests/DeskThemeTests.cs` (create)
 
 **Interfaces:**
 - Consumes: the token values from Task 1 (the hex literals must match exactly).
@@ -349,20 +349,20 @@ git commit -m "feat(theme): Apple-dark token vocabulary and self-hosted Inter"
 - [ ] **Step 1: Read the current file end to end**
 
 ```bash
-cat src/LineOps.Web/Theming/DeskTheme.cs
+cat src/XLines.Web/Theming/DeskTheme.cs
 ```
 
 Note how `Build()` (or the existing theme-construction member) is shaped and what `DeskSpace` values `SpaceVar` maps. `SpaceVar` and `DeskSpace` are unchanged by this task — the spacing ramp survived Task 1 intact. Keep them exactly as they are.
 
 - [ ] **Step 2: Write the failing test**
 
-Create `tests/LineOps.Web.Tests/DeskThemeTests.cs`:
+Create `tests/XLines.Web.Tests/DeskThemeTests.cs`:
 
 ```csharp
 using System.Text.RegularExpressions;
-using LineOps.Web.Theming;
+using XLines.Web.Theming;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// The pairing seam from ADR 0008, still load-bearing under ADR 0016.
@@ -376,7 +376,7 @@ namespace LineOps.Web.Tests;
 public class DeskThemeTests
 {
     private static readonly string Css =
-        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Web/wwwroot/css/lineops.css"));
+        File.ReadAllText(Path.Combine(RepoRoot(), "src/XLines.Web/wwwroot/css/xlines.css"));
 
     [Theory]
     [InlineData("--surface-0", "#1C1C1E")]
@@ -442,7 +442,7 @@ public class DeskThemeTests
     {
         var match = Regex.Match(Css, Regex.Escape(token) + @"\s*:\s*([^;]+);");
 
-        Assert.True(match.Success, $"{token} is not declared in lineops.css");
+        Assert.True(match.Success, $"{token} is not declared in xlines.css");
 
         return match.Groups[1].Value.Trim();
     }
@@ -451,7 +451,7 @@ public class DeskThemeTests
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
 
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "LineOps.slnx")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "XLines.slnx")))
             dir = dir.Parent;
 
         Assert.NotNull(dir);
@@ -464,7 +464,7 @@ public class DeskThemeTests
 - [ ] **Step 3: Run the test to verify it fails**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj --filter "FullyQualifiedName~DeskThemeTests"
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj --filter "FullyQualifiedName~DeskThemeTests"
 ```
 
 Expected: compile error — `DeskTheme.Surface0`, `Accent`, `Green`, `Red`, `Orange`, `TextTertiary` and possibly `Build` do not exist yet.
@@ -557,13 +557,13 @@ Then build the theme:
 If the existing file exposes the theme as a property (e.g. `public static MudTheme Theme { get; }`) rather than a `Build()` method, keep whichever shape the call site in `MainLayout.razor` already uses and adjust the test's `DeskTheme.Build()` calls to match. Check with:
 
 ```bash
-grep -rn "DeskTheme" src/LineOps.Web/Components/Layout/MainLayout.razor
+grep -rn "DeskTheme" src/XLines.Web/Components/Layout/MainLayout.razor
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj --filter "FullyQualifiedName~DeskThemeTests"
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj --filter "FullyQualifiedName~DeskThemeTests"
 ```
 
 Expected: PASS, all cases.
@@ -571,7 +571,7 @@ Expected: PASS, all cases.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/LineOps.Web/Theming/DeskTheme.cs tests/LineOps.Web.Tests/DeskThemeTests.cs
+git add src/XLines.Web/Theming/DeskTheme.cs tests/XLines.Web.Tests/DeskThemeTests.cs
 git commit -m "feat(theme): mirror the Apple palette into MudBlazor's C# theme"
 ```
 
@@ -580,10 +580,10 @@ git commit -m "feat(theme): mirror the Apple palette into MudBlazor's C# theme"
 ### Task 3: The Emphasis × Role button API
 
 **Files:**
-- Create: `src/LineOps.Web/Components/Desk/DeskEmphasis.cs`
-- Delete: `src/LineOps.Web/Components/Desk/DeskTone.cs`
-- Modify: `src/LineOps.Web/Components/Desk/DeskButton.razor`
-- Test: `tests/LineOps.Web.Tests/DeskButtonTests.cs` (rewrite)
+- Create: `src/XLines.Web/Components/Desk/DeskEmphasis.cs`
+- Delete: `src/XLines.Web/Components/Desk/DeskTone.cs`
+- Modify: `src/XLines.Web/Components/Desk/DeskButton.razor`
+- Test: `tests/XLines.Web.Tests/DeskButtonTests.cs` (rewrite)
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks (pure API change).
@@ -592,10 +592,10 @@ git commit -m "feat(theme): mirror the Apple palette into MudBlazor's C# theme"
 
 - [ ] **Step 1: Write the new enums**
 
-Create `src/LineOps.Web/Components/Desk/DeskEmphasis.cs`:
+Create `src/XLines.Web/Components/Desk/DeskEmphasis.cs`:
 
 ```csharp
-namespace LineOps.Web.Components.Desk;
+namespace XLines.Web.Components.Desk;
 
 /// <summary>
 /// How much visual weight a button claims, following Apple's button hierarchy.
@@ -662,20 +662,20 @@ public enum DeskKeySize
 - [ ] **Step 2: Delete the old enum file**
 
 ```bash
-git rm src/LineOps.Web/Components/Desk/DeskTone.cs
+git rm src/XLines.Web/Components/Desk/DeskTone.cs
 ```
 
 - [ ] **Step 3: Write the failing test**
 
-Replace the entire contents of `tests/LineOps.Web.Tests/DeskButtonTests.cs`:
+Replace the entire contents of `tests/XLines.Web.Tests/DeskButtonTests.cs`:
 
 ```csharp
 using Bunit;
-using LineOps.Web.Components.Desk;
+using XLines.Web.Components.Desk;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// What a button promises, checked at the seam. Per ADR 0016 the caller states two
@@ -914,7 +914,7 @@ public class DeskButtonTests : DeskTestContext
 - [ ] **Step 4: Run the test to verify it fails**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj --filter "FullyQualifiedName~DeskButtonTests"
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj --filter "FullyQualifiedName~DeskButtonTests"
 ```
 
 Expected: compile errors — `DeskEmphasis`, `DeskRole`, and the `Emphasis`/`Role` parameters do not exist.
@@ -924,8 +924,8 @@ Expected: compile errors — `DeskEmphasis`, `DeskRole`, and the `Emphasis`/`Rol
 Replace the whole file:
 
 ```razor
-@namespace LineOps.Web.Components.Desk
-@using LineOps.Web.Components.Windowing
+@namespace XLines.Web.Components.Desk
+@using XLines.Web.Components.Windowing
 
 @*
     TEMPLATE-ABLE — see docs ADR 0016 and .claude/skills/apple-mudblazor.
@@ -939,7 +939,7 @@ Replace the whole file:
     The MudButton underneath is deliberately its plainest variant — Text + Inherit, which
     contributes almost no visual rules of its own — plus Ripple off, because a ripple is
     Material's answer to a press and this system answers with a fast state change instead.
-    Everything the button looks like comes from .desk-btn in lineops.css. See
+    Everything the button looks like comes from .desk-btn in xlines.css. See
     css/mud-bridge.css for why that stack resolves the way it does.
 *@
 
@@ -1035,7 +1035,7 @@ Replace the whole file:
 The app itself will not compile yet — 25 call-site files still pass `Tone`. Run only this test class, which compiles the component in isolation… it will not, because the test project references the whole web project. So expect this step to still fail on call sites, and confirm the failures are *only* about `Tone`/`Quiet` at call sites:
 
 ```bash
-dotnet build src/LineOps.Web/LineOps.Web.csproj 2>&1 | grep -E "error" | head -40
+dotnet build src/XLines.Web/XLines.Web.csproj 2>&1 | grep -E "error" | head -40
 ```
 
 Expected: a list of `CS0117`/`CS1061` errors naming `DeskTone` or `Quiet`, all in the 25 files Task 5 handles. If any error names something else, stop and resolve it before continuing.
@@ -1043,7 +1043,7 @@ Expected: a list of `CS0117`/`CS1061` errors naming `DeskTone` or `Quiet`, all i
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/LineOps.Web/Components/Desk/DeskEmphasis.cs src/LineOps.Web/Components/Desk/DeskTone.cs src/LineOps.Web/Components/Desk/DeskButton.razor tests/LineOps.Web.Tests/DeskButtonTests.cs
+git add src/XLines.Web/Components/Desk/DeskEmphasis.cs src/XLines.Web/Components/Desk/DeskTone.cs src/XLines.Web/Components/Desk/DeskButton.razor tests/XLines.Web.Tests/DeskButtonTests.cs
 git commit -m "feat(desk): replace Tone with Apple's Emphasis x Role button model"
 ```
 
@@ -1054,7 +1054,7 @@ The tree does not build at this commit. That is deliberate and is closed by Task
 ### Task 4: The button recipe in CSS
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — replace the `.desk-key`/`.btn` block (from the "gloss" section comment at ~line 1676 through `.desk-key--on` at ~line 2299; verify exact bounds before editing).
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — replace the `.desk-key`/`.btn` block (from the "gloss" section comment at ~line 1676 through `.desk-key--on` at ~line 2299; verify exact bounds before editing).
 
 **Interfaces:**
 - Consumes: tokens from Task 1; the class contract from Task 3 (`desk-btn`, `--plain|--tinted|--filled`, `--destructive`, `--sm|--lg`, `--icon`, `--busy`).
@@ -1063,13 +1063,13 @@ The tree does not build at this commit. That is deliberate and is closed by Task
 - [ ] **Step 1: Find the exact block bounds**
 
 ```bash
-grep -n "desk-key\|^\.btn\|\.btn[,: ]" src/LineOps.Web/wwwroot/css/lineops.css
+grep -n "desk-key\|^\.btn\|\.btn[,: ]" src/XLines.Web/wwwroot/css/xlines.css
 ```
 
 Record the first line of the section comment introducing the gloss recipe and the last line of the final `.desk-key--*` rule. Also check whether `.btn` shares the recipe:
 
 ```bash
-grep -n "^\.btn" -A 3 src/LineOps.Web/wwwroot/css/lineops.css | head -30
+grep -n "^\.btn" -A 3 src/XLines.Web/wwwroot/css/xlines.css | head -30
 ```
 
 - [ ] **Step 2: Replace the block**
@@ -1237,13 +1237,13 @@ Delete everything between those bounds and insert:
 - [ ] **Step 3: Find and fix orphaned references to deleted classes**
 
 ```bash
-grep -rn "desk-key" src/LineOps.Web/ | grep -v "\.min\."
+grep -rn "desk-key" src/XLines.Web/ | grep -v "\.min\."
 ```
 
 Every hit is either CSS that Step 2 should have removed, or a call site to update. Notable one from the old file: `[data-glide-live] .desk-key--quiet:hover` — rewrite that selector to `[data-glide-live] .desk-btn--plain:hover` keeping its declaration. Another: `.desk-key--on` — check what uses it:
 
 ```bash
-grep -rn "desk-key--on" src/LineOps.Web/
+grep -rn "desk-key--on" src/XLines.Web/
 ```
 
 If it marks a toggled state, rename it to `.desk-btn--on` and restyle it as `--btn-fill: var(--accent-wash); --btn-ink: var(--accent);` so a toggled-on control reads as selected rather than as a separate colour.
@@ -1251,7 +1251,7 @@ If it marks a toggled state, rename it to `.desk-btn--on` and restyle it as `--b
 - [ ] **Step 4: Verify no stale token references remain in the block**
 
 ```bash
-grep -n "ink-900\|ink-800\|ink-700\|ink-600\|ink-500\|ink-400\|--chalk\|--haze\|--steam\|--drift\|--flag\|--iris\|key-tint\|key-ink\|key-lift\|key-sheen\|key-crown" src/LineOps.Web/wwwroot/css/lineops.css | head -40
+grep -n "ink-900\|ink-800\|ink-700\|ink-600\|ink-500\|ink-400\|--chalk\|--haze\|--steam\|--drift\|--flag\|--iris\|key-tint\|key-ink\|key-lift\|key-sheen\|key-crown" src/XLines.Web/wwwroot/css/xlines.css | head -40
 ```
 
 Hits outside the button block are expected at this stage (Task 7 and Phase 2 handle them). Hits *inside* the block you just wrote are a mistake — fix them.
@@ -1259,7 +1259,7 @@ Hits outside the button block are expected at this stage (Task 7 and Phase 2 han
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/LineOps.Web/wwwroot/css/lineops.css
+git add src/XLines.Web/wwwroot/css/xlines.css
 git commit -m "feat(desk): Filled/Tinted/Plain button recipe replaces the gloss cap"
 ```
 
@@ -1297,8 +1297,8 @@ git commit -m "feat(desk): Filled/Tinted/Plain button recipe replaces the gloss 
 | `Components/Desk/RunbookSteps.razor` | 1 |
 | `Components/Desk/RowActions.razor` | 1 |
 
-- Also modify: `src/LineOps.Web/Components/Desk/RowAction.cs` — the `Tone` property.
-- Also create: `src/LineOps.Web/Components/Desk/DeskState.cs` — the `DeskState` enum (see Step 0).
+- Also modify: `src/XLines.Web/Components/Desk/RowAction.cs` — the `Tone` property.
+- Also create: `src/XLines.Web/Components/Desk/DeskState.cs` — the `DeskState` enum (see Step 0).
 - Also modify: `Components/Desk/Tag.razor`, `Components/Desk/Note.razor`, `Components/Desk/Metric.razor`, `Components/Desk/DeskToasts.cs` — migrate from `DeskTone` to `DeskState`.
 
 **Interfaces:**
@@ -1323,10 +1323,10 @@ Task 3 retired `DeskTone` on the assumption it only described buttons. It did no
 
 Mapping these onto `DeskEmphasis`/`DeskRole` would be wrong. A tag has no emphasis; it reports what something *is*. And this is precisely where the design says state colour belongs: hue moves off the controls and onto "numbers, tags, the pulse strip".
 
-So create `src/LineOps.Web/Components/Desk/DeskState.cs`:
+So create `src/XLines.Web/Components/Desk/DeskState.cs`:
 
 ```csharp
-namespace LineOps.Web.Components.Desk;
+namespace XLines.Web.Components.Desk;
 
 /// <summary>
 /// TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
@@ -1385,7 +1385,7 @@ Then update every call site that passes a tone to one of these four components �
 
 - [ ] **Step 1: Change the `RowAction` record, since panels depend on it**
 
-In `src/LineOps.Web/Components/Desk/RowAction.cs`, replace the `Tone` property:
+In `src/XLines.Web/Components/Desk/RowAction.cs`, replace the `Tone` property:
 
 ```csharp
     /// <summary>How much weight this action claims in the row's action bar.</summary>
@@ -1404,7 +1404,7 @@ Work one file at a time, smallest first, so the error count falls visibly. For e
 3. **`Tone="DeskTone.Go"` → usually `Emphasis="DeskEmphasis.Filled"`** when it starts the panel's main work (Ingest, Sync, Run), otherwise `Tinted`. Same one-Filled-per-panel ceiling shared with rule 2 — Go and Action were both "primary" under the old system, which is exactly the over-colouring being removed.
 4. **`Tone="DeskTone.Caution"` → `Emphasis="DeskEmphasis.Tinted"`.** The warning belongs in the confirmation the button opens (Phase 3's `DeskAlert`), not in the button's colour. Where the caution is genuinely about cost, note it in the label ("Backfill 30 days") rather than the hue.
 5. **`Tone="DeskTone.Neutral"` → delete the attribute.** `Plain` is the default.
-6. **`Quiet="true"` → delete the attribute.** Plain already is the quiet button. If the site also set a tone, resolve to `Plain`. Remember trap 1: the compiler will not find these for you. `grep -rn 'Quiet' src/LineOps.Web --include=*.razor` is how you find them, and it currently reports 12 files.
+6. **`Quiet="true"` → delete the attribute.** Plain already is the quiet button. If the site also set a tone, resolve to `Plain`. Remember trap 1: the compiler will not find these for you. `grep -rn 'Quiet' src/XLines.Web --include=*.razor` is how you find them, and it currently reports 12 files.
 
 For `PartsPanel.razor` (28 sites) do not apply these rules — it is the parts catalog and Task 17 rewrites it wholesale. For now, get it compiling with the minimum edit: `Tone="DeskTone.X"` → `Emphasis="DeskEmphasis.Plain"` and drop `Quiet`. Leave a `@* TODO(Task 17): showcase rewrite *@` comment at the top of its buttons section.
 
@@ -1421,7 +1421,7 @@ The file table above counts `Tone=` attributes only. The true `DeskTone` footpri
 - [ ] **Step 4: Build**
 
 ```bash
-dotnet build LineOps.slnx
+dotnet build XLines.slnx
 ```
 
 Expected: build succeeds with no errors.
@@ -1429,7 +1429,7 @@ Expected: build succeeds with no errors.
 - [ ] **Step 5: Run the full test suite**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj
 ```
 
 Expected: all pass. `RowActionsTests.cs` likely asserts on the old `Tone` property — update its assertions to `Emphasis`/`Role` to match the record change, keeping each test's intent.
@@ -1437,7 +1437,7 @@ Expected: all pass. `RowActionsTests.cs` likely asserts on the old `Tone` proper
 - [ ] **Step 6: Audit the Filled count**
 
 ```bash
-grep -rc "DeskEmphasis.Filled" src/LineOps.Web/Components/Panels/*.razor | grep -v ':0'
+grep -rc "DeskEmphasis.Filled" src/XLines.Web/Components/Panels/*.razor | grep -v ':0'
 ```
 
 Any panel with more than one Filled needs a second look — that is rule 2 being violated. Fix before committing.
@@ -1445,7 +1445,7 @@ Any panel with more than one Filled needs a second look — that is rule 2 being
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/LineOps.Web/Components src/LineOps.Web/Components/Desk/RowAction.cs tests/LineOps.Web.Tests
+git add src/XLines.Web/Components src/XLines.Web/Components/Desk/RowAction.cs tests/XLines.Web.Tests
 git commit -m "refactor(desk): re-judge every button call site against the new hierarchy"
 ```
 
@@ -1454,7 +1454,7 @@ git commit -m "refactor(desk): re-judge every button call site against the new h
 ### Task 6: Rewrite the MudBlazor bridge
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/mud-bridge.css` (481 lines — the token-remapping section is rewritten; the "Material tells" section is audited)
+- Modify: `src/XLines.Web/wwwroot/css/mud-bridge.css` (481 lines — the token-remapping section is rewritten; the "Material tells" section is audited)
 
 **Interfaces:**
 - Consumes: every token from Task 1.
@@ -1537,7 +1537,7 @@ Keep the file's header comment (it explains the seam and the load order, both st
 The file's second half removes hard-coded Material tells. Read it in full and update each rule to the new tokens:
 
 ```bash
-sed -n '100,481p' src/LineOps.Web/wwwroot/css/mud-bridge.css
+sed -n '100,481p' src/XLines.Web/wwwroot/css/mud-bridge.css
 ```
 
 For each rule: if it references a deleted token (`--ink-*`, `--chalk`, `--haze`, `--steam`, `--drift`, `--flag`, `--iris`, `--radius-lg`, `--shadow-win`, `--shadow-float`, `--face-data` as a distinct family, `--ease-marble`, `--ease-glide`, `--dur-marble`, `--dur-glide`), re-point it:
@@ -1562,8 +1562,8 @@ For each rule: if it references a deleted token (`--ink-*`, `--chalk`, `--haze`,
 | `--ease-glide` | `--ease-standard` |
 | `--dur-marble` | `--dur-base` |
 | `--dur-glide` | `--dur-fast` |
-| `--key-ink` | `--btn-ink` (set by the recipe in `lineops.css`) |
-| `--key-tint` | `--btn-fill` (set by the recipe in `lineops.css`) |
+| `--key-ink` | `--btn-ink` (set by the recipe in `xlines.css`) |
+| `--key-tint` | `--btn-fill` (set by the recipe in `xlines.css`) |
 | `.desk-key` | `.desk-btn` |
 
 Delete outright any rule whose only job was flattening a Material shadow into the old hard, short desk shadow — the new elevation ramp above already produces soft Apple shadows, so those rules now fight the system rather than serve it.
@@ -1575,10 +1575,10 @@ Delete outright any rule whose only job was flattening a Material shadow into th
 The file currently carries three rules whose only job is stopping MudBlazor from overriding the desk's own button styling. They still name `.desk-key` and the retired `--key-ink` / `--key-tint`:
 
 ```bash
-grep -n "desk-key" src/LineOps.Web/wwwroot/css/mud-bridge.css
+grep -n "desk-key" src/XLines.Web/wwwroot/css/mud-bridge.css
 ```
 
-**Why these cannot simply be deleted:** MudBlazor renders `Variant.Text` + `Color.Inherit` with `class="mud-button-text mud-button-text-inherit"`, and its stylesheet has `.mud-button-text.mud-button-text-inherit { color: inherit; }` — a compound selector with specificity 0,2,0. The new recipe in `lineops.css` sets `color: var(--btn-ink)` on the bare `.desk-btn, .btn` selector, specificity 0,1,0. **Specificity is compared before source order, so MudBlazor wins and every button loses its ink colour.** This is exactly the problem the `.desk-key` versions of these rules were written to solve; the rename does not make it go away.
+**Why these cannot simply be deleted:** MudBlazor renders `Variant.Text` + `Color.Inherit` with `class="mud-button-text mud-button-text-inherit"`, and its stylesheet has `.mud-button-text.mud-button-text-inherit { color: inherit; }` — a compound selector with specificity 0,2,0. The new recipe in `xlines.css` sets `color: var(--btn-ink)` on the bare `.desk-btn, .btn` selector, specificity 0,1,0. **Specificity is compared before source order, so MudBlazor wins and every button loses its ink colour.** This is exactly the problem the `.desk-key` versions of these rules were written to solve; the rename does not make it go away.
 
 Rewrite all three for the new class and custom properties:
 
@@ -1600,22 +1600,22 @@ On the hover rule specifically: the new recipe already changes `--btn-fill` on h
 - [ ] **Step 3: Verify the constraint holds**
 
 ```bash
-grep -n "important" src/LineOps.Web/wwwroot/css/mud-bridge.css
+grep -n "important" src/XLines.Web/wwwroot/css/mud-bridge.css
 ```
 
 Expected: no output. If a rule needs `!important`, the bridge is the wrong place — raise specificity or move it.
 
 ```bash
-grep -nE "#[0-9A-Fa-f]{3,8}\b|rgba?\(" src/LineOps.Web/wwwroot/css/mud-bridge.css
+grep -nE "#[0-9A-Fa-f]{3,8}\b|rgba?\(" src/XLines.Web/wwwroot/css/mud-bridge.css
 ```
 
-Expected: no output. Colours resolve through tokens; literals belong in `lineops.css`.
+Expected: no output. Colours resolve through tokens; literals belong in `xlines.css`.
 
 - [ ] **Step 4: Build and commit**
 
 ```bash
-dotnet build LineOps.slnx
-git add src/LineOps.Web/wwwroot/css/mud-bridge.css
+dotnet build XLines.slnx
+git add src/XLines.Web/wwwroot/css/mud-bridge.css
 git commit -m "feat(theme): re-point the MudBlazor bridge at the Apple tokens"
 ```
 
@@ -1624,9 +1624,9 @@ git commit -m "feat(theme): re-point the MudBlazor bridge at the Apple tokens"
 ### Task 7: Fields, switches, and selects
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — the `.field` block (~lines 1878–1972) and the switch block.
-- Modify: `src/LineOps.Web/Components/Desk/DeskSwitch.razor` if its markup cannot carry the pill (check first).
-- Test: `tests/LineOps.Web.Tests/DeskSwitchTests.cs` — keep green.
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — the `.field` block (~lines 1878–1972) and the switch block.
+- Modify: `src/XLines.Web/Components/Desk/DeskSwitch.razor` if its markup cannot carry the pill (check first).
+- Test: `tests/XLines.Web.Tests/DeskSwitchTests.cs` — keep green.
 
 **Interfaces:**
 - Consumes: tokens from Task 1, focus ring from Task 4's convention.
@@ -1736,8 +1736,8 @@ Note the old block set `.field-lbl` uppercase with tracking — that goes, per t
 **Read the component before writing any CSS:**
 
 ```bash
-cat src/LineOps.Web/Components/Desk/DeskSwitch.razor
-grep -n "gate\|marble" src/LineOps.Web/wwwroot/css/lineops.css | head -30
+cat src/XLines.Web/Components/Desk/DeskSwitch.razor
+grep -n "gate\|marble" src/XLines.Web/wwwroot/css/xlines.css | head -30
 ```
 
 `DeskSwitch` is **not** a binary on/off switch. It is a `role="radiogroup"` holding 2–5 fixed positions — a market, a lookback window, a layout mode — with a "marble" cap that slides along a channel to the selected one. Its Apple counterpart is therefore the **segmented control**, not the iOS pill switch. Do not restyle it as a pill; that would be the wrong control entirely.
@@ -1821,7 +1821,7 @@ If the old block styles anything these rules do not cover (a divider between pos
 - [ ] **Step 3: Run the tests**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj
 ```
 
 Expected: all pass, including `DeskSwitchTests`. These assert markup semantics, not CSS, so a pure restyle should not move them. If one fails, the component's markup changed when it should not have — revert that part.
@@ -1830,7 +1830,7 @@ Expected: all pass, including `DeskSwitchTests`. These assert markup semantics, 
 
 Start the preview and check the parts catalog renders with the new controls:
 
-- `preview_start` with the dev server config (create `.claude/launch.json` if absent, with `dotnet` / `["run","--project","src/LineOps.Web"]` and the port from `launchSettings.json`).
+- `preview_start` with the dev server config (create `.claude/launch.json` if absent, with `dotnet` / `["run","--project","src/XLines.Web"]` and the port from `launchSettings.json`).
 - Navigate to the desk, open the **Parts** window.
 - `read_console_messages` — expect no errors.
 - Take a screenshot for the record.
@@ -1840,7 +1840,7 @@ Known measurement trap from ADR 0008: a browser tab that is not compositing does
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/LineOps.Web/wwwroot/css/lineops.css src/LineOps.Web/Components/Desk/DeskSwitch.razor
+git add src/XLines.Web/wwwroot/css/xlines.css src/XLines.Web/Components/Desk/DeskSwitch.razor
 git commit -m "feat(desk): inset fields and a platform switch"
 ```
 
@@ -1851,8 +1851,8 @@ git commit -m "feat(desk): inset fields and a platform switch"
 ### Task 8: Window chrome, rail, header, footer
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — shell, header, footer, rail, `.win`/`.win__bar`/`.win__ctl` blocks.
-- Modify: `src/LineOps.Web/Components/Windowing/WindowBar.razor` only if the close/minimise controls need different markup.
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — shell, header, footer, rail, `.win`/`.win__bar`/`.win__ctl` blocks.
+- Modify: `src/XLines.Web/Components/Windowing/WindowBar.razor` only if the close/minimise controls need different markup.
 
 **Interfaces:**
 - Consumes: material tokens, `--radius-panel`, `--shadow-3`, `--titlebar-h`, `--rail-size`.
@@ -1861,7 +1861,7 @@ git commit -m "feat(desk): inset fields and a platform switch"
 - [ ] **Step 1: Locate the blocks**
 
 ```bash
-grep -n "^\.hdr\|^\.ftr\|^\.rail\|^\.win\b\|^\.win__\|^\.shell" src/LineOps.Web/wwwroot/css/lineops.css
+grep -n "^\.hdr\|^\.ftr\|^\.rail\|^\.win\b\|^\.win__\|^\.shell" src/XLines.Web/wwwroot/css/xlines.css
 ```
 
 - [ ] **Step 2: Apply the chrome rules**
@@ -1890,7 +1890,7 @@ Expected: a non-`none` value containing `blur`.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/LineOps.Web/wwwroot/css/lineops.css src/LineOps.Web/Components/Windowing
+git add src/XLines.Web/wwwroot/css/xlines.css src/XLines.Web/Components/Windowing
 git commit -m "feat(desk): materials and macOS proportions on the window chrome"
 ```
 
@@ -1899,8 +1899,8 @@ git commit -m "feat(desk): materials and macOS proportions on the window chrome"
 ### Task 9: Grids and tables
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — grid/table/row blocks.
-- Modify: `src/LineOps.Web/wwwroot/css/mud-bridge.css` — `MudDataGrid`/`MudTable` rules, if present.
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — grid/table/row blocks.
+- Modify: `src/XLines.Web/wwwroot/css/mud-bridge.css` — `MudDataGrid`/`MudTable` rules, if present.
 
 **Interfaces:**
 - Consumes: tokens from Task 1.
@@ -1909,7 +1909,7 @@ git commit -m "feat(desk): materials and macOS proportions on the window chrome"
 - [ ] **Step 1: Locate the blocks**
 
 ```bash
-grep -n "^\.grid\|^\.row\|^\.dg\|mud-table\|mud-datagrid" src/LineOps.Web/wwwroot/css/lineops.css src/LineOps.Web/wwwroot/css/mud-bridge.css
+grep -n "^\.grid\|^\.row\|^\.dg\|mud-table\|mud-datagrid" src/XLines.Web/wwwroot/css/xlines.css src/XLines.Web/wwwroot/css/mud-bridge.css
 ```
 
 - [ ] **Step 2: Apply the list rules**
@@ -1929,12 +1929,12 @@ Open a data-dense window (Board or History), screenshot, and confirm row rhythm 
 getComputedStyle(document.querySelector('.grid td, .row')).color
 ```
 
-Compute the contrast ratio of `--text-secondary` (white at 55%) composited over `--surface-1` (`#232326`). If it lands below 4.5:1 for body-size text, raise `--text-secondary` in `lineops.css` — adjust the token, never the component — and note the new value so Task 2's `DeskThemeTests` stays honest.
+Compute the contrast ratio of `--text-secondary` (white at 55%) composited over `--surface-1` (`#232326`). If it lands below 4.5:1 for body-size text, raise `--text-secondary` in `xlines.css` — adjust the token, never the component — and note the new value so Task 2's `DeskThemeTests` stays honest.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/LineOps.Web/wwwroot/css/lineops.css src/LineOps.Web/wwwroot/css/mud-bridge.css
+git add src/XLines.Web/wwwroot/css/xlines.css src/XLines.Web/wwwroot/css/mud-bridge.css
 git commit -m "feat(desk): macOS-list density for grids and tables"
 ```
 
@@ -1943,13 +1943,13 @@ git commit -m "feat(desk): macOS-list density for grids and tables"
 ### Task 10: Display primitives, and the residual token sweep
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — the blocks behind `Tag.razor`, `DeskProgress.razor`, `DeskSkeleton.razor`, `EmptyState.razor`, `Note.razor`, `Metric.razor`, `MetricRow.razor`, `PriceCell.razor`, **plus every remaining block still using retired tokens** — the runbook, the launcher, the `.glide-plate` hover system, and whatever residue Tasks 8 and 9 leave behind.
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — the blocks behind `Tag.razor`, `DeskProgress.razor`, `DeskSkeleton.razor`, `EmptyState.razor`, `Note.razor`, `Metric.razor`, `MetricRow.razor`, `PriceCell.razor`, **plus every remaining block still using retired tokens** — the runbook, the launcher, the `.glide-plate` hover system, and whatever residue Tasks 8 and 9 leave behind.
 
 **Interfaces:**
 - Consumes: tokens from Task 1.
 - Produces: restyled display primitives; no API changes.
 
-**This task is also the catch-all**, and that is a bigger job than its title suggests. Tasks 4, 6, 7, 8 and 9 each own a named region; every remaining block in `lineops.css` that still speaks the retired vocabulary is yours. As of Task 8 that is roughly 200 lines across these sections, none of which any other task claims:
+**This task is also the catch-all**, and that is a bigger job than its title suggests. Tasks 4, 6, 7, 8 and 9 each own a named region; every remaining block in `xlines.css` that still speaks the retired vocabulary is yours. As of Task 8 that is roughly 200 lines across these sections, none of which any other task claims:
 
 | Section | Retired-token lines | Notes |
 |---|---|---|
@@ -1962,7 +1962,7 @@ git commit -m "feat(desk): macOS-list density for grids and tables"
 Take an inventory before you start, so you are working from the real number rather than this estimate:
 
 ```bash
-grep -cE "\-\-(ink-[0-9]+|chalk|haze|steam|drift|flag|iris|radius-lg|shadow-win|shadow-float|ease-marble|ease-glide|dur-marble|dur-glide|face-data)\b" src/LineOps.Web/wwwroot/css/lineops.css
+grep -cE "\-\-(ink-[0-9]+|chalk|haze|steam|drift|flag|iris|radius-lg|shadow-win|shadow-float|ease-marble|ease-glide|dur-marble|dur-glide|face-data)\b" src/XLines.Web/wwwroot/css/xlines.css
 ```
 
 For every block outside the five named in Step 1, the work is a faithful re-point using Task 6's mapping table, not a redesign — you are finishing a migration, not restyling a subsystem nobody asked you to touch. Two judgment calls recur:
@@ -1986,7 +1986,7 @@ For every block outside the five named in Step 1, the work is a faithful re-poin
 - [ ] **Step 2: Confirm no deleted tokens survive anywhere**
 
 ```bash
-grep -nE "\-\-(ink-[0-9]+|chalk|haze|haze-dim|steam|drift|flag|iris)(-dim)?\b" src/LineOps.Web/wwwroot/css/*.css
+grep -nE "\-\-(ink-[0-9]+|chalk|haze|haze-dim|steam|drift|flag|iris)(-dim)?\b" src/XLines.Web/wwwroot/css/*.css
 ```
 
 Expected: no output. Any hit is a block missed by Tasks 4, 6, 7, 8, 9, or this one — fix it now.
@@ -1994,7 +1994,7 @@ Expected: no output. Any hit is a block missed by Tasks 4, 6, 7, 8, 9, or this o
 - [ ] **Step 3: Run tests, verify in browser, commit**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj
 ```
 
 Expected: all pass (`PriceCellTests` asserts markup, not colour).
@@ -2002,7 +2002,7 @@ Expected: all pass (`PriceCellTests` asserts markup, not colour).
 Screenshot the Parts window and one panel showing tags and metrics.
 
 ```bash
-git add src/LineOps.Web/wwwroot/css/lineops.css
+git add src/XLines.Web/wwwroot/css/xlines.css
 git commit -m "feat(desk): capsules, shimmer skeletons, and quiet empty states"
 ```
 
@@ -2011,7 +2011,7 @@ git commit -m "feat(desk): capsules, shimmer skeletons, and quiet empty states"
 ### Task 11: The pulse strip
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — pulse block.
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — pulse block.
 
 **Interfaces:**
 - Consumes: `--state-positive`, `--state-negative`, `--state-warning`, `--accent`, motion tokens.
@@ -2020,7 +2020,7 @@ git commit -m "feat(desk): capsules, shimmer skeletons, and quiet empty states"
 - [ ] **Step 1: Locate and recolour**
 
 ```bash
-grep -n "pulse" src/LineOps.Web/wwwroot/css/lineops.css | head -20
+grep -n "pulse" src/XLines.Web/wwwroot/css/xlines.css | head -20
 ```
 
 ADR 0007 gave the pulse strip permission to be the desk's one loud element and that permission survives. Map its hues onto the new semantic set (`--steam` → `--state-positive`, `--drift` → `--state-negative`, `--flag` → `--state-warning`, `--iris` → `--accent`) and re-point its easing to `--ease-standard` at `--dur-base`. Do not tone it down — it is the exception the system is built around, and it is the only place the desk animates continuously.
@@ -2030,13 +2030,13 @@ ADR 0007 gave the pulse strip permission to be the desk's one loud element and t
 The global block from Task 1 already neutralises it, but verify the strip does not use an inline `style` animation that bypasses CSS:
 
 ```bash
-grep -rn "animation" src/LineOps.Web/Components/Windowing/DeskFooter.razor src/LineOps.Web/Components/Windowing/DeskHeader.razor
+grep -rn "animation" src/XLines.Web/Components/Windowing/DeskFooter.razor src/XLines.Web/Components/Windowing/DeskHeader.razor
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/LineOps.Web/wwwroot/css/lineops.css
+git add src/XLines.Web/wwwroot/css/xlines.css
 git commit -m "feat(desk): recolour the pulse strip to the semantic set"
 ```
 
@@ -2047,8 +2047,8 @@ git commit -m "feat(desk): recolour the pulse strip to the semantic set"
 ### Task 12: DeskDialog as an Apple utility window
 
 **Files:**
-- Modify: `src/LineOps.Web/Components/Desk/DeskDialog.razor` — class names and chrome only; drag/cascade/raise logic is untouched.
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — `.deskdialog*` block.
+- Modify: `src/XLines.Web/Components/Desk/DeskDialog.razor` — class names and chrome only; drag/cascade/raise logic is untouched.
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — `.deskdialog*` block.
 
 **Interfaces:**
 - Consumes: `--material-thick`, `--material-blur`, `--radius-sheet`, `--shadow-sheet`, motion tokens.
@@ -2057,7 +2057,7 @@ git commit -m "feat(desk): recolour the pulse strip to the semantic set"
 - [ ] **Step 1: Restyle the CSS**
 
 ```bash
-grep -n "deskdialog" src/LineOps.Web/wwwroot/css/lineops.css
+grep -n "deskdialog" src/XLines.Web/wwwroot/css/xlines.css
 ```
 
 Give `.deskdialog` `background: var(--material-thick)`, `backdrop-filter: var(--material-blur)`, `border-radius: var(--radius-sheet)`, `box-shadow: var(--shadow-sheet)`, and a `1px solid var(--separator)` hairline (a floating surface is the one place a hairline edge earns its place — it separates the material from whatever it floats over). `.deskdialog__bar` becomes transparent over the material with the title in `--text-headline`/`--weight-semibold`. Add an entrance:
@@ -2080,13 +2080,13 @@ Add the `@supports not (backdrop-filter: blur(1px))` fallback to `--surface-2`.
 Reload the preview, open a row drill-down that spawns a floating dialog, drag it by its bar, and confirm it moves and raises. The JS module (`js/dialogs.js`) is untouched, so a failure here means a class name the module selects on was renamed — check:
 
 ```bash
-grep -n "querySelector\|classList" src/LineOps.Web/wwwroot/js/dialogs.js
+grep -n "querySelector\|classList" src/XLines.Web/wwwroot/js/dialogs.js
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/LineOps.Web/Components/Desk/DeskDialog.razor src/LineOps.Web/wwwroot/css/lineops.css
+git add src/XLines.Web/Components/Desk/DeskDialog.razor src/XLines.Web/wwwroot/css/xlines.css
 git commit -m "feat(desk): float the dialog on a thick material"
 ```
 
@@ -2095,9 +2095,9 @@ git commit -m "feat(desk): float the dialog on a thick material"
 ### Task 13: DeskSheet
 
 **Files:**
-- Create: `src/LineOps.Web/Components/Desk/DeskSheet.razor`
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — `.desk-sheet` block.
-- Test: `tests/LineOps.Web.Tests/DeskSheetTests.cs` (create)
+- Create: `src/XLines.Web/Components/Desk/DeskSheet.razor`
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — `.desk-sheet` block.
+- Test: `tests/XLines.Web.Tests/DeskSheetTests.cs` (create)
 
 **Interfaces:**
 - Consumes: `DeskButton` (Task 3), tokens.
@@ -2105,15 +2105,15 @@ git commit -m "feat(desk): float the dialog on a thick material"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/LineOps.Web.Tests/DeskSheetTests.cs`:
+Create `tests/XLines.Web.Tests/DeskSheetTests.cs`:
 
 ```csharp
 using Bunit;
-using LineOps.Web.Components.Desk;
+using XLines.Web.Components.Desk;
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// A sheet is for a task that is self-contained and whose only goal is completing it.
@@ -2214,18 +2214,18 @@ Add the DI using at the top if the analyzer asks: `using Microsoft.Extensions.De
 - [ ] **Step 2: Run the test to verify it fails**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj --filter "FullyQualifiedName~DeskSheetTests"
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj --filter "FullyQualifiedName~DeskSheetTests"
 ```
 
 Expected: compile error — `DeskSheet` does not exist.
 
 - [ ] **Step 3: Write the component**
 
-Create `src/LineOps.Web/Components/Desk/DeskSheet.razor`:
+Create `src/XLines.Web/Components/Desk/DeskSheet.razor`:
 
 ```razor
-@namespace LineOps.Web.Components.Desk
-@using LineOps.Web.Components.Windowing
+@namespace XLines.Web.Components.Desk
+@using XLines.Web.Components.Windowing
 
 @*
     TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
@@ -2320,7 +2320,7 @@ The surface itself — material, radius, shadow, entrance — is styled in Step 
 
 - [ ] **Step 4: Add the CSS**
 
-Append to `lineops.css`:
+Append to `xlines.css`:
 
 ```css
 /* -------------------------------------------------------------------- sheet ---
@@ -2397,7 +2397,7 @@ Append to `lineops.css`:
 - [ ] **Step 5: Run the tests to verify they pass**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj --filter "FullyQualifiedName~DeskSheetTests"
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj --filter "FullyQualifiedName~DeskSheetTests"
 ```
 
 Expected: PASS. If `RenderInDialog` fights bUnit's rendering, simplify: render `DeskSheet` directly with a `CascadingValue<IMudDialogInstance>` of a test double instead of going through `IDialogService`, and keep every assertion identical.
@@ -2405,7 +2405,7 @@ Expected: PASS. If `RenderInDialog` fights bUnit's rendering, simplify: render `
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/LineOps.Web/Components/Desk/DeskSheet.razor src/LineOps.Web/wwwroot/css/lineops.css tests/LineOps.Web.Tests/DeskSheetTests.cs
+git add src/XLines.Web/Components/Desk/DeskSheet.razor src/XLines.Web/wwwroot/css/xlines.css tests/XLines.Web.Tests/DeskSheetTests.cs
 git commit -m "feat(desk): add DeskSheet for self-contained modal tasks"
 ```
 
@@ -2414,11 +2414,11 @@ git commit -m "feat(desk): add DeskSheet for self-contained modal tasks"
 ### Task 14: DeskAlert and the alerts service
 
 **Files:**
-- Create: `src/LineOps.Web/Components/Desk/DeskAlert.razor`
-- Create: `src/LineOps.Web/Components/Desk/DeskAlerts.cs`
-- Modify: `src/LineOps.Web/Program.cs` — register the service.
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — `.desk-alert` block.
-- Test: `tests/LineOps.Web.Tests/DeskAlertTests.cs` (create)
+- Create: `src/XLines.Web/Components/Desk/DeskAlert.razor`
+- Create: `src/XLines.Web/Components/Desk/DeskAlerts.cs`
+- Modify: `src/XLines.Web/Program.cs` — register the service.
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — `.desk-alert` block.
+- Test: `tests/XLines.Web.Tests/DeskAlertTests.cs` (create)
 
 **Interfaces:**
 - Consumes: `DeskButton`, `DeskEmphasis`, `DeskRole`, `IDialogService`.
@@ -2429,13 +2429,13 @@ git commit -m "feat(desk): add DeskSheet for self-contained modal tasks"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/LineOps.Web.Tests/DeskAlertTests.cs`:
+Create `tests/XLines.Web.Tests/DeskAlertTests.cs`:
 
 ```csharp
 using Bunit;
-using LineOps.Web.Components.Desk;
+using XLines.Web.Components.Desk;
 
-namespace LineOps.Web.Tests;
+namespace XLines.Web.Tests;
 
 /// <summary>
 /// An alert is the narrowest modal there is: the operator must decide before anything
@@ -2518,17 +2518,17 @@ public class DeskAlertTests : DeskTestContext
 - [ ] **Step 2: Run the test to verify it fails**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj --filter "FullyQualifiedName~DeskAlertTests"
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj --filter "FullyQualifiedName~DeskAlertTests"
 ```
 
 Expected: compile error — `DeskAlert` does not exist.
 
 - [ ] **Step 3: Write the component**
 
-Create `src/LineOps.Web/Components/Desk/DeskAlert.razor`:
+Create `src/XLines.Web/Components/Desk/DeskAlert.razor`:
 
 ```razor
-@namespace LineOps.Web.Components.Desk
+@namespace XLines.Web.Components.Desk
 
 @*
     TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
@@ -2596,12 +2596,12 @@ Create `src/LineOps.Web/Components/Desk/DeskAlert.razor`:
 
 - [ ] **Step 4: Write the service**
 
-Create `src/LineOps.Web/Components/Desk/DeskAlerts.cs`:
+Create `src/XLines.Web/Components/Desk/DeskAlerts.cs`:
 
 ```csharp
 using MudBlazor;
 
-namespace LineOps.Web.Components.Desk;
+namespace XLines.Web.Components.Desk;
 
 /// <summary>
 /// TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
@@ -2668,13 +2668,13 @@ public sealed class DeskAlerts(IDialogService dialogs) : IDeskAlerts
 
 - [ ] **Step 5: Register the service**
 
-In `src/LineOps.Web/Program.cs`, beside the existing MudBlazor registration:
+In `src/XLines.Web/Program.cs`, beside the existing MudBlazor registration:
 
 ```csharp
 builder.Services.AddScoped<IDeskAlerts, DeskAlerts>();
 ```
 
-Add `using LineOps.Web.Components.Desk;` if it is not already there. Scoped is correct — a Blazor Server circuit is a scope, and the service holds per-circuit dialog state.
+Add `using XLines.Web.Components.Desk;` if it is not already there. Scoped is correct — a Blazor Server circuit is a scope, and the service holds per-circuit dialog state.
 
 - [ ] **Step 6: Add the CSS**
 
@@ -2717,7 +2717,7 @@ Add `using LineOps.Web.Components.Desk;` if it is not already there. Scoped is c
 - [ ] **Step 7: Run the tests to verify they pass**
 
 ```bash
-dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj --filter "FullyQualifiedName~DeskAlertTests"
+dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj --filter "FullyQualifiedName~DeskAlertTests"
 ```
 
 Expected: PASS.
@@ -2727,7 +2727,7 @@ Expected: PASS.
 Find anything currently confirming inline:
 
 ```bash
-grep -rn "confirm\|Confirm" src/LineOps.Web/Components --include=*.razor --include=*.cs | grep -vi "confirmLabel\|DeskAlert\|IDeskAlerts"
+grep -rn "confirm\|Confirm" src/XLines.Web/Components --include=*.razor --include=*.cs | grep -vi "confirmLabel\|DeskAlert\|IDeskAlerts"
 ```
 
 For each hit that guards a destructive or irreversible action, replace it with an injected `IDeskAlerts` call:
@@ -2750,8 +2750,8 @@ If no such flows exist yet, skip this step and note it — the service is still 
 - [ ] **Step 9: Build, test, commit**
 
 ```bash
-dotnet build LineOps.slnx && dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj
-git add src/LineOps.Web/Components/Desk/DeskAlert.razor src/LineOps.Web/Components/Desk/DeskAlerts.cs src/LineOps.Web/Program.cs src/LineOps.Web/wwwroot/css/lineops.css tests/LineOps.Web.Tests/DeskAlertTests.cs
+dotnet build XLines.slnx && dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj
+git add src/XLines.Web/Components/Desk/DeskAlert.razor src/XLines.Web/Components/Desk/DeskAlerts.cs src/XLines.Web/Program.cs src/XLines.Web/wwwroot/css/xlines.css tests/XLines.Web.Tests/DeskAlertTests.cs
 git commit -m "feat(desk): add DeskAlert and a one-line confirm service"
 ```
 
@@ -2760,8 +2760,8 @@ git commit -m "feat(desk): add DeskAlert and a one-line confirm service"
 ### Task 15: PullMenu as an anchored popover
 
 **Files:**
-- Modify: `src/LineOps.Web/Components/Desk/PullMenu.razor`
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — `.pullmenu` block.
+- Modify: `src/XLines.Web/Components/Desk/PullMenu.razor`
+- Modify: `src/XLines.Web/wwwroot/css/xlines.css` — `.pullmenu` block.
 
 **Interfaces:**
 - Consumes: `--material-regular`, `--radius-panel`, `--shadow-3`, motion tokens.
@@ -2770,7 +2770,7 @@ git commit -m "feat(desk): add DeskAlert and a one-line confirm service"
 - [ ] **Step 1: Restyle**
 
 ```bash
-grep -n "pullmenu\|pull-menu" src/LineOps.Web/wwwroot/css/lineops.css
+grep -n "pullmenu\|pull-menu" src/XLines.Web/wwwroot/css/xlines.css
 ```
 
 The surface becomes `--material-regular` + `var(--material-blur)`, `border-radius: var(--radius-panel)`, `box-shadow: var(--shadow-3)`, `1px solid var(--separator)`. Items are `--text-body`, `--text-primary`, 26px tall, with `--space-2` horizontal padding; hover is `--accent-wash` with `--accent` text — the platform's own menu highlight. A selected item shows a leading checkmark glyph rather than a changed background. A destructive item takes `--state-negative` text and a `--state-negative-wash` hover.
@@ -2792,7 +2792,7 @@ Add the anchored entrance, which is what makes a popover read as coming *out of*
 Commit 1243c55 already opens the Workspaces menu inward from the right edge, so the component knows which side it is on — set `--pullmenu-origin` inline from that same decision rather than hard-coding `top right`. Read the component to find where it makes the choice:
 
 ```bash
-grep -n "right\|left\|edge\|inward" src/LineOps.Web/Components/Desk/PullMenu.razor
+grep -n "right\|left\|edge\|inward" src/XLines.Web/Components/Desk/PullMenu.razor
 ```
 
 - [ ] **Step 2: Verify in the browser**
@@ -2802,7 +2802,7 @@ Open the desk, click the Workspaces menu, screenshot it open, and confirm it sca
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/LineOps.Web/Components/Desk/PullMenu.razor src/LineOps.Web/wwwroot/css/lineops.css
+git add src/XLines.Web/Components/Desk/PullMenu.razor src/XLines.Web/wwwroot/css/xlines.css
 git commit -m "feat(desk): menus become anchored popovers on a material"
 ```
 
@@ -2819,10 +2819,10 @@ git commit -m "feat(desk): menus become anchored popovers on a material"
 
 - [ ] **Step 0a: Retired tokens hiding in markup — these are live defects**
 
-Task 10 drove `lineops.css` to zero retired tokens, but the sweep only ever looked at stylesheets. **Retired tokens also live in inline `style=` attributes and in style strings emitted from C#**, where no CSS grep would find them. Each one resolves to nothing, so the declaration is dropped and the element renders unstyled.
+Task 10 drove `xlines.css` to zero retired tokens, but the sweep only ever looked at stylesheets. **Retired tokens also live in inline `style=` attributes and in style strings emitted from C#**, where no CSS grep would find them. Each one resolves to nothing, so the declaration is dropped and the element renders unstyled.
 
 ```bash
-grep -rnE "\-\-(ink-[0-9]+|chalk|haze|steam|drift|flag|iris|radius-lg|shadow-win|shadow-float|ease-marble|ease-glide|dur-marble|dur-glide|face-data)\b" src/LineOps.Web --include=*.razor --include=*.cs
+grep -rnE "\-\-(ink-[0-9]+|chalk|haze|steam|drift|flag|iris|radius-lg|shadow-win|shadow-float|ease-marble|ease-glide|dur-marble|dur-glide|face-data)\b" src/XLines.Web --include=*.razor --include=*.cs
 ```
 
 Eight live sites, all needing the mapping table:
@@ -2861,7 +2861,7 @@ Then fix the stale prose the type-grep could not see:
 Search for the retired vocabulary generally:
 
 ```bash
-grep -rni "iris\|steam\|drift\|\bflag\b\|chalk\|haze\|gloss\|moulded\|the dial" src/LineOps.Web --include=*.razor --include=*.cs
+grep -rni "iris\|steam\|drift\|\bflag\b\|chalk\|haze\|gloss\|moulded\|the dial" src/XLines.Web --include=*.razor --include=*.cs
 ```
 
 Judge each hit. Some are legitimate domain words — a betting console may well have a `Flag` that means a flag. You are looking for the ones describing the retired *visual* system.
@@ -2914,7 +2914,7 @@ git commit -m "docs: ADR 0016 records the Apple-feel design system"
 ### Task 17: PartsPanel showcase
 
 **Files:**
-- Modify: `src/LineOps.Web/Components/Panels/PartsPanel.razor`
+- Modify: `src/XLines.Web/Components/Panels/PartsPanel.razor`
 
 **Interfaces:**
 - Consumes: every component from Phases 1–3.
@@ -2944,7 +2944,7 @@ Reload the preview, open the Parts window, screenshot each section. Click all th
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/LineOps.Web/Components/Panels/PartsPanel.razor
+git add src/XLines.Web/Components/Panels/PartsPanel.razor
 git commit -m "docs(desk): rebuild the parts catalog around the new system"
 ```
 
@@ -2969,16 +2969,16 @@ git commit -m "docs(desk): rebuild the parts catalog around the new system"
 - Create: `.claude/skills/apple-mudblazor/templates/fonts/README.md`
 
 **Interfaces:**
-- Consumes: the shipped LineOps files, which are the source of truth. Templates are generalizations of files that actually work — not fresh authoring.
+- Consumes: the shipped XLines files, which are the source of truth. Templates are generalizations of files that actually work — not fresh authoring.
 - Produces: a skill a lower model can invoke and apply to any MudBlazor project.
 
 - [ ] **Step 1: Confirm what is template-able, and fix the markers that are missing**
 
 ```bash
-grep -rln "TEMPLATE-ABLE" src/LineOps.Web/
+grep -rln "TEMPLATE-ABLE" src/XLines.Web/
 ```
 
-Every file marked in Phases 1–3 gets a template. Anything not marked stays in LineOps.
+Every file marked in Phases 1–3 gets a template. Anything not marked stays in XLines.
 
 **Two known gaps to close before you extract anything**, both found during Task 5's review:
 
@@ -3067,18 +3067,18 @@ Each generalizes what shipped. Do not invent new guidance here — every rule mu
 
 - [ ] **Step 4: Generalize the templates**
 
-Copy each `TEMPLATE-ABLE` file and mechanically strip LineOps from it:
+Copy each `TEMPLATE-ABLE` file and mechanically strip XLines from it:
 
-- Namespace `LineOps.Web.Components.Desk` → `YourApp.Components.Ui`, with a comment at the top of each file saying to rename it.
+- Namespace `XLines.Web.Components.Desk` → `YourApp.Components.Ui`, with a comment at the top of each file saying to rename it.
 - `Desk*` type names → `Apple*` (`DeskButton` → `AppleButton`, `DeskSheet` → `AppleSheet`, `DeskAlert` → `AppleAlert`, `DeskAlerts` → `AppleAlerts`, `DeskEmphasis`/`DeskRole` → `AppleEmphasis`/`AppleRole`).
 - CSS classes `desk-btn` → `app-btn`, `desk-sheet` → `app-sheet`, `desk-alert` → `app-alert`.
-- Replace the `Glyph` component with a bare `<MudIcon Icon="@Icon" />`, since `Glyph` is LineOps-specific chrome.
+- Replace the `Glyph` component with a bare `<MudIcon Icon="@Icon" />`, since `Glyph` is XLines-specific chrome.
 - Remove every ADR cross-reference and replace it with the reasoning itself — a template's reader has no `docs/adr/`.
 
 Verify nothing leaked:
 
 ```bash
-grep -rni "lineops\|desk\|adr 00" .claude/skills/apple-mudblazor/templates/
+grep -rni "xlines\|desk\|adr 00" .claude/skills/apple-mudblazor/templates/
 ```
 
 Expected: no output.
@@ -3109,13 +3109,13 @@ git commit -m "feat(skill): extract the apple-mudblazor design system package"
 - [ ] **Step 1: Full build and test**
 
 ```bash
-dotnet build LineOps.slnx && dotnet test tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj
+dotnet build XLines.slnx && dotnet test tests/XLines.Web.Tests/XLines.Web.Tests.csproj
 ```
 
 Expected: build clean, all tests pass. Also run the other suite:
 
 ```bash
-dotnet test tests/LineOps.Tests/LineOps.Tests.csproj
+dotnet test tests/XLines.Tests/XLines.Tests.csproj
 ```
 
 - [ ] **Step 2: Confirm no trace of the old system**

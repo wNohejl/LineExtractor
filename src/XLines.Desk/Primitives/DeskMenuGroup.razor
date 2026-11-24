@@ -1,0 +1,66 @@
+@namespace XLines.Desk.Primitives
+@implements IDisposable
+
+@*
+    A group of rows inside a DeskMenu, under an optional heading.
+
+    A long menu reads as one list until related rows are put together: the HIG groups a menu's
+    items by what they are for, parts the groups with a separator, and names a group only where
+    the name tells the reader something the rows do not. So the heading is optional, small and
+    quiet — footnote, secondary ink, sentence case — and never a row: it takes no focus, the arrows
+    and typeahead pass over it, and it is not announced as something to press. It names the
+    group instead, through aria-labelledby, so a screen reader says "Recent, group" on the way
+    in.
+
+    The hairline is drawn here rather than by the menu's author: every group but the one that
+    opens the menu is parted from what comes before it, so two groups can never be drawn with
+    no line between them or a line can lead the panel. One hairline, no box: the panel is the
+    container, and a group inside it is never framed again.
+
+    The rows still register with the DeskMenu, through this group, so the Tab stop, the arrows
+    and typeahead walk every row in the order it is drawn, across groups, exactly as before.
+*@
+
+@if (!IsFirst)
+{
+    <div class="menu__sep" role="separator"></div>
+}
+
+<div class="menu__group"
+     role="group"
+     aria-labelledby="@(Label is null ? null : HeadingId)">
+    @if (Label is not null)
+    {
+        <div class="menu__heading" id="@HeadingId" role="presentation">@Label</div>
+    }
+
+    <CascadingValue Value="this" IsFixed="true">
+        @ChildContent
+    </CascadingValue>
+</div>
+
+@code {
+    /// <summary>
+    /// The group's heading, sentence case: "Recent", "Shared with me". Left null, the group is unheaded —
+    /// still parted from its neighbours by the hairline, but named by its rows alone.
+    /// </summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>The DeskMenuItems in this group.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [CascadingParameter] public DeskMenu? Menu { get; set; }
+
+    /// <summary>The rows in this group, in the order they were drawn.</summary>
+    internal List<DeskMenuItem> Items { get; } = [];
+
+    private string HeadingId { get; } = $"menu-group-{Guid.NewGuid():N}"[..19];
+
+    // Every group in a menu is created, and so registered, before any of them renders, so the
+    // first one knows it is first when it draws.
+    private bool IsFirst => Menu?.IsFirst(this) ?? true;
+
+    protected override void OnInitialized() => Menu?.Register(this);
+
+    public void Dispose() => Menu?.Unregister(this);
+}

@@ -1,10 +1,10 @@
 # HIG audit of the desk — 25 October 2026
 
 A walk of every window in the browser at 800px and 1280px, light and dark, plus a read of
-`lineops.css`, `mud-bridge.css`, the Desk primitives and every panel, against the rulebook in
+`xlines.css`, `mud-bridge.css`, the Desk primitives and every panel, against the rulebook in
 `~/.claude/skills/apple-hig-components` (SKILL.md, `references/audit.md`,
 `type-color-layout.md`, `components.md`). Line numbers are for
-`src/LineOps.Desk/wwwroot/css/lineops.css` at commit `43ecf49`; Razor paths are under `src/`.
+`src/XLines.Desk/wwwroot/css/xlines.css` at commit `43ecf49`; Razor paths are under `src/`.
 
 ## Rulings that shape the fixes
 
@@ -42,7 +42,7 @@ A walk of every window in the browser at 800px and 1280px, light and dark, plus 
 
 ## 1. All-caps eyebrows (`text-transform: uppercase`)
 
-| # | Class (lineops.css) | Used in | Fix |
+| # | Class (xlines.css) | Used in | Fix |
 |---|---|---|---|
 | 1 | `.panel-h` 1860–1868 | `PanelHeader.razor:79`, every section via `PanelSection` | Sentence case, `--text-subheadline`, `--weight-semibold`, `--text-secondary`, no tracking. The pattern already exists at 3031–3040 (`.pform--grouped > .panel-h`) and `.wgroup__head` 4108–4114. |
 | 1b | `.psection--subject .panel-h` 3010 | `IncidentsPanel.razor:104` draws the incident's own name as a section header | Use `PanelTitle` |

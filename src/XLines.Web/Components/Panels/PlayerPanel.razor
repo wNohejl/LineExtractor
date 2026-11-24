@@ -1,0 +1,454 @@
+@using XLines.Data
+@using XLines.Data.CrossReference
+@using XLines.Desk.Primitives
+@using XLines.Desk.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<XLinesDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    A player on their own — the bottom of the drilldown chain, and until now the piece that was
+    missing.
+
+    Following a player's name used to open the Players <i>list</i> focused on them, which is a
+    roster view: it answers "who is on this team", not "how has this player been going". The
+    game log is the answer to the second question, and it is the data every roster aggregate on
+    the desk was already computed from without ever being shown.
+
+    Columns are derived from the lines rather than fixed, because stat lines are per-sport jsonb
+    and no fixed column set fits baseball and hockey both.
+*@
+
+@* The failure line sits above whatever the window already holds, as the Board's does. The
+   window refreshes on every game signal, and one refresh that failed used to replace a loaded
+   game log with the sentence. *@
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (_player is null)
+{
+    @if (!Failed)
+    {
+        @* The title row and the first rows of the game log, in the places they will land — a
+           sentence saying the player is loading is a placeholder shaped like nothing. *@
+        <DeskSkeleton Width="40%" />
+        <DeskGrid T="PlayerGameRow" Items="_rows" Loading="true" SkeletonRows="3" LoadingLabel="Fetching the player" />
+    }
+}
+else
+{
+    <PanelTitle>
+        <ChildContent>@_player.FullName</ChildContent>
+        @* The season is said once, on the detail line ("31 appearances in the 2026 season"). A
+           season tag on the name's row repeated it, and beside a long name it floated away from
+           the title it qualified. *@
+        <Tags>
+            @if (_player.Position is { } position)
+            {
+                <Tag>@position</Tag>
+            }
+            @if (_player.Team?.Name is { } team)
+            {
+                @* The club's crest before its name, outside the link: the crest identifies the
+                   club, the name is what is pressed. *@
+                <span class="playerteam">
+                    <TeamMark Sport="@_player.Sport?.Key" Abbrev="@_player.Team.Abbrev" />
+                    <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                              OnClick="() => Manager.OpenTeam(_player.TeamId!.Value, team, WindowId)">@team</DeskLink>
+                </span>
+            }
+        </Tags>
+        <Detail>
+            @_rows.Count.ToString("N0") @(_rows.Count == 1 ? "appearance" : "appearances") @SeasonPhrase
+            @* The team beside the name above is where the player is now. When the season on
+               screen was played somewhere else, it says so, rather than letting last year's
+               numbers read as this club's. *@
+            @if (PlayedElsewhere)
+            {
+                <span> · for @string.Join(", then ", _playedFor)</span>
+            }
+        </Detail>
+        @* One position per season the player has appeared in, newest first. A player with a
+           single season sees no gate — one season is not a choice. Past five it is a select of
+           the same options, still newest first: a switch that long outgrows the title (HIG 7). *@
+        <Keys>
+            @if (_seasonOptions.Count > 5)
+            {
+                <DeskSelect TValue="int" aria-label="Season" Mono="true"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))">
+                    @foreach (var option in _seasonOptions)
+                    {
+                        @* No title: an option shows none in most browsers, and "MLB 2025 season"
+                           only repeats the label under a select already named Season (HIG 12). *@
+                        <option value="@option.Value">@option.Label</option>
+                    }
+                </DeskSelect>
+            }
+            else
+            {
+                <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+            }
+        </Keys>
+    </PanelTitle>
+
+    @if (_rows.Count == 0)
+    {
+        <EmptyState Kind="EmptyStateKind.New">
+            No appearances on record. A player enters the desk through a box score, so one with
+            no games has been named on a roster but not yet played inside the history held.
+        </EmptyState>
+    }
+    else
+    {
+        @* Section cards in a .wflow (the Desk's grouping contract), each named in the bar at its
+           top. Both bodies are grids of their own — a strip of readings, a wide table — so each
+           takes the whole row; the table draws no second frame inside its card
+           (PlayerPanel.razor.css).
+           The aggregate every other view shows, kept here beside the games behind it so the
+           two can be read against each other rather than one standing in for the other. *@
+        <div class="wflow player-flow">
+        <FormGroup Title="Averages" Span="DeskCardSpan.Row">
+            <div class="wgroup__row wgroup__row--pad player-averages">
+            <div class="snippet__facts">
+                @foreach (var column in _columns.Take(6))
+                {
+                    <div class="fact">
+                        <div class="fact__label">@StatLabels.StatLabel(column)</div>
+                        <div class="fact__value mono">@Average(column)</div>
+                    </div>
+                }
+            </div>
+            </div>
+        </FormGroup>
+
+        @* The log is the one view on the desk where sorting is the point rather than a
+           convenience: "which were the big games" and "how did the away nights go" are both
+           questions about this table, and neither can be asked of a fixed date order. *@
+        <FormGroup Title="Game log" Span="DeskCardSpan.Row" GroupClass="player-log">
+        <div class="gridwrap">
+            <DeskGrid T="PlayerGameRow" Items="_rows"
+                      EmptyText="No appearances on record for this player.">
+                <PropertyColumn T="PlayerGameRow" TProperty="DateTimeOffset" Property="r => r.StartsAt"
+                                Title="Date" InitialDirection="SortDirection.Descending"
+                                HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                    <CellTemplate><span class="dim">@Day(context.Item.StartsAt)</span></CellTemplate>
+                </PropertyColumn>
+
+                @* Only when the season was split between clubs; one team all season is already
+                   said once above, and a column repeating it on every row says nothing. *@
+                @if (_playedFor.Count > 1)
+                {
+                    <PropertyColumn T="PlayerGameRow" TProperty="string" Property="r => r.Team" Title="For">
+                        <CellTemplate><span class="dim">@context.Item.Team</span></CellTemplate>
+                    </PropertyColumn>
+                }
+
+                <PropertyColumn T="PlayerGameRow" TProperty="string" Property="r => r.Opponent" Title="Opponent" CellClass="logrow__opp">
+                    <CellTemplate>
+                        <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
+                                  OnClick="() => OpenGameAsync(context.Item.GameId)">
+                            @(context.Item.Home ? "vs" : "at") <TeamMark Sport="@context.Item.SportKey" Abbrev="@context.Item.OpponentAbbrev" />@context.Item.Opponent
+                        </DeskLink>
+                    </CellTemplate>
+                </PropertyColumn>
+
+                <PropertyColumn T="PlayerGameRow" TProperty="bool?" Property="r => r.Won"
+                                Title="Result" Align="Align.Right">
+                    <CellTemplate>
+                        @* The capsule the Team and Form windows draw, so a level final reads T
+                           here as it does there rather than as a loss. *@
+                        @if (ResultTag.Of(context.Item.Won, context.Item.ScoreFor, context.Item.ScoreAgainst) is { } result)
+                        {
+                            <ResultTag Result="@result">
+                                @ResultTag.LetterOf(result)@(context.Item.HasScore ? $" {context.Item.ScoreFor}-{context.Item.ScoreAgainst}" : "")
+                            </ResultTag>
+                        }
+                        else
+                        {
+                            <span class="dim">—</span>
+                        }
+                    </CellTemplate>
+                </PropertyColumn>
+
+                @* Stat columns are per-sport jsonb, so they are declared from the data. They sort
+                   as numbers where the line parses as one and fall back to the raw text where it
+                   does not — "6.0 IP" and "39:09" are real values that are not doubles, and the
+                   Averages strip above already refuses to coerce them. *@
+                @foreach (var c in _columns)
+                {
+                    var key = c;
+                    <TemplateColumn T="PlayerGameRow" Sortable="true" Title="@StatLabels.StatLabel(key)" Align="Align.Right"
+                                    SortBy="@(r => StatSortKey(r, key))">
+                        <CellTemplate>
+                            <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
+                        </CellTemplate>
+                    </TemplateColumn>
+                }
+            </DeskGrid>
+        </div>
+        </FormGroup>
+        </div>
+    }
+}
+
+@code {
+    protected override string LoadSubject => "The player";
+
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    /// <summary>
+    /// Reloads only for a change to one of this player's games — a game of their current team, or
+    /// one they have a stat line in. The window used to read itself again on any score anywhere.
+    /// The games on screen cannot be the filter: the player's next game, or a box score landing
+    /// after the load, has an id the window never held, so the addressed ids are asked of the
+    /// database (<see cref="TeamPanel.AddressedGames"/> makes the same choice for a team). A bare
+    /// notice, or a refresh that does not say what changed, reloads as before.
+    /// </summary>
+    protected override async Task RefreshAsync(IReadOnlySet<string> heard)
+    {
+        if (await HeardOwnGameAsync(heard, PlaysInAnyAsync, _reads.Gone, "The player's"))
+            await LoadAsync();
+    }
+
+    /// <summary>
+    /// The check's query: those of the games, by primary key, that the player's current team played
+    /// in or that hold a stat line of theirs. The team is read in the query rather than taken from
+    /// the window, so a window whose load failed still asks the right question.
+    /// </summary>
+    public static IQueryable<Game> OwnGames(XLinesDbContext db, int playerId, int[] ids, int[]? visible = null)
+    {
+        // Only stat lines from sources this reader may see (ADR 0024), as the window's own reads are.
+        var lines = db.PlayerGameStats.FromVisible(visible);
+
+        return db.Games.AsNoTracking()
+            .Where(g => ids.Contains(g.Id))
+            .Where(g => db.Players.Any(p => p.Id == playerId && p.TeamId != null
+                                            && (p.TeamId == g.HomeTeamId || p.TeamId == g.AwayTeamId))
+                        || lines.Any(s => s.GameId == g.Id && s.PlayerId == playerId));
+    }
+
+    /// <summary>
+    /// Whether any of these games is this player's, on a context of its own. Virtual so a test
+    /// bench can answer it without a database.
+    /// </summary>
+    protected virtual async Task<bool> PlaysInAnyAsync(int[] ids, CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+        await using var scope = ScopeFactory.CreateAsyncScope();
+
+        // Who is reading, by tier; unregistered means a desk with one person at it.
+        XLines.Core.Contracts.IDataTier tier = scope.ServiceProvider.GetService<XLines.Core.Contracts.IDataTier>()
+            ?? XLines.Core.Contracts.FullDataTier.Instance;
+
+        return await OwnGames(db, PlayerId, ids, await db.VisibleSourceIdsAsync(tier, ct)).AnyAsync(ct);
+    }
+
+    /// <summary>
+    /// The load in flight, cancelled when the next starts: a season picked, or the window re-aimed,
+    /// while a load ran let the slower, superseded one hand over last and paint the old season.
+    /// Its <see cref="LatestRead.Gone"/> is for the own-game check, which is not a load.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    protected override void OnDispose()
+    {
+        _reads.Cancel();
+        base.OnDispose();
+    }
+
+    /// <summary>
+    /// The player this view is about. Taken as an id rather than an object so the view can be
+    /// hosted as a desk window, which is rebuilt from its parameters and cannot carry a
+    /// reference.
+    /// </summary>
+    [Parameter, EditorRequired] public int PlayerId { get; set; }
+
+    private Core.Entities.Player? _player;
+    private IReadOnlyList<PlayerGameRow> _rows = [];
+    private List<string> _columns = [];
+
+    /// <summary>The teams the season on screen was played for, in the order played.</summary>
+    private List<string> _playedFor = [];
+
+    private bool PlayedElsewhere
+        => _playedFor.Count > 1 || (_playedFor.Count == 1 && _playedFor[0] != _player?.Team?.Name);
+
+    /// <summary>The season on screen; null only for a player with no appearance on record.</summary>
+    private int? _seasonYear;
+    private IReadOnlyList<int> _seasons = [];
+    private IReadOnlyList<DeskSwitchOption<int>> _seasonOptions = [];
+
+    /// <summary>A whole season, not a cap: the log is the season's games, however many.</summary>
+    private const int WholeSeason = int.MaxValue;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private string SeasonPhrase => _seasonYear is { } year && _player?.Sport?.Key is { } sport
+        ? $"in the {SeasonCalendar.Label(sport, year)} season"
+        : "on record";
+
+    private async Task SetSeasonAsync(int year)
+    {
+        _seasonYear = year;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            // Taken inside the work so Try again, which repeats it, starts a read of its own.
+            var ct = _reads.Next();
+            var playerId = PlayerId;
+            var asked = _seasonYear;
+
+            // Read into locals and handed over at once, and only by the latest load. Each read
+            // needs the one before it, so they stay one after another.
+            await LatestRead.HandOverAsync(ct, async () =>
+            {
+                await using var db = await DbFactory.CreateDbContextAsync(ct);
+
+                var player = await db.Players
+                    .Include(p => p.Team)
+                    .Include(p => p.Sport)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == playerId, ct);
+
+                IReadOnlyList<int> seasons = [];
+                int? seasonYear = null;
+                IReadOnlyList<PlayerGameRow> rows = [];
+
+                if (player is not null)
+                {
+                    await using var scope = ScopeFactory.CreateAsyncScope();
+                    var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+                    seasons = await log.SeasonsForPlayerAsync(playerId, ct);
+
+                    seasonYear = PickSeason(seasons, asked);
+
+                    rows = await log.PlayerGameLogAsync(playerId, WholeSeason, seasonYear, ct);
+                }
+
+                return (Player: player, Seasons: seasons, SeasonYear: seasonYear, Rows: rows);
+            },
+            read => HandOver(read.Player, read.Seasons, read.SeasonYear, read.Rows));
+        },
+        settle: () => _player is null ? PulseState.Idle : PulseState.Healthy,
+        status: () => _player is null ? "not found" : $"{_rows.Count:N0} {(_rows.Count == 1 ? "game" : "games")}");
+    }
+
+    /// <summary>What the latest load read: the player, and for a player found, their season and its games.</summary>
+    private void HandOver(
+        Core.Entities.Player? player, IReadOnlyList<int> seasons, int? seasonYear, IReadOnlyList<PlayerGameRow> rows)
+    {
+        _player = player;
+
+        // A player not found leaves the rest as it was, as it always has: the window says
+        // "not found" from the player alone.
+        if (_player is null)
+            return;
+
+        _seasons = seasons;
+        _seasonYear = seasonYear;
+
+        _seasonOptions = SeasonOptions(_player.Sport?.Key, _seasons);
+
+        _rows = rows;
+
+        _playedFor = _rows
+            .OrderBy(r => r.StartsAt)
+            .Select(r => r.Team)
+            .Distinct()
+            .ToList();
+
+        // Wider than the snippet's, because a window has the room and the whole point of
+        // opening it was that the snippet did not show enough.
+        _columns = Snippets.PlayerRecentSnippet.DeriveColumns(_rows, 8);
+    }
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+        if (await board.GetRowAsync(gameId) is { } row)
+            Manager.OpenGame(row.Game, WindowId);
+    }
+
+    /// <summary>
+    /// The sort key for a derived stat column.
+    ///
+    /// <para>
+    /// Every key is a double so one column never mixes comparable types — a sort that throws
+    /// mid-render is worse than a column that does not move. A line the desk cannot read as a
+    /// number sinks to the bottom rather than being ranked as a zero, which is the same call
+    /// <see cref="Average"/> makes when it shows a dash: absent and none are different answers.
+    /// </para>
+    ///
+    /// <para>
+    /// The leading-number fallback earns its place on the lines that carry a unit — "6.0 IP"
+    /// sorts on 6.0 — because those are ordinary readings rather than malformed ones, and a
+    /// whole column of innings that refuses to sort is the common case, not the edge one.
+    /// </para>
+    /// </summary>
+    private static double StatSortKey(PlayerGameRow row, string key)
+    {
+        if (!row.Stats.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+            return double.MinValue;
+
+        const System.Globalization.NumberStyles Styles = System.Globalization.NumberStyles.Float;
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+
+        if (double.TryParse(raw, Styles, invariant, out var value))
+            return value;
+
+        // Take the numeric head of things like "6.0 IP", and only that — a value the desk has
+        // to guess at is a value it should not be ordering on.
+        var end = 0;
+        while (end < raw.Length && (char.IsAsciiDigit(raw[end]) || raw[end] is '.' or '-' or '+'))
+            end++;
+
+        return end > 0 && double.TryParse(raw[..end], Styles, invariant, out var head)
+            ? head
+            : double.MinValue;
+    }
+
+    /// <summary>
+    /// The mean of a stat across the games listed.
+    ///
+    /// Only numeric values are averaged; a line that reports "6.0 IP" or a time of "39:09"
+    /// shows a dash rather than being coerced, on the same reasoning the aggregate side uses —
+    /// a wrong number is worse than a missing one.
+    /// </summary>
+    private string Average(string key)
+    {
+        var values = _rows
+            .Select(r => r.Stats.TryGetValue(key, out var raw)
+                && double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v)
+                ? (double?)v
+                : null)
+            .Where(v => v is not null)
+            .Select(v => v!.Value)
+            .ToList();
+
+        if (values.Count == 0)
+            return "—";
+
+        // Whole numbers every time means this counts things, and a per-game mean is the right
+        // summary. A fractional value anywhere means it is already a rate.
+        var mean = values.Average();
+        var counting = values.All(v => Math.Abs(v % 1) < 1e-9);
+
+        // A per-game mean seldom reaches four figures, but the format is the desk's one rule for
+        // a count (thousands separated), so this strip and the Form tables never disagree.
+        return mean.ToString(counting ? "#,0.##" : "0.000");
+    }
+}

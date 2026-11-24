@@ -3,7 +3,7 @@
 **Date:** 2026-09-22
 **Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1–6 done (§6–§11)
 **Method:** the live database (read-only, measured today), a read of every panel under
-`src/LineOps.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
+`src/XLines.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
 ADRs 0009–0017. Claims that carry a phase were checked by hand; file:line references are to
 `d1120f0`.
 
@@ -20,7 +20,7 @@ money path right, then make the desk live, and only then widen what it shows.
 
 | | Measured | Reading |
 |---|---|---|
-| Last ingestion run | `espn:slate` 2026-09-11 23:34 UTC; odds 2026-09-09 | `lineops-postgres` exited 11 Sep. NFL week 1 Sunday onward was never seen. |
+| Last ingestion run | `espn:slate` 2026-09-11 23:34 UTC; odds 2026-09-09 | `xlines-postgres` exited 11 Sep. NFL week 1 Sunday onward was never seen. |
 | MLB 2026 | 2,199 final, **10 Live**, 11 Scheduled in the past | 3058–3060 (4 Sep, 21:40/22:10 ET) sat at `Live` for a week *while the host ran* — see §2.1. |
 | NFL 2026 | 2 final, 49 past games still `Scheduled` | Weeks 1–2 missing entirely. |
 | NFL 2025 | 285 final, 285 with stats, 108 with an ESPN close | As the seasons spec left it. |
@@ -165,7 +165,7 @@ others.*
    `OddsChanged`, `JournalChanged`, `AlertsChanged`). In-circuit writers (wager, settle)
    publish directly.
 2. **Cross-process changes via Postgres `LISTEN/NOTIFY`.** The Worker already writes through
-   `LineOpsDbContext`; the ingestion services `NOTIFY lineops_changes, '<kind>:<sport>'` after
+   `XLinesDbContext`; the ingestion services `NOTIFY xlines_changes, '<kind>:<sport>'` after
    a run that wrote rows. The Web host holds one listening connection (a hosted service) and fans
    out to circuits through a singleton hub. No polling, one connection, and it works whichever
    host did the ingest. Fallback: a 60s version check when the listener is down.
@@ -256,7 +256,7 @@ data is misfiled.
   reconnect; the fallback check keeps the desk honest when it drops.
 - Line-aware CLV changes numbers already shown. With zero journal entries this is the cheapest
   moment it will ever be.
-- A plaintext The Odds API key sits in `src/LineOps.Worker/appsettings.Local.json` (gitignored,
+- A plaintext The Odds API key sits in `src/XLines.Worker/appsettings.Local.json` (gitignored,
   not in history). Moving it to user-secrets, as the Web host does, removes the one copy that
   could be committed by accident.
 
@@ -286,7 +286,7 @@ data is misfiled.
 - **Not done:** the balldontlie configuration is untouched (inert). Why the resolver accepted
   a second odds id for an existing fixture on 27 Aug is unexplained; it has not recurred.
 
-Tests: 394 in `LineOps.Tests`, 263 in `LineOps.Web.Tests`, all green — run in the .NET SDK
+Tests: 394 in `XLines.Tests`, 263 in `XLines.Web.Tests`, all green — run in the .NET SDK
 container, because Smart App Control on the desktop blocks some fresh unsigned builds.
 
 ---
@@ -317,7 +317,7 @@ container, because Smart App Control on the desktop blocks some fresh unsigned b
   last seven days (`ClvSearchWindow`), instead of every unresolved entry on every tick for ever.
 - **Parlays moved to Phase 4** (above).
 
-Tests: 407 in `LineOps.Tests`, 263 in `LineOps.Web.Tests`, all green (in the SDK container).
+Tests: 407 in `XLines.Tests`, 263 in `XLines.Web.Tests`, all green (in the SDK container).
 The Worker applied the migration on start. The end-to-end check against a hand-logged wager
 waits for the first real one — the journal is still empty, and a test row in it would be data
 the analytics then count.
@@ -326,8 +326,8 @@ the analytics then count.
 
 ## 8. What was done — Phase 3 (2026-09-23)
 
-- **A change feed.** `ChangeNotifier`, a save interceptor on every `LineOpsDbContext`, sends
-  `pg_notify('lineops_changes', 'games,runs')` after each save, naming the topics its rows belong
+- **A change feed.** `ChangeNotifier`, a save interceptor on every `XLinesDbContext`, sends
+  `pg_notify('xlines_changes', 'games,runs')` after each save, naming the topics its rows belong
   to (`DataTopics`). One interceptor covers every writer — the worker, the web host's own
   schedule, the wager form, settlement — and crosses the process boundary. Bulk
   `ExecuteUpdate` calls (the orphan reaper) do not pass through it; nothing waits on them.
@@ -357,13 +357,13 @@ Found on the way, and fixed:
   `--no-restore` publish shipped without the script, and the circuit never connected. Publish now
   restores once the source is in.
 - **The Inter font 404'd** since the desk became its own project (`ea2a860`): the stylesheet moved
-  to `LineOps.Desk` and asks for `../fonts/`, the files stayed in `LineOps.Web`. Moved, with the
+  to `XLines.Desk` and asks for `../fonts/`, the files stayed in `XLines.Web`. Moved, with the
   OFL licence TicketMiser's copy already carries.
 - **Postgres had stopped again**, cleanly, ~22 hours earlier (a fast-shutdown request, cause
   unknown — no script in the repo stops it). The hosts crash-looped on it until it was started.
 
 Not done: the desk shows times in the server's zone (`ToLocalTime`), which in a container is UTC.
-Tests: 416 in `LineOps.Tests`, 273 in `LineOps.Web.Tests`, all green (in the SDK container).
+Tests: 416 in `XLines.Tests`, 273 in `XLines.Web.Tests`, all green (in the SDK container).
 
 ---
 
@@ -397,7 +397,7 @@ behind `id is not null &&`, so a new entry was saved blank. Verified live: the f
 book list and the season-wide game search render and work against the running stack; nothing
 was saved, since the first entry in this journal should be a real one.
 
-Tests: 437 in `LineOps.Tests`, 273 in `LineOps.Web.Tests`, all green (in the SDK container). The
+Tests: 437 in `XLines.Tests`, 273 in `XLines.Web.Tests`, all green (in the SDK container). The
 worker applied the `ParlaysAndSettlement` migration on start.
 
 ---
@@ -407,7 +407,7 @@ worker applied the `ParlaysAndSettlement` migration on start.
 - **A command palette.** Ctrl+K (⌘K) from anywhere, or the search key in the header. It lives in
   the desk and knows nothing about sports: the desk supplies its own windows and workspaces, and
   an application registers an `IDeskSearch` (scoped, so it opens windows on the circuit's own
-  desk) for what it knows — LineOps' `AppDeskSearch` adds teams, players and games. Empty, it is
+  desk) for what it knows — XLines' `AppDeskSearch` adds teams, players and games. Empty, it is
   a keyboard launcher over the windows that open on nothing; typing asks the application after a
   200 ms pause; arrows and Enter pick, Escape or a click outside closes. A window whose name
   starts with what was typed leads the application's results — found live, when "board" opened a
@@ -431,7 +431,7 @@ ARIA state attributes already used strings.
 Verified live: Ctrl+K → "mets" → Enter opened the Mets' Team window; "board" → Enter opens the
 Board; the Board's team filter narrowed the slate to the Blue Jays' games.
 
-Tests: 447 in `LineOps.Tests`, 280 in `LineOps.Web.Tests`, all green (in the SDK container).
+Tests: 447 in `XLines.Tests`, 280 in `XLines.Web.Tests`, all green (in the SDK container).
 
 ---
 
@@ -468,7 +468,7 @@ the first name. The Docker hosts have no odds source at all — the key lives in
 `appsettings.Local.json`, `.env` has none, and the image's `TheOddsApi.Enabled` is false — so odds
 are pulled only when the web host runs from the SDK.
 
-Tests: 455 in `LineOps.Tests`, 285 in `LineOps.Web.Tests`, all green (in the SDK container).
+Tests: 455 in `XLines.Tests`, 285 in `XLines.Web.Tests`, all green (in the SDK container).
 
 ## 12. After the six phases
 

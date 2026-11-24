@@ -1,0 +1,128 @@
+@namespace XLines.Web.Components.Snippets
+@using XLines.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+@inject ILogger<PlayerRecentSnippet> Logger
+@implements IDisposable
+
+@*
+    A player's last few games, line by line.
+
+    This is the thing a roster aggregate was averaged from, and the reason to want it is that
+    the average hides the shape: four quiet games and one enormous one produce the same mean as
+    five steady ones, and only one of those is a player in form.
+
+    Columns are derived from the lines themselves rather than fixed, because a stat line is
+    per-sport jsonb and there is no column set that fits baseball and hockey both. The most
+    widely reported keys win, which keeps the snippet narrow enough to sit under a row.
+*@
+
+@if (_read.Loading)
+{
+    <DeskSkeleton Lines="3" />
+}
+else if (_read.Error is not null)
+{
+    <SnippetFailure Message="@_read.Error" OnRetry="LoadAsync" />
+}
+else if (_rows.Count == 0)
+{
+    <EmptyState Kind="EmptyStateKind.New" Compact>No appearances on record for this player.</EmptyState>
+}
+else
+{
+    <div class="gridwrap"><table class="grid grid--tight">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Opponent</th>
+                <th class="r">Result</th>
+                @foreach (var c in _columns)
+                {
+                    <th class="r">@StatLabels.StatLabel(c)</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _rows)
+            {
+                <tr>
+                    <td class="dim ops-col--fit">@DisplayTime.Day(row.StartsAt)</td>
+                    <td class="trunc">@(row.Home ? "vs" : "at") <TeamMark Sport="@row.SportKey" Abbrev="@row.OpponentAbbrev" />@row.Opponent</td>
+                    <td class="r">
+                        @if (ResultTag.Of(row.Won, row.ScoreFor, row.ScoreAgainst) is { } result)
+                        {
+                            <ResultTag Result="@result">
+                                @ResultTag.LetterOf(result)@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
+                            </ResultTag>
+                        }
+                        else
+                        {
+                            <span class="dim">—</span>
+                        }
+                    </td>
+                    @foreach (var c in _columns)
+                    {
+                        <td class="r mono">@(row.Stats.TryGetValue(c, out var v) ? v : "—")</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table></div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int PlayerId { get; set; }
+
+    /// <summary>Games shown before the full log is worth opening.</summary>
+    [Parameter] public int Take { get; set; } = 5;
+
+    /// <summary>Stat columns to derive. Kept low so the table fits under a row.</summary>
+    [Parameter] public int MaxColumns { get; set; } = 5;
+
+    private IReadOnlyList<PlayerGameRow> _rows = [];
+    private List<string> _columns = [];
+    private readonly SnippetRead _read = new();
+    private (int PlayerId, int Take, int MaxColumns)? _readFor;
+
+    protected override Task OnParametersSetAsync()
+    {
+        // One read per player asked for: a parent redraw handing the same player back, as every
+        // signal behind the row does, reads nothing.
+        var key = (PlayerId, Take, MaxColumns);
+        if (_readFor == key)
+            return Task.CompletedTask;
+
+        _readFor = key;
+        return LoadAsync();
+    }
+
+    /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
+    private Task LoadAsync()
+    {
+        // Read into locals and handed over only by the latest read, so a slow read of the player
+        // the row moved on from cannot land last and draw that player's games.
+        var (playerId, take, maxColumns) = (PlayerId, Take, MaxColumns);
+
+        return _read.RunAsync(async ct =>
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+            var rows = await log.PlayerGameLogAsync(playerId, take, ct: ct);
+            return (Rows: rows, Columns: DeriveColumns(rows, maxColumns));
+        }, read =>
+        {
+            _rows = read.Rows;
+            _columns = read.Columns;
+        }, "Recent games did not load.", Logger);
+    }
+
+    public void Dispose() => _read.Dispose();
+
+    /// <summary>
+    /// The keys filled in most of these games, headline numbers first (StatColumns): a
+    /// back reads carries, rushing yards and touchdowns before an average or a long.
+    /// </summary>
+    internal static List<string> DeriveColumns(IReadOnlyList<PlayerGameRow> rows, int max)
+        => Panels.StatColumns.Pick(rows.Select(r => r.Stats.Keys), max);
+}

@@ -130,11 +130,11 @@ BALLDONTLIE_ENABLED=false
 # password. Re-running rewrites it from .env, which is the password the volume was made with.
 $dbPassword = (Select-String -Path $envFile -Pattern '^POSTGRES_PASSWORD=(.*)$').Matches.Groups[1].Value.Trim()
 $connection = "Host=localhost;Port=5433;Database=lineops;Username=lineops;Password=$dbPassword"
-foreach ($project in 'src/LineOps.Web', 'src/LineOps.Worker') {
+foreach ($project in 'src/XLines.Web', 'src/XLines.Worker') {
     dotnet user-secrets set 'ConnectionStrings:LineOps' $connection --project (Join-Path $repoRoot $project) | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "dotnet user-secrets failed for $project (exit $LASTEXITCODE)" }
 }
-Write-Host "Set the database connection in user-secrets for LineOps.Web and LineOps.Worker." -ForegroundColor Green
+Write-Host "Set the database connection in user-secrets for XLines.Web and XLines.Worker." -ForegroundColor Green
 
 if (-not (Test-Path $certDir)) {
     New-Item -ItemType Directory -Force -Path $certDir | Out-Null

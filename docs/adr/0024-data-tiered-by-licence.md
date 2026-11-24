@@ -35,14 +35,14 @@ missing was a word on the source saying what its terms allow, and a reader that 
 
 **A source carries its licence.** `Source.Licence` is `PersonalUse` or `Displayable`.
 `PersonalUse` is zero, the default, so a source nobody has classified is one the desk keeps to
-itself. `SourceLicences.Known` in `LineOps.Core` holds the table above by key; the initializer
+itself. `SourceLicences.Known` in `XLines.Core` holds the table above by key; the initializer
 seeds from it, and migration `SourceLicence` adds the column (stored by name, as `Kind` is) and
 names the two displayable providers by key, so a database restored from an older snapshot is
 classified the same way a fresh one is seeded.
 
 **The readers ask; the host answers.** `IDataTier.CanSeePersonalUseSources` lives in
-`LineOps.Core`, beside the contracts, because the readers that ask are in `LineOps.Data`, which
-knows nothing of the desk. `AddLineOpsData` registers `FullDataTier`, which says yes, so the
+`XLines.Core`, beside the contracts, because the readers that ask are in `XLines.Data`, which
+knows nothing of the desk. `AddXLinesData` registers `FullDataTier`, which says yes, so the
 Worker, the tests and any host that says nothing read everything. The web host registers
 `DeskDataTier`, which answers
 
@@ -114,7 +114,7 @@ amendment below:
   without stats or closes, per season. Left as it is: they count the operator's collection rather
   than repeat anything ESPN stated, and making History operator-only would reverse ADR 0018, which
   kept it readable with its walk controls hidden. It is outside the guard's folders (it lives in
-  `LineOps.Reliability`), so a change to what it returns should be read against this ADR.
+  `XLines.Reliability`), so a change to what it returns should be read against this ADR.
 - `BoardService`'s "last priced" time, read across every source's scans to tell "never pulled"
   from "skipped": a timestamp of the operator's pull, not a price.
 - `JournalService`'s CLV reference — operator-only already (ADR 0018), so out of a visitor's reach.
@@ -123,7 +123,7 @@ amendment below:
 
 **What is gated now.** Every reader on the list this ADR first left open asks the tier. A local
 desk and the operator read exactly what they read before; the existing suites pass, with one line
-added to the Web suite's bench (`DeskTestContext` registers `FullDataTier`, as `AddLineOpsData`
+added to the Web suite's bench (`DeskTestContext` registers `FullDataTier`, as `AddXLinesData`
 does for a host that says nothing).
 
 | Reader | Gate | Why that gate |
@@ -153,8 +153,8 @@ game. Both change an untracked entity in place and return it, and do nothing for
 One helper, so the condition is written once and every projection that hands a game to the desk
 uses it.
 
-**The guard.** `DataTierGuardTests` reads `src/LineOps.Data` and `src/LineOps.Web` (migrations
-aside): a `.cs` or `.razor` file that names a tiered set — every `DbSet` on `LineOpsDbContext`
+**The guard.** `DataTierGuardTests` reads `src/XLines.Data` and `src/XLines.Web` (migrations
+aside): a `.cs` or `.razor` file that names a tiered set — every `DbSet` on `XLinesDbContext`
 whose rows are `IFromSource`, found by reflection, plus `FighterProfiles` and `Bouts` — must also
 name `IDataTier`, or sit on a short, commented allow-list (the initializer, which writes; the
 context, which declares). Ingestion and reliability are writers and the Worker's jobs, and are not

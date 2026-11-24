@@ -8,7 +8,7 @@ Scope rules carried in, not re-litigated: the wager window (`BoardWager.razor`, 
 of scope; one 1px hairline edge on a group or card is the house rule; no outlined or nested
 boxes; macOS density (13px body, 28px controls); one accent for interaction; sentence case.
 
-Paths: CSS lines are `src/LineOps.Desk/wwwroot/css/lineops.css` unless `mud-bridge.css` is
+Paths: CSS lines are `src/XLines.Desk/wwwroot/css/xlines.css` unless `mud-bridge.css` is
 named; Razor paths are under `src/`. Commit at read: `195e41e`.
 
 Group indexes read: Components, Layout and organization, Menus and actions, Navigation and search,
@@ -19,7 +19,7 @@ vision or system pages (activity rings, page controls, ornaments, quick actions,
 
 Done and not repeated here: §1 all-caps (only the brand wordmark `.hdr__brand` 470/494 and
 `.desk-empty__mark` 1299 keep `uppercase`, as ruled); §2 boxes (`baa1222`); §3 accent
-(`0da1038`); §4 the ladder inside `lineops.css` (no raw `calc(Npx …)` outside the token block);
+(`0da1038`); §4 the ladder inside `xlines.css` (no raw `calc(Npx …)` outside the token block);
 §5 28px controls (`61ee7db`, `c380976`); §6 every wrong-control row (`266deba`: the +EV
 checkbox, the count field with a stepper, the Tinted pull menu; `RowActions` view switch;
 theme swatches are a `radiogroup`, `WindowManagerPanel.razor:102`); §7 load failure (`e2d029e`).
@@ -273,7 +273,7 @@ Change log: Jun 5 2023.
 |---|---|---|---|
 | Levels | Met | `--text-primary/secondary/tertiary` (tokens 37–39) | — |
 | Tertiary only for unavailable/annotation | Not met | chart takeaways — the summary the Charts page calls essential — are `--text-tertiary` (`mud-bridge.css:582–585`); `.launcher__desc` (1831) and `.metric__note` (1903) too; `.grid .quiet` notes tertiary measures 2.70:1 | Takeaway and descriptions in `--text-secondary`. |
-| Selectable | Met | no `user-select: none` on content; only drag handles, checkbox, takes (`lineops.css:678,2291,2907,4688`) | — |
+| Selectable | Met | no `user-select: none` on content; only drag handles, checkbox, takes (`xlines.css:678,2291,2907,4688`) | — |
 | No quaternary token | Partly | three levels only | Add `--text-quaternary` (≈ .18) for watermarks (`.desk-empty__mark` uses `--surface-3` instead, 1297). |
 
 ## Split views
