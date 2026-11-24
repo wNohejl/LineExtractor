@@ -37,7 +37,7 @@ desktop switched off. The costs are the three above. The snapshot republishes th
 whoever can read the repository.
 
 **(b) One Postgres on the desktop, reached from the laptop over a private Tailscale tailnet.**
-The desktop's compose publishes Postgres on its tailnet address only (`compose.tailnet-db.yml`).
+The desktop's compose publishes Postgres on its tailnet address only (`compose/tailnet-db.yml`).
 The laptop's desk takes a connection string to that address and runs with the scheduler and the
 evaluator switched off (`scripts/connect-remote-db.ps1`). There is one dataset, live, and one
 scheduler. The rows never leave the developer's own two machines: they cross the network only
@@ -62,8 +62,8 @@ internet, where (b)'s works only inside the tailnet.
 **(b), with (a) kept as the fallback.**
 
 - **The desktop owns the database and the schedule.** It runs Postgres with
-  `compose.tailnet-db.yml` added to its compose list, bound to `TAILNET_IP` from its `.env` and
-  never to `0.0.0.0`. It keeps `compose.dev.yml`, so its own desk still reaches the database on
+  `compose/tailnet-db.yml` added to its compose list, bound to `TAILNET_IP` from its `.env` and
+  never to `0.0.0.0`. It keeps `compose/dev.yml`, so its own desk still reaches the database on
   loopback. It is the only machine with `Ingestion:HostScheduler` and `Reliability:HostEvaluator`
   on.
 - **The laptop's desk is a reader that can press buttons.** `connect-remote-db.ps1 -Host <desktop>`
@@ -98,7 +98,7 @@ internet, where (b)'s works only inside the tailnet.
   older code against a newer schema. Keep both machines on the same commit of `LineX_Development`
   while connected, or switch the laptop to `-Local` while working on a migration. *(Superseded by
   the amendment below: the remote desk no longer migrates, it refuses.)*
-- `restore-data.ps1` and `publish-data.ps1` name only `compose.dev.yml`. Run on the desktop, the
+- `restore-data.ps1` and `publish-data.ps1` name only `compose/dev.yml`. Run on the desktop, the
   restore's `up -d postgres` recreates the container without the tailnet port until it is
   brought up again with the overlay. *(Fixed by the amendment below.)*
 - The tailnet port binds only if the Tailscale address exists when the container starts. A boot
@@ -136,7 +136,7 @@ initializer runs exactly as on a local database. The Worker initializes on every
 database is migrated exactly as before, without being asked anything first.
 
 **The snapshot scripts start Postgres with the machine's own compose list.** `_pg.ps1`'s
-`Get-ComposeFiles` returns `docker-compose.yml` and `compose.dev.yml`, and `compose.tailnet-db.yml`
+`Get-ComposeFiles` returns `docker-compose.yml` and `compose/dev.yml`, and `compose/tailnet-db.yml`
 when `.env` has an uncommented, non-empty `TAILNET_IP`: the machine that set its tailnet address
 is the one the laptop reaches. `restore-data.ps1` brings Postgres up with that list, and the
 messages in `publish-data.ps1` and `publish-journal.ps1` print it, so a restore on the desktop
@@ -152,9 +152,9 @@ binding a published port to a VPN adapter's address; the address does not exist 
 Tailscale connects, and Docker does not retry a bind that failed at boot; and the inbound
 connection needs a firewall rule on the Tailscale interface.
 
-So on the desktop Postgres stays where `compose.dev.yml` puts it, on `127.0.0.1:5433`, and
+So on the desktop Postgres stays where `compose/dev.yml` puts it, on `127.0.0.1:5433`, and
 `scripts/serve-tailnet.ps1 -Database` asks Tailscale Serve to forward TCP 5433 on the tailnet
-to it. Serve is tailnet-only, as it is for the desk (ADR 0022). `compose.tailnet-db.yml`
+to it. Serve is tailnet-only, as it is for the desk (ADR 0022). `compose/tailnet-db.yml`
 remains for a Linux host.
 
 One thing moves with it. Behind the forward Postgres sees every client as loopback, so

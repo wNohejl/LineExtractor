@@ -145,7 +145,7 @@ and corrective action. It is the same drill Ops runs for alerting, applied to th
 
 - **An automatic deploy from GitHub.** Images build on every green `main` and wait. The
   server pulls when you run `deploy.sh`, so no key that can reach production lives in CI.
-- **The Aspire dashboard.** It is anonymous. For telemetry, run `compose.telemetry.yml`
+- **The Aspire dashboard.** It is anonymous. For telemetry, run `compose/telemetry.yml`
   locally, or send OTLP to a hosted backend (Grafana Cloud's free tier) by setting
   `Observability__Enabled=true` and `Observability__OtlpEndpoint` on web and worker.
 - **A second web replica.** Blazor Server keeps each visitor's circuit in one process's

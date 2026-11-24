@@ -60,8 +60,8 @@ sitting (CLAUDE.md).
 
 | Branch | Answers | Deliverables |
 |---|---|---|
-| `trial/tailnet-serve` | B | `compose.tailnet.yml`, `scripts/serve-tailnet.ps1`, forwarded-headers test, ADR 0022 |
-| `trial/shared-database` | C | `compose.tailnet-db.yml`, `scripts/connect-remote-db.ps1`, a remote-database scheduler guard with tests, ADR 0023 |
+| `trial/tailnet-serve` | B | `compose/tailnet.yml`, `scripts/serve-tailnet.ps1`, forwarded-headers test, ADR 0022 |
+| `trial/shared-database` | C | `compose/tailnet-db.yml`, `scripts/connect-remote-db.ps1`, a remote-database scheduler guard with tests, ADR 0023 |
 | `trial/source-tiering` | F | `Source.Licence` + migration, `Sharing:Mode`, gated readers with tests, `publish-data.ps1 -DisplayableOnly`, ADR 0024 |
 
 Results are recorded in §5 when the trials return.
@@ -93,8 +93,8 @@ hides anything unless `Sharing:Mode=Shared` is set, which only a public desk wou
 
 | Finding | Source | Change |
 |---|---|---|
-| An untagged node's key expires after about 180 days; a tagged node's does not, and a tagged node cannot be shared with another person's tailnet | tailscale.com/kb/1068/tags, /kb/1085/auth-keys, /kb/1084/sharing | `compose.tailnet.yml` advertises `tag:lineops` and signs in once (`TS_AUTH_ONCE`) |
-| Docker Desktop on Windows does not document binding a port to a VPN address; the bind fails at boot when Docker starts first and is not retried | docs.docker.com/desktop/features/networking, Tailscale forum 4616 | `serve-tailnet.ps1 -Database` forwards TCP 5433 to loopback; `compose.tailnet-db.yml` kept for Linux |
+| An untagged node's key expires after about 180 days; a tagged node's does not, and a tagged node cannot be shared with another person's tailnet | tailscale.com/kb/1068/tags, /kb/1085/auth-keys, /kb/1084/sharing | `compose/tailnet.yml` advertises `tag:lineops` and signs in once (`TS_AUTH_ONCE`) |
+| Docker Desktop on Windows does not document binding a port to a VPN address; the bind fails at boot when Docker starts first and is not retried | docs.docker.com/desktop/features/networking, Tailscale forum 4616 | `serve-tailnet.ps1 -Database` forwards TCP 5433 to loopback; `compose/tailnet-db.yml` kept for Linux |
 | Serve's config schema, `${TS_CERT_DOMAIN}` substitution and WebSocket forwarding are as the trial assumed | tailscale `ipn/serve.go`, `cmd/containerboot/serve.go`, Go `httputil/reverseproxy.go` | None; the config directory is mounted rather than the file, as the docs ask |
 | Without unattended mode Tailscale stops at Windows sign-out | tailscale.com/kb/1088/run-unattended | The script warns and names `tailscale set --unattended=true` |
 | HTTPS certificates publish `<machine>.<tailnet>.ts.net` in certificate-transparency logs | tailscale.com/kb/1153/enabling-https | Default node name is the neutral `desk`; documented beside the setting |

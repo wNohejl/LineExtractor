@@ -157,7 +157,7 @@ Update this as work lands so a fresh session can resume without re-deriving anyt
 - [x] A5 — `IncidentService` test coverage (`IncidentServiceTests`, 10 tests)
 - [x] B1 — `LineOps.Observability` + `AddLineOpsObservability`; telemetry *names* in `LineOps.Core.Diagnostics`
 - [x] B2 — ActivitySource on ingestion runs, counters, KPI observable gauges via snapshot cache
-- [x] B3 — Aspire dashboard 13.4.2 in `compose.telemetry.yml` overlay
+- [x] B3 — Aspire dashboard 13.4.2 in `compose/telemetry.yml` overlay
 - [x] B4 — `/health` + `/ready` (no compose healthcheck — see below)
 - [x] B5 — ADR 0015
 - [x] Docs — `runbook.md` severity ladder, `DESIGN.md` §5 and §12
@@ -178,7 +178,7 @@ probing over HTTP from outside the container, which is where they actually matte
 - Postgres stopped: `/health` stayed **200**, `/ready` returned **503**, and recovered unattended.
   This is the whole point of the split — the liveness probe must not invite a restart into an
   outage no restart can fix.
-- `docker compose -f docker-compose.yml -f compose.telemetry.yml config` validates.
+- `docker compose -f docker-compose.yml -f compose/telemetry.yml config` validates.
 
 ---
 

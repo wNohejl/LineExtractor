@@ -379,7 +379,7 @@ Worker host starts.
 ## 10. Test bets for exercising the UI
 
 The journal is empty on every machine (next-phases §1), so the duplicate check, the report block
-and the parlay grid have nothing to render against. `scripts/seed-test-bets.sql` inserts a small
+and the parlay grid have nothing to render against. `scripts/sql/seed-test-bets.sql` inserts a small
 set of journal rows the desk can be exercised on, chosen from games the database already holds:
 
 - two pending straight bets on the next scheduled NFL game, same side, one hour apart, to make

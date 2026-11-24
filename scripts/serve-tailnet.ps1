@@ -49,14 +49,14 @@
 
 .PARAMETER Database
     Forwards this machine's Postgres to the tailnet instead of the desk: raw TCP on
-    -DatabasePort, to the same port on 127.0.0.1 where compose.dev.yml publishes it. This is
+    -DatabasePort, to the same port on 127.0.0.1 where compose/dev.yml publishes it. This is
     how the laptop's desk reaches the desktop's database (ADR 0023). Postgres stays bound to
     loopback, so there is no Docker port on the tailnet address to fail at boot and no
     firewall rule to keep. Limit who may reach the port in the tailnet policy: Postgres sees
     every tailnet client as 127.0.0.1 and cannot tell them apart itself.
 
 .PARAMETER DatabasePort
-    The Postgres port, on both sides of the forward. 5433 unless you changed compose.dev.yml.
+    The Postgres port, on both sides of the forward. 5433 unless you changed compose/dev.yml.
 
 .PARAMETER Off
     Stops serving HTTPS on 443 from this machine, or with -Database stops the Postgres

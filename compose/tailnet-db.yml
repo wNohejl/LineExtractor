@@ -8,9 +8,9 @@
 # developer's other machine can run its desk against this database: one dataset, one scheduler.
 # Run on the desktop, the machine that holds the data and runs the scheduler:
 #
-#   docker compose -f docker-compose.yml -f compose.dev.yml -f compose.tailnet-db.yml up -d postgres
+#   docker compose -f docker-compose.yml -f compose/dev.yml -f compose/tailnet-db.yml up -d postgres
 #
-# compose.dev.yml stays in the list so this machine's own `dotnet run` still reaches the
+# compose/dev.yml stays in the list so this machine's own `dotnet run` still reaches the
 # database on 127.0.0.1:5433; compose merges the two port entries. TAILNET_IP goes in .env and
 # is this machine's address on the tailnet: `tailscale ip -4`.
 #

@@ -42,7 +42,7 @@ Funnel.**
 - From source on the desktop, `scripts/serve-tailnet.ps1` runs `tailscale serve --bg` from 443
   to the http launch profile's port on 127.0.0.1, and `-Off` stops it. The profile listens on
   localhost only, so only a process on the machine, tailscaled among them, reaches the port.
-- In containers, `compose.tailnet.yml` overlays the laptop stack with a `tailscale/tailscale`
+- In containers, `compose/tailnet.yml` overlays the laptop stack with a `tailscale/tailscale`
   sidecar, joined by an auth key from `.env`, state on a volume, userspace networking, and Serve
   configured from the committed JSON. Web listens on plain HTTP :8080 on the compose network and
   publishes nothing, exactly as behind Caddy (ADR 0019). The sidecar is its own node rather

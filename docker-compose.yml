@@ -6,7 +6,7 @@
 #     publish the app to every machine on the LAN — and Docker writes its own iptables
 #     rules, so the host firewall does not necessarily save you.
 #   * Postgres is not published at all by default. The app reaches it over the compose
-#     network, so the database needs no host-facing port. Use compose.dev.yml when you
+#     network, so the database needs no host-facing port. Use compose/dev.yml when you
 #     want it reachable for psql or host-side `dotnet run`.
 #   * HTTPS only. There is no HTTP listener to downgrade to or forget about.
 #   * Secrets come from .env (gitignored), never from this file.

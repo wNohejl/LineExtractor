@@ -60,8 +60,8 @@ and the callbacks read a reference. The snapshot's own age is published as
 presenting its last reading as current for ever.
 
 **Off by default, on via an overlay.** `Observability:Enabled` is false in `appsettings.json`; the
-`compose.telemetry.yml` overlay turns it on and adds the Aspire dashboard. This matches
-`compose.dev.yml` — the base stack stays something a reviewer runs without explanation.
+`compose/telemetry.yml` overlay turns it on and adds the Aspire dashboard. This matches
+`compose/dev.yml` — the base stack stays something a reviewer runs without explanation.
 
 **Liveness and readiness are separate questions.** `/health` depends on nothing, so a database
 outage cannot get the container killed and restarted into the same outage. `/ready` reports whether

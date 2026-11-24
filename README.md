@@ -183,13 +183,13 @@ Skip this step and the desk starts with nothing on it; add the key later in the 
 **4. Start it.**
 
 ```powershell
-docker compose -f docker-compose.yml -f compose.dev.yml up -d --build
+docker compose -f docker-compose.yml -f compose/dev.yml up -d --build
 ```
 
 Open **<https://localhost:9443>**. The browser warns about the certificate until you trust it
 (`dotnet dev-certs https --trust`, your call: it changes the machine's trust store).
 
-`compose.dev.yml` only publishes Postgres on `127.0.0.1:5433`, which the data scripts and a
+`compose/dev.yml` only publishes Postgres on `127.0.0.1:5433`, which the data scripts and a
 host-side `dotnet run` use. Plain `docker compose up -d` runs the desk without it.
 
 **5. Fill the database.** A new desk starts empty; this repository carries no data. With a key,
@@ -298,7 +298,7 @@ spent a critical alert slot on data that was never real. A database seeded befor
 cleans itself on the next start: the demo sources and everything recorded against them are
 deleted by `DatabaseInitializer`. Fixtures the old demo source invented — games ESPN never
 confirmed — are left alone there, because removing a game can take a journal entry with it;
-`scripts/purge-demo-data.sql` clears those once, deliberately.
+`scripts/sql/purge-demo-data.sql` clears those once, deliberately.
 
 ### The board
 
@@ -510,7 +510,7 @@ Deliberate choices, not defaults:
 |---|---|
 | **HTTPS only, port 9443** | No HTTP listener exists to downgrade to or forget about. 9443 avoids the 8080/8443 crowd, so it is unlikely to collide with anything else you run. |
 | **`127.0.0.1:9443:9443`** | Published to loopback only. A bare `9443:9443` binds `0.0.0.0` and exposes the app to every machine on your network — and because Docker writes its own iptables rules, the host firewall does not necessarily stop it. |
-| **Postgres not published by the base file** | The app reaches it over the compose network, so it needs no host port at all. `compose.dev.yml`, which the Quick start uses for the data scripts, publishes it on `127.0.0.1:5433` — loopback only. |
+| **Postgres not published by the base file** | The app reaches it over the compose network, so it needs no host port at all. `compose/dev.yml`, which the Quick start uses for the data scripts, publishes it on `127.0.0.1:5433` — loopback only. |
 | **Certificate volume-mounted read-only** | Never `COPY`ed into the image: that breaks dev/prod parity and risks shipping a private key in a layer. |
 | **No credentials in the repo** | Passwords live in `.env` (gitignored); `.env.example` is the committed template. `*.pfx`/`*.pem`/`*.key` are gitignored regardless of location. |
 | **Non-root, read-only rootfs, `cap_drop: ALL`, `no-new-privileges`** | The app writes only to `/keys` and `/tmp`, so everything else can be immutable. A compromise inside the container has very little to escalate with. |
@@ -520,7 +520,7 @@ Deliberate choices, not defaults:
 ### Exposing it beyond localhost
 
 To open the desk from your own laptop or phone, do not expose it at all: put it on your
-tailnet with Tailscale Serve (`compose.tailnet.yml` or `scripts/serve-tailnet.ps1`; see
+tailnet with Tailscale Serve (`compose/tailnet.yml` or `scripts/serve-tailnet.ps1`; see
 `docs/INFRASTRUCTURE.md`, "From another device", and ADR 0022). What follows is for a host
 other people reach.
 
@@ -552,7 +552,7 @@ Run Postgres in Docker and the hosts on the host, for hot reload and a debugger:
 
 ```powershell
 .\scripts\setup.ps1                   # .env, and the connection string in both hosts' user-secrets
-docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres
+docker compose -f docker-compose.yml -f compose/dev.yml up -d postgres
 dotnet run --project src/LineOps.Web --launch-profile http
 dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
 ```
@@ -658,9 +658,11 @@ tests/
   LineOps.Web.Tests       The desk's windows and services
   LineOps.Desk.Tests      The Desk package, its theme contrast and template
   LineOps.Desk.Hosting.Tests
+compose/                  Overlays on docker-compose.yml: dev (Postgres on 127.0.0.1:5433), tailnet, tailnet-db, telemetry
 deploy/                   A hosted stack: Caddy, web, worker, Postgres, backups
 site/                     The static landing page, published by hand to GitHub Pages (ADR 0031)
 scripts/                  Setup, the owner's private snapshot and journal transfer, tailnet
+  sql/                    Hand-run database scripts: purges and the test-bet seed
 data/personal/            Gitignored: the owner's private clone (journal, snapshot); absent elsewhere
 .claude/skills/           Agent skills: setup, and the Desk's design rules
 docs/

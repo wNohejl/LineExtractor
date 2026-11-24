@@ -1,7 +1,7 @@
 # The desk on your own tailnet: the laptop/desktop stack, reachable from your other devices
 # at https://<TS_HOSTNAME>.<tailnet>.ts.net and from nowhere else. See ADR 0022.
 #
-#   docker compose -f docker-compose.yml -f compose.tailnet.yml up -d
+#   docker compose -f docker-compose.yml -f compose/tailnet.yml up -d
 #
 #   Your device on the tailnet ─► tailscale :443 (Serve, TLS) ─► web :8080 (plain HTTP)
 #                                                                   │

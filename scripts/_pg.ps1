@@ -15,7 +15,7 @@
       excluded. Over stdin they arrive exactly as written in every PowerShell.
 
     The sidecar joins the database container's network namespace, so the server is at
-    127.0.0.1:5432 whether or not compose.dev.yml publishes it.
+    127.0.0.1:5432 whether or not compose/dev.yml publishes it.
 #>
 
 function Invoke-PgSidecar {
@@ -71,7 +71,7 @@ function Get-PgPassword([string]$Root) {
 
 <#
     The compose files this machine runs Postgres with, in order: docker-compose.yml and
-    compose.dev.yml always, and compose.tailnet-db.yml when .env names a TAILNET_IP (ADR 0023).
+    compose/dev.yml always, and compose/tailnet-db.yml when .env names a TAILNET_IP (ADR 0023).
 
     A script that recreates the container with a shorter list than the one it was started with
     drops whatever the missing overlay published: run on the desktop, a restore that named only
@@ -87,7 +87,7 @@ function Get-ComposeFiles([string]$Root) {
         return @($env:LINEOPS_COMPOSE_FILES -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     }
 
-    $files = @('docker-compose.yml', 'compose.dev.yml')
+    $files = @('docker-compose.yml', 'compose/dev.yml')
     $envFile = Join-Path $Root '.env'
     if (Test-Path $envFile) {
         $text = [string](Get-Content $envFile -Raw)
@@ -97,7 +97,7 @@ function Get-ComposeFiles([string]$Root) {
         if ($found.Count -gt 0) {
             $last = $found[$found.Count - 1]
             $value = ($last.Groups[1].Value + $last.Groups[2].Value + $last.Groups[3].Value).Trim()
-            if ($value) { $files += 'compose.tailnet-db.yml' }
+            if ($value) { $files += 'compose/tailnet-db.yml' }
         }
     }
     return $files

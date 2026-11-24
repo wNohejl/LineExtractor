@@ -143,9 +143,9 @@ back on without reinstalling Windows. Until then, on that machine:
 
 ```powershell
 # The desk, at https://localhost:9443 (built from this checkout; --build after a code change).
-# Always both files: without compose.dev.yml Postgres is recreated without 127.0.0.1:5433,
+# Always both files: without compose/dev.yml Postgres is recreated without 127.0.0.1:5433,
 # which the data and journal scripts need.
-docker compose -f docker-compose.yml -f compose.dev.yml up -d --build web
+docker compose -f docker-compose.yml -f compose/dev.yml up -d --build web
 docker compose logs -f web
 
 # One Worker job, in the worker image instead of `dotnet run --project src/LineOps.Worker`.

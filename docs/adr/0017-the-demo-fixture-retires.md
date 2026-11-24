@@ -92,7 +92,7 @@ stay.**
 - **Fixtures the demo source invented**, from before ADR 0013 taught it to price the real
   schedule — a game carrying a `demo` external id and no `espn` one. Removing a game takes its
   journal entries with it, and deleting what someone recorded about their own wagering is their
-  decision, not a startup path's. `scripts/purge-demo-data.sql` still does that, by hand, and is
+  decision, not a startup path's. `scripts/sql/purge-demo-data.sql` still does that, by hand, and is
   now the only thing it does.
 - **Incidents.** An incident exists to carry a written root-cause analysis; the analysis is the
   point of it, and ADR 0003's discipline is that every real failure gets one. Its alerts go, so

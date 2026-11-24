@@ -55,13 +55,13 @@ tmpfs for scratch, memory limits, and **every published port bound to 127.0.0.1*
 
 Overlays, deliberately opt-in rather than default:
 
-- `compose.dev.yml` — publishes Postgres on `127.0.0.1:5433` for psql / host-side `dotnet run`.
-- `compose.telemetry.yml` — Aspire dashboard on `127.0.0.1:18888`, OTLP ingest on `:18889`;
+- `compose/dev.yml` — publishes Postgres on `127.0.0.1:5433` for psql / host-side `dotnet run`.
+- `compose/telemetry.yml` — Aspire dashboard on `127.0.0.1:18888`, OTLP ingest on `:18889`;
   the OTLP exporter is off in appsettings and switched on here (ADR 0015).
-- `compose.tailnet.yml` — a Tailscale sidecar serving the desk on your own tailnet; web
+- `compose/tailnet.yml` — a Tailscale sidecar serving the desk on your own tailnet; web
   drops to plain HTTP on the compose network, behind the proxy and gated (ADR 0022, and
   "From another device" below).
-- `compose.tailnet-db.yml` — publishes Postgres on the desktop's tailnet address for a second
+- `compose/tailnet-db.yml` — publishes Postgres on the desktop's tailnet address for a second
   desk on the laptop (ADR 0023, below).
 
 `deploy/compose.yml` is a separate, hosted stack (Caddy, web, worker, Postgres, backups); see
@@ -127,7 +127,7 @@ SDK container: on Windows it reports line-ending noise.
 
 - `scripts/setup.ps1` bootstraps certificate + `.env`; the README's Quick start, and the
   `lineops-setup` agent skill, take a fresh clone to a running desk.
-- `dotnet run` against `compose.dev.yml`'s published Postgres, or full stack via compose.
+- `dotnet run` against `compose/dev.yml`'s published Postgres, or full stack via compose.
 - Purge scripts in `scripts/` (fixtures the retired demo source invented, exhibitions/orphans,
   preseason) are the only
   sanctioned by-hand database interventions; day re-walks are done from the History window.
@@ -150,10 +150,10 @@ console's DNS page turn on MagicDNS and HTTPS certificates; make an operator cod
 - **In containers**: add `TS_AUTHKEY` (admin console → Settings → Keys; not reusable, not
   ephemeral, tagged `tag:lineops` — an untagged node's key expires in about 180 days) and
   `ACCESS_OPERATOR_CODE_HASH` to `.env`, then
-  `docker compose -f docker-compose.yml -f compose.tailnet.yml up -d`. The node is named
+  `docker compose -f docker-compose.yml -f compose/tailnet.yml up -d`. The node is named
   `TS_HOSTNAME` (default `desk`); set `LINEOPS_TAILNET_HOST` to its full name to refuse
   any other `Host`.
 
 Either way it is still the one desk and its one scheduler; nothing on the other device runs.
 
-**Or against the desktop's database.** The laptop can run its desk against the desktop's database instead of a restored copy ([ADR 0023](adr/0023-one-database-two-desks.md)). On the desktop: install Tailscale, put its address (`tailscale ip -4`) in `.env` as `TAILNET_IP`, and bring Postgres up with `docker compose -f docker-compose.yml -f compose.dev.yml -f compose.tailnet-db.yml up -d postgres`, which publishes it on the tailnet address beside loopback and nowhere else. On the laptop: join the same tailnet, put the desktop's `POSTGRES_PASSWORD` in its own `.env` as `REMOTE_POSTGRES_PASSWORD`, run `.\scripts\connect-remote-db.ps1 -Host <desktop>`, and start the desk as usual. The script switches the laptop's scheduler and evaluator off; the desk refuses to start against a remote database with either on unless `Ingestion:AllowRemoteScheduling=true` says so (`SchedulerPlacement`). The connection uses `SSL Mode=Disable` because the tailnet already encrypts it. With the desktop off the laptop's desk cannot start: `connect-remote-db.ps1 -Local` and `restore-data.ps1` are the fallback. Only the desktop migrates its database: a desk or a Worker `--job` on the laptop never migrates it, and refuses to start when the laptop's code and the database's migrations differ, naming them: newer code is migrated from the desktop, older code pulls the newer commit (`Data:AllowRemoteMigration=true` is the deliberate override). `restore-data.ps1` on the desktop brings Postgres back with `compose.tailnet-db.yml` whenever `.env` sets `TAILNET_IP` (`LINEOPS_COMPOSE_FILES` overrides the list).
+**Or against the desktop's database.** The laptop can run its desk against the desktop's database instead of a restored copy ([ADR 0023](adr/0023-one-database-two-desks.md)). On the desktop: install Tailscale, put its address (`tailscale ip -4`) in `.env` as `TAILNET_IP`, and bring Postgres up with `docker compose -f docker-compose.yml -f compose/dev.yml -f compose/tailnet-db.yml up -d postgres`, which publishes it on the tailnet address beside loopback and nowhere else. On the laptop: join the same tailnet, put the desktop's `POSTGRES_PASSWORD` in its own `.env` as `REMOTE_POSTGRES_PASSWORD`, run `.\scripts\connect-remote-db.ps1 -Host <desktop>`, and start the desk as usual. The script switches the laptop's scheduler and evaluator off; the desk refuses to start against a remote database with either on unless `Ingestion:AllowRemoteScheduling=true` says so (`SchedulerPlacement`). The connection uses `SSL Mode=Disable` because the tailnet already encrypts it. With the desktop off the laptop's desk cannot start: `connect-remote-db.ps1 -Local` and `restore-data.ps1` are the fallback. Only the desktop migrates its database: a desk or a Worker `--job` on the laptop never migrates it, and refuses to start when the laptop's code and the database's migrations differ, naming them: newer code is migrated from the desktop, older code pulls the newer commit (`Data:AllowRemoteMigration=true` is the deliberate override). `restore-data.ps1` on the desktop brings Postgres back with `compose/tailnet-db.yml` whenever `.env` sets `TAILNET_IP` (`LINEOPS_COMPOSE_FILES` overrides the list).
