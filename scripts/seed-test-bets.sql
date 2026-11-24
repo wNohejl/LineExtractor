@@ -1,6 +1,6 @@
 -- Seeds a handful of journal rows so the wager window, the slip and the Journal can be exercised
 -- against real games while the journal is otherwise empty. See
--- docs/superpowers/specs/2026-09-26-slip-and-advisory-checks-design.md §10.
+-- docs/specs/2026-09-26-slip-and-advisory-checks-design.md §10.
 --
 -- What it inserts, from games the database already holds:
 --   * two pending moneyline bets on the same side of the next scheduled NFL game, an hour apart,
