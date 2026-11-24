@@ -14,6 +14,17 @@ not start. The desk was good; the git management was not. Keep it this way inste
   old tips. If a piece of work is worth keeping it is worth a commit on `LineX_Development`.
 - Push `LineX_Development` after every commit. The laptop and the desktop both clone from
   origin; an unpushed branch is a branch that exists on one machine.
+- `main` only ever receives `LineX_Development` by **squash and merge**: one commit on `main`
+  per release, never the branch's commits one by one and never a merge commit, so `main`'s
+  commit count stays a count of releases rather than of every working step.
+- A squash shares no history with the commits it squashed, so straight after each squash
+  merge, record it back on `LineX_Development` with its tree unchanged:
+  `git fetch origin; git merge -s ours origin/main; git push`. `-s ours` is right only because
+  `main` takes nothing but these squashes, so its tree is always one this branch already holds;
+  a fix made on `main` directly would be dropped by it, so none is. Skip this and the next squash
+  merge reports conflicts in every file both sides touched (it did on 2026-11-23, across 400
+  files). Check before merging: `git merge-tree --write-tree origin/main LineX_Development`
+  should exit 0.
 
 ## Authorship
 
