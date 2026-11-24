@@ -137,6 +137,34 @@ public class WindowTabGroupTests
             DeskHeader.CapacitySentence(desk));
     }
 
+    // ------------------------------------------------------------- no duplicates ----
+
+    [Fact]
+    public void Asking_again_for_a_subject_already_open_brings_that_window_forward_rather_than_a_copy()
+    {
+        var desk = Desk(columns: 1);
+        var first = desk.Open(Window(SampleCatalog.Item), new Dictionary<string, object> { ["ItemId"] = 1 }, "First item");
+        var second = desk.Open(Window(SampleCatalog.Item), new Dictionary<string, object> { ["ItemId"] = 2 }, "Second item");
+        Assert.False(desk.IsShowing(first));
+
+        var again = desk.Open(Window(SampleCatalog.Item), new Dictionary<string, object> { ["ItemId"] = 1 }, "First item");
+
+        Assert.Same(first, again);
+        Assert.Equal(2, desk.OpenCount);
+        Assert.True(desk.IsShowing(first));
+        Assert.NotSame(first, second);
+    }
+
+    [Fact]
+    public void A_window_with_no_subject_opens_once()
+    {
+        var desk = Desk(columns: 2);
+        var chart = desk.Open(Window(SampleCatalog.Chart));
+
+        Assert.Same(chart, desk.Open(Window(SampleCatalog.Chart)));
+        Assert.Equal(1, desk.OpenCount);
+    }
+
     // ------------------------------------------------------- dragging into a window ----
 
     [Fact]

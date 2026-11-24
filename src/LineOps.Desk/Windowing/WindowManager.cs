@@ -602,6 +602,15 @@ public class WindowManager
             }
         }
 
+        else if (_windows.FirstOrDefault(w => w.Definition.Key == definition.Key && SameSubject(w, parameters)) is { } same)
+        {
+            // A window that may be open more than once is open once per subject: asking again
+            // for a subject already on the desk brings that window forward,
+            // wherever it is — a tab behind another included — rather than drawing a second copy.
+            Focus(same.Id);
+            return same;
+        }
+
         var title = titleOverride ?? definition.Title;
 
         if (AtCeiling)
@@ -1775,6 +1784,15 @@ public class WindowManager
             return from;
         }
 
+        // Another window already shows this subject: go to it rather than turning this one into
+        // a second copy of it.
+        if (_windows.FirstOrDefault(w => w != from && w.Definition.Key == definition.Key
+                                         && (definition.Singleton || SameSubject(w, parameters))) is { } open)
+        {
+            Focus(open.Id);
+            return open;
+        }
+
         Remember();
 
         from.BackPages.Add(PageOf(from));
@@ -1858,6 +1876,16 @@ public class WindowManager
     }
 
     /// <summary>Whether opening <paramref name="window"/> with these arguments would change what it shows.</summary>
+    /// <summary>Whether a window is on exactly the subject <paramref name="parameters"/> name: the same keys, the same values.</summary>
+    private static bool SameSubject(WindowInstance window, Dictionary<string, object>? parameters)
+    {
+        var current = window.Parameters.Where(p => p.Value is not null).ToDictionary();
+        var asked = (parameters ?? []).Where(p => p.Value is not null).ToDictionary();
+
+        return current.Count == asked.Count
+            && asked.All(p => current.TryGetValue(p.Key, out var value) && Equals(value, p.Value));
+    }
+
     private static bool Retargets(WindowInstance window, Dictionary<string, object>? parameters, string? title)
     {
         if (title is not null && title != window.TitleOverride)

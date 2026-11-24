@@ -1004,12 +1004,15 @@ public class LineWatchTests : WagerTestContext
         var watched = Odds;
         Assert.True(LineWatch.IsActive(Desk));
 
-        var second = Desk.Open(WindowCatalog.Find(WindowCatalog.Odds)!);
+        // A second copy of the same window is not opened; one on a game of its own is.
+        Assert.Same(watched, Desk.Open(WindowCatalog.Find(WindowCatalog.Odds)!));
+        var second = Desk.Open(WindowCatalog.Find(WindowCatalog.Odds)!, new Dictionary<string, object> { ["GameId"] = 3 });
+        Assert.NotSame(watched, second);
 
         Assert.True(LineWatch.Drives(Desk, watched.Id));
         Assert.False(LineWatch.Drives(Desk, second.Id));
         Assert.Same(watched, LineWatch.Show(Desk, 7, null, null, "Bills at Chiefs", null));
-        Assert.False(second.Parameters.ContainsKey("GameId"));
+        Assert.Equal(3, second.Parameters["GameId"]);
     }
 
     [Fact]
