@@ -295,10 +295,22 @@ public class WindowManager
     /// The column the next window would join as a tab, or null while a column is free. Said
     /// before the click, as the header's count does, so where a window lands is never a surprise.
     /// </summary>
-    public WindowColumn? NextTabTarget => AtCapacity ? Pick(BuildColumns(), avoid: FocusedId) : null;
+    public WindowColumn? NextTabTarget => AtCapacity ? TabTarget(BuildColumns()) : null;
 
     /// <summary>
-    /// Where a window goes when every column is in use. One rule, read left to right:
+    /// Where a window opened at the limit goes: a tab in the window last selected, so what was
+    /// just asked for lands where the operator is looking (amended 2026-11-23). It used to avoid
+    /// that column and spread tabs across the others, and a window chosen from the menu turned
+    /// up somewhere other than the window the operator had been in. With nothing selected the
+    /// old rule (<see cref="Pick"/>) still chooses.
+    /// </summary>
+    private WindowColumn? TabTarget(IReadOnlyList<WindowColumn> columns)
+        => (FocusedId is { } focused ? columns.FirstOrDefault(c => c.Tabs.Any(t => t.Id == focused)) : null)
+           ?? Pick(columns, avoid: null);
+
+    /// <summary>
+    /// Where a column folds when the limit drops, and where a window opened at the limit goes
+    /// with nothing selected. One rule, read left to right:
     ///
     /// <list type="number">
     /// <item>never the column the operator is working in, while there is another — the window
@@ -439,6 +451,45 @@ public class WindowManager
         GiveRowBackFor(window);
 
         TouchAll(from.Tabs);
+        Relayout();
+        return true;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="id"/> can be dropped into the column holding <paramref name="targetId"/>
+    /// as a tab: both on the desk, in different columns.
+    /// </summary>
+    public bool CanMoveIntoColumn(string id, string targetId)
+        => Find(id) is { } window && Find(targetId) is { } target && window.ColumnId != target.ColumnId;
+
+    /// <summary>
+    /// A tab dragged onto another window: <paramref name="id"/> leaves its column and joins the
+    /// one holding <paramref name="targetId"/>, in front, at that column's place and width. A
+    /// column left empty gives its width back to the row; one left with a single window is a
+    /// plain window again. A step Back takes back. True when it moved.
+    /// </summary>
+    public bool MoveIntoColumn(string id, string targetId)
+    {
+        if (!CanMoveIntoColumn(id, targetId))
+            return false;
+
+        Remember();
+
+        var window = Find(id)!;
+        var columns = BuildColumns();
+        var from = columns.First(c => c.Id == window.ColumnId);
+        var to = columns.First(c => c.Id == Find(targetId)!.ColumnId);
+
+        Join(window, to, inFront: true);
+        TouchAll(from.Tabs);
+
+        // The row closes up behind a column the move emptied, and keeps every other place.
+        Renumber(BuildColumns().Select(c => c.Tabs));
+
+        window.LastFocusedAt = DateTimeOffset.UtcNow;
+        FocusedId = id;
+        GiveRowBackFor(window);
+
         Relayout();
         return true;
     }

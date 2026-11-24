@@ -169,7 +169,7 @@
             return $"{columns}, {windows} — the most the desk holds. Close one to open another.";
 
         return manager.NextTabTarget is { } target
-            ? $"{columns}, {windows}. The next window opens as a tab beside {target.Showing.Title}."
+            ? $"{columns}, {windows}. The next window opens as a tab in {target.Showing.Title}."
             : $"{columns}, {windows}.";
     }
 

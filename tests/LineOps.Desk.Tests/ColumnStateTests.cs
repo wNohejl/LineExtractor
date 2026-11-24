@@ -151,6 +151,7 @@ public class ColumnStateTests : SampleDeskTestContext
         var desk = Desk(columns: 2);
         var list = desk.Open(Window(SampleCatalog.List));
         desk.Open(Window(SampleCatalog.Health));
+        desk.Focus(desk.Columns[0].Showing.Id);
         var jobs = desk.Open(Window(SampleCatalog.Jobs));
         Assert.Equal(desk.ColumnOf(list.Id)!.Id, desk.ColumnOf(jobs.Id)!.Id);
 
@@ -219,6 +220,7 @@ public class ColumnStateTests : SampleDeskTestContext
         var desk = Desk(columns: 2);
         var list = desk.Open(Window(SampleCatalog.List));
         var health = desk.Open(Window(SampleCatalog.Health));
+        desk.Focus(desk.Columns[0].Showing.Id);
         var jobs = desk.Open(Window(SampleCatalog.Jobs));
         desk.AdjustSplit(jobs.Id, health.Id, 800, 400);
         var shape = Shape(desk);

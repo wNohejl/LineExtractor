@@ -759,6 +759,17 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* Once nothing is left to fold — every stage is in More, or the row never had one — the
+   message is what gives: it ends in an ellipsis, its whole sentence in its tooltip, rather
+   than pushing the primary key past the window's edge, cut in half beside a long count in a
+   window a third of the desk wide. */
+.ptoolbar[data-spent] .ptoolbar__msg {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* An Overflow control on the row: the control alone, sized to its words, its
    label hidden — the control names itself there. */
 .ptoolbar__item {

@@ -91,6 +91,7 @@
                                       AriaLabel="@TabLabel(tab)"
                                       Attention="@AttentionOf(tab)"
                                       Checked="@(tab == showing)"
+                                      DragId="@tab.Id"
                                       RemoveLabel="@($"Close {tab.Title}")"
                                       OnRemove="() => CloseAsync(tab)"
                                       OnClick="() => Select(tab)" />

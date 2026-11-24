@@ -298,7 +298,7 @@
         // when the set of open windows changes — not on every reorder or resize render. A
         // window outside a maximised column draws no bar, so a restored row has new bars to
         // wire: the column holding the row is part of the signature.
-        var tabSignature = string.Join(",", Row.Select(w => w.Id)) + "|" + Manager.MaximisedColumn?.Id;
+        var tabSignature = string.Join(",", Row.Select(w => w.Id)) + "|" + Manager.MaximisedColumn?.Id + "|" + Manager.ColumnCount;
         if (tabSignature != _wiredTabs)
         {
             _wiredTabs = tabSignature;
@@ -315,6 +315,17 @@
     [JSInvokable]
     public void OnReordered(string[] orderedIds)
         => Manager.Reorder(orderedIds);
+
+    /// <summary>
+    /// Called from JS when a tab — a window's title bar, or a row of a group's tab menu — is
+    /// dropped on another window: it joins that window's column as a tab. See windowing.js.
+    /// </summary>
+    [JSInvokable]
+    public void OnTabDropped(string id, string targetId)
+    {
+        if (Manager.MoveIntoColumn(id, targetId))
+            Manager.RequestTabFocus(id);
+    }
 
     /// <summary>Ctrl+K or ⌘K, from anywhere on the page. See windowing.js.</summary>
     [JSInvokable]

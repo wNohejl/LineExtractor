@@ -39,6 +39,8 @@ public class DeskHistoryTests
         var health = desk.Open(Window(SampleCatalog.Health));
         desk.Open(Window(SampleCatalog.Alerts));
 
+        desk.Focus(desk.Columns[0].Showing.Id);
+
         var jobs = desk.Open(Window(SampleCatalog.Jobs));
         Assert.Equal(3, desk.OpenCount);
         Assert.Equal(2, desk.ColumnCount);

@@ -45,7 +45,7 @@
 @* No role="toolbar": the ARIA pattern promises one tab stop with arrow keys between the
    controls, and these are ordinary controls with ordinary tab stops. A role that
    announces behaviour the row does not have is worse than none. *@
-<div @ref="_root" class="@Classes" style="@Styles" data-narrow="@(Narrow ? "true" : null)" @attributes="Rest">
+<div @ref="_root" class="@Classes" style="@Styles" data-narrow="@(Narrow ? "true" : null)" data-spent="@(Spent ? "true" : null)" @attributes="Rest">
     @ChildContent
 
     @if (!Folded(Stage.Overflow))
@@ -108,7 +108,7 @@
 
     @if (Message is { Length: > 0 })
     {
-        <span class="ptoolbar__msg">@Message</span>
+        <span class="ptoolbar__msg" title="@(Spent ? Message : null)">@Message</span>
     }
 
 
@@ -211,6 +211,13 @@
 
     /// <summary>Every stage this row has is in More; the key itself is the next thing to shrink.</summary>
     private bool FullyFolded => Steps > 0 && _fold >= Steps && !ForceNarrow;
+
+    /// <summary>
+    /// Nothing is left to fold: every stage is in More, or the row has none. The message is then
+    /// what gives, ending in an ellipsis (controls.css), so the primary key is never pushed past
+    /// the window's edge.
+    /// </summary>
+    private bool Spent => Steps == 0 || FullyFolded;
 
     private string Classes => string.Join(' ', new[] { "ptoolbar", Class, DeskLayout.ExtraClass(Extra) }
         .Where(p => p is { Length: > 0 }));

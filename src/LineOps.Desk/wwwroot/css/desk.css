@@ -2318,6 +2318,37 @@ body.splitting .win, body.tab-dragging .win { transition: none; user-select: non
 
 body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 
+/* The window a dragged tab will join if let go now: the middle of a window takes it as a tab,
+   its outer quarters still move it beside (windowing.js). Washed and ringed in the accent, the
+   same answer the tab menu's selected row gives, so where it lands is said before the drop. */
+.win.win--tab-target::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--accent-wash);
+    box-shadow: inset 0 0 0 2px var(--accent);
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+/* A row of a tab menu, lifted off the menu and following the pointer to another window. */
+.tab-ghost {
+    position: fixed;
+    z-index: var(--z-toast);
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: var(--shadow-sheet);
+    pointer-events: none;
+    transform: translate(12px, 8px);
+}
+
+body.tab-dragging [data-tab-drag-id] { cursor: grabbing; }
+
 /* Collapsed: a slim, title-only tab. Still a full member of the row — there is no other
    list it could be sitting in instead. */
 .win--collapsed {

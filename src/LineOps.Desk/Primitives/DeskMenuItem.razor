@@ -33,6 +33,7 @@
         aria-label="@AriaLabel"
         aria-keyshortcuts="@(CanRemove ? "Delete" : null)"
         title="@(Disabled ? DisabledReason ?? Title : Title)"
+        data-tab-drag-id="@DragId"
         @onclick="ActivateAsync">
     @if (ShowsCheck)
     {
@@ -219,6 +220,12 @@
 
     /// <summary>Extra classes on the row, for a menu that draws its rows in its own shape (a column's tabs).</summary>
     [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// A window id when the row stands for a window that can be dragged onto another one — a
+    /// row of a tab group's menu (WindowTabs, windowing.js). Null for every other menu.
+    /// </summary>
+    [Parameter] public string? DragId { get; set; }
 
     private string Classes => $"{(Destructive ? "menu__item menu__item--destructive" : "menu__item")}{(string.IsNullOrEmpty(Class) ? null : $" {Class}")}";
 

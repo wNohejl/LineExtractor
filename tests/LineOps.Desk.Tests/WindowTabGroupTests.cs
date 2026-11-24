@@ -65,6 +65,8 @@ public class WindowTabGroupTests
         var (x, width) = (list.X, list.Width);
         var healthX = health.X;
 
+        desk.Focus(desk.Columns[0].Showing.Id);
+
         var jobs = desk.Open(Window(SampleCatalog.Jobs));
 
         Assert.Same(list, desk.ColumnOf(jobs.Id)!.Tabs[1]);
@@ -74,7 +76,21 @@ public class WindowTabGroupTests
     }
 
     [Fact]
-    public void Groups_fill_left_to_right_and_stay_balanced()
+    public void At_the_limit_a_window_opens_as_a_tab_in_the_window_last_selected()
+    {
+        var desk = Desk(columns: 2);
+        var list = desk.Open(Window(SampleCatalog.List));
+        desk.Open(Window(SampleCatalog.Health));
+        desk.Focus(list.Id);
+
+        var jobs = desk.Open(Window(SampleCatalog.Jobs));
+
+        Assert.Equal([SampleCatalog.Jobs, SampleCatalog.List], Keys(desk.ColumnOf(jobs.Id)!));
+        Assert.True(desk.IsShowing(jobs));
+    }
+
+    [Fact]
+    public void Windows_opened_one_after_another_stack_in_the_column_being_worked_in()
     {
         var desk = Desk(columns: 3);
         desk.Open(Window(SampleCatalog.List));
@@ -83,44 +99,28 @@ public class WindowTabGroupTests
 
         desk.Open(Window(SampleCatalog.Jobs));
         desk.Open(Window(SampleCatalog.Notes));
-        desk.Open(Window(SampleCatalog.Settings));
 
         Assert.Equal(
             [
-                [SampleCatalog.Jobs, SampleCatalog.List],
-                [SampleCatalog.Notes, SampleCatalog.Health],
-                [SampleCatalog.Settings, SampleCatalog.Alerts],
+                [SampleCatalog.List],
+                [SampleCatalog.Health],
+                [SampleCatalog.Notes, SampleCatalog.Jobs, SampleCatalog.Alerts],
             ],
             Shape(desk));
     }
 
     [Fact]
-    public void The_column_being_worked_in_is_never_covered()
-    {
-        var desk = Desk(columns: 2);
-        var list = desk.Open(Window(SampleCatalog.List));
-        desk.Open(Window(SampleCatalog.Health));
-        desk.Focus(list.Id);
-
-        // The leftmost column is the one with fewest tabs, but the operator is reading it.
-        var jobs = desk.Open(Window(SampleCatalog.Jobs));
-
-        Assert.True(desk.IsShowing(list));
-        Assert.Equal([SampleCatalog.Jobs, SampleCatalog.Health], Keys(desk.ColumnOf(jobs.Id)!));
-    }
-
-    [Fact]
-    public void The_primary_windows_column_takes_tabs_last()
+    public void The_selected_window_takes_the_tab_even_when_it_is_the_primary()
     {
         var desk = Desk(columns: 3, primary: SampleCatalog.Health);
         var health = desk.Open(Window(SampleCatalog.Health));
         desk.Open(Window(SampleCatalog.List));
         desk.Open(Window(SampleCatalog.Alerts));
+        desk.Focus(health.Id);
 
-        desk.Open(Window(SampleCatalog.Jobs));
+        var jobs = desk.Open(Window(SampleCatalog.Jobs));
 
-        Assert.True(desk.IsShowing(health));
-        Assert.Equal([SampleCatalog.Jobs, SampleCatalog.List], Keys(desk.Columns[1]));
+        Assert.Equal([SampleCatalog.Jobs, SampleCatalog.Health], Keys(desk.ColumnOf(jobs.Id)!));
     }
 
     [Fact]
@@ -132,9 +132,61 @@ public class WindowTabGroupTests
 
         desk.Open(Window(SampleCatalog.Health));
 
-        Assert.Equal(SampleCatalog.List, desk.NextTabTarget!.Showing.Definition.Key);
-        Assert.Equal("2 of 2 columns in use, 2 windows open. The next window opens as a tab beside List.",
+        Assert.Equal(SampleCatalog.Health, desk.NextTabTarget!.Showing.Definition.Key);
+        Assert.Equal("2 of 2 columns in use, 2 windows open. The next window opens as a tab in Health.",
             DeskHeader.CapacitySentence(desk));
+    }
+
+    // ------------------------------------------------------- dragging into a window ----
+
+    [Fact]
+    public void A_window_dropped_on_another_joins_its_column_in_front_and_its_own_column_closes_up()
+    {
+        var desk = Desk(columns: 3);
+        var list = desk.Open(Window(SampleCatalog.List));
+        var health = desk.Open(Window(SampleCatalog.Health));
+        var alerts = desk.Open(Window(SampleCatalog.Alerts));
+
+        Assert.True(desk.MoveIntoColumn(list.Id, alerts.Id));
+
+        Assert.Equal([[SampleCatalog.Health], [SampleCatalog.List, SampleCatalog.Alerts]], Shape(desk));
+        Assert.Equal(list.Id, desk.FocusedId);
+        Assert.Equal(alerts.X, list.X);
+        Assert.Equal(alerts.Width, list.Width);
+        Assert.True(health.X < list.X);
+    }
+
+    [Fact]
+    public void A_tab_behind_can_be_dragged_out_of_its_group_into_another_window()
+    {
+        var desk = Desk(columns: 2);
+        var list = desk.Open(Window(SampleCatalog.List));
+        var health = desk.Open(Window(SampleCatalog.Health));
+        var jobs = desk.Open(Window(SampleCatalog.Jobs));
+        Assert.Equal([SampleCatalog.Jobs, SampleCatalog.Health], Keys(desk.ColumnOf(jobs.Id)!));
+
+        Assert.True(desk.MoveIntoColumn(health.Id, list.Id));
+
+        Assert.Equal([[SampleCatalog.Health, SampleCatalog.List], [SampleCatalog.Jobs]], Shape(desk));
+        Assert.True(desk.IsShowing(health));
+        Assert.True(desk.IsShowing(jobs));
+    }
+
+    [Fact]
+    public void Dropping_a_window_on_its_own_column_does_nothing_and_Back_undoes_a_drop()
+    {
+        var desk = Desk(columns: 2);
+        var list = desk.Open(Window(SampleCatalog.List));
+        var health = desk.Open(Window(SampleCatalog.Health));
+        var jobs = desk.Open(Window(SampleCatalog.Jobs));
+
+        Assert.False(desk.MoveIntoColumn(jobs.Id, health.Id));
+
+        Assert.True(desk.MoveIntoColumn(list.Id, jobs.Id));
+        Assert.Single(desk.Columns);
+
+        Assert.True(desk.Back());
+        Assert.Equal(2, desk.ColumnCount);
     }
 
     // ------------------------------------------------------------- recency order ----
@@ -248,6 +300,7 @@ public class WindowTabGroupTests
         var desk = Desk(columns: 2);
         desk.Open(Window(SampleCatalog.List));
         desk.Open(Window(SampleCatalog.Health));
+        desk.Focus(desk.Columns[0].Showing.Id);
         var jobs = desk.Open(Window(SampleCatalog.Jobs));
 
         Assert.False(desk.CanMoveToOwnColumn(jobs.Id));
@@ -323,6 +376,7 @@ public class WindowTabGroupTests
         var desk = Desk(columns: 2);
         var list = desk.Open(Window(SampleCatalog.List));
         desk.Open(Window(SampleCatalog.Health));
+        desk.Focus(desk.Columns[0].Showing.Id);
         var jobs = desk.Open(Window(SampleCatalog.Jobs));
 
         desk.ToggleMinimise(jobs.Id);
@@ -355,6 +409,7 @@ public class WindowTabGroupTests
         var desk = Desk(columns: 2);
         var list = desk.Open(Window(SampleCatalog.List));
         var health = desk.Open(Window(SampleCatalog.Health));
+        desk.Focus(desk.Columns[0].Showing.Id);
         desk.Open(Window(SampleCatalog.Jobs));
 
         desk.Reorder([health.Id, list.Id]);
@@ -368,6 +423,7 @@ public class WindowTabGroupTests
         var desk = Desk(columns: 2);
         desk.Open(Window(SampleCatalog.List));
         desk.Open(Window(SampleCatalog.Health));
+        desk.Focus(desk.Columns[0].Showing.Id);
         var jobs = desk.Open(Window(SampleCatalog.Jobs));
 
         LineOps.Desk.Windowing.Desk.MoveFocused(desk, 1);
@@ -382,6 +438,7 @@ public class WindowTabGroupTests
         var desk = Desk(columns: 2);
         var list = desk.Open(Window(SampleCatalog.List));
         var health = desk.Open(Window(SampleCatalog.Health));
+        desk.Focus(desk.Columns[0].Showing.Id);
         var jobs = desk.Open(Window(SampleCatalog.Jobs));
 
         desk.AdjustSplit(jobs.Id, health.Id, 800, 400);
