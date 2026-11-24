@@ -135,7 +135,7 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
     /// with the source, because they were never real. Fixtures the demo source invented before
     /// it was taught to quote the real schedule are <i>not</i> touched here — removing a game can
     /// take a journal entry with it, and deleting what someone recorded is a decision for them
-    /// rather than for a startup path. <c>scripts/purge-demo-data.sql</c> does that part.
+    /// rather than for a startup path. <c>scripts/sql/purge-demo-data.sql</c> does that part.
     /// </para>
     ///
     /// <para>

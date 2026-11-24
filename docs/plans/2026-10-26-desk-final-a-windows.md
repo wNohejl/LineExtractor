@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10 Blazor Server, MudBlazor 9.7, bUnit + xUnit (`tests/LineOps.Web.Tests`), the Desk CSS in `src/LineOps.Desk/wwwroot/css`.
 
-**Spec:** `docs/superpowers/specs/2026-10-26-desk-finalisation-design.md` (Phase A).
+**Spec:** `docs/specs/2026-10-26-desk-finalisation-design.md` (Phase A).
 
 ## Global Constraints
 
@@ -278,7 +278,7 @@ public void A_panel_that_throws_shows_the_error_state_and_try_again_rebuilds_it(
 ### Task 8: The walk, and its record
 
 **Files:**
-- Create: `docs/superpowers/evidence/2026-10-desk-final.md`
+- Create: `docs/evidence/2026-10-desk-final.md`
 
 - [ ] **Step 1:** Build to the scratch output and start the preview on port 5271 (`lineops-web-fable`).
 - [ ] **Step 2:** For each of the 19 windows, at 1280×800 and 1920×1080, dark then light: open it, screenshot to the scratchpad, run the checklist (grouped forms, one filled key, no nested edge, names, empty/loading/error where reachable), and run axe-core by pasting its source through the browser pane's script tool; record `window | size | theme | result | defects` rows.

@@ -6,7 +6,7 @@
 window is reached from, and [ADR 0006](0006-container-security-and-https.md), whose loopback-only
 binding this ADR is the first step away from.
 
-**Plan:** [Going public](../superpowers/specs/2026-09-27-going-public-plan.md) §5.
+**Plan:** [Going public](../specs/2026-09-27-going-public-plan.md) §5.
 
 ## Context
 

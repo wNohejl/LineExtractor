@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10, Blazor Server, MudBlazor 9.7, bUnit on `DeskTestContext` (`tests/LineOps.Web.Tests`), PowerShell 7.
 
-**Spec:** `docs/superpowers/specs/2026-10-25-hig-desk-audit.md` (the audit; its rulings bind). Rulebook: `C:\Users\waden\.claude\skills\apple-hig-components` (SKILL.md, `references/audit.md`, `type-color-layout.md`, `components.md`). Anatomy: `docs/superpowers/specs/2026-10-24-panel-anatomy-design.md`.
+**Spec:** `docs/specs/2026-10-25-hig-desk-audit.md` (the audit; its rulings bind). Rulebook: `C:\Users\waden\.claude\skills\apple-hig-components` (SKILL.md, `references/audit.md`, `type-color-layout.md`, `components.md`). Anatomy: `docs/specs/2026-10-24-panel-anatomy-design.md`.
 
 ## Global Constraints
 
@@ -60,7 +60,7 @@
 - Modify: `src/LineOps.Desk/wwwroot/css/lineops.css` — audit §1 rows 1–14 (except 10 and 15, done in Task 1) and the tracked-but-not-uppercase list
 - Modify: `src/LineOps.Desk/wwwroot/css/mud-bridge.css:471–483` (`.mud-chip` in step with `.tag`)
 - Modify: `src/LineOps.Web/Components/Panels/IncidentsPanel.razor:104` (the incident subject becomes `<PanelTitle>` with the incident's title as the name and `#id · severity · opened` as `Meta`; remove the `psection--subject` use if it is then unused, and its CSS at 3010)
-- Modify: `docs/superpowers/specs/2026-10-24-panel-anatomy-design.md` — under Non-goals, strike the "uppercase section rule stays" line with a one-line note pointing at the audit's ruling
+- Modify: `docs/specs/2026-10-24-panel-anatomy-design.md` — under Non-goals, strike the "uppercase section rule stays" line with a one-line note pointing at the audit's ruling
 - Test: `tests/LineOps.Web.Tests/PanelHeaderTests.cs` if it asserts on class names only — no test change expected; the acceptance is the grep
 
 - [ ] **Step 1: Rewrite each rule** per the audit's Fix column: sentence case means removing `text-transform` and `letter-spacing`; sizes become the named rung; colours `--text-secondary` (section rules, labels) or `--text-tertiary` where the audit says.

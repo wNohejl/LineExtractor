@@ -143,9 +143,9 @@ back on without reinstalling Windows. Until then, on that machine:
 
 ```powershell
 # The desk, at https://localhost:9443 (built from this checkout; --build after a code change).
-# Always both files: without compose.dev.yml Postgres is recreated without 127.0.0.1:5433,
+# Always both files: without compose/dev.yml Postgres is recreated without 127.0.0.1:5433,
 # which the data and journal scripts need.
-docker compose -f docker-compose.yml -f compose.dev.yml up -d --build web
+docker compose -f docker-compose.yml -f compose/dev.yml up -d --build web
 docker compose logs -f web
 
 # One Worker job, in the worker image instead of `dotnet run --project src/LineOps.Worker`.
@@ -202,5 +202,5 @@ delete `.vs/` and `LineOps.slnLaunch.user`, reopen, and set LineOps.Web as the s
 - The Worker host starts (`dotnet run --project src/LineOps.Worker`); its `appsettings.json`
   comment keys must be unique (`"//1"`, `"//2"` …) or the configuration provider refuses it.
 - For data changes: the coverage queries in
-  `docs/superpowers/specs/2026-09-04-mlb-nfl-seasons-research.md` §2 — finals without stats
+  `docs/specs/2026-09-04-mlb-nfl-seasons-research.md` §2 — finals without stats
   and stuck Live games should both be zero for MLB.

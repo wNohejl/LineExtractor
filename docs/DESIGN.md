@@ -420,7 +420,7 @@ Deliberate choices, not defaults. → [ADR 0006]
 |---|---|
 | **HTTPS only, port 9443** | No HTTP listener exists to downgrade to or forget. 9443 avoids the 8080/8443/3000/5000 crowd. |
 | **`127.0.0.1:9443:9443`** | Loopback only. Docker's short syntax binds `0.0.0.0` and would expose the app to the whole LAN — and Docker writes its own iptables rules, so a host firewall doesn't reliably save you. |
-| **Postgres not published** | The app reaches it over the compose network; no host port needed. Opt in via `compose.dev.yml` for `psql`. |
+| **Postgres not published** | The app reaches it over the compose network; no host port needed. Opt in via `compose/dev.yml` for `psql`. |
 | **Cert volume-mounted read-only** | Never `COPY`ed into the image — that breaks dev/prod parity and risks shipping a private key in a layer. |
 | **No credentials in the repo** | Passwords in `.env` (gitignored); `.env.example` committed. `*.pfx`/`*.p12`/`*.key`/`*.pem` ignored globally. `AddLineOpsData` **throws** rather than falling back to a hardcoded password — a fallback credential is one that eventually reaches production. |
 | **Non-root · read-only rootfs · `cap_drop: ALL` · `no-new-privileges`** | The app writes only to `/keys` and `/tmp`, so everything else is immutable. Verified by probe, not assumed. |
@@ -502,14 +502,14 @@ Set `Ingestion__HostScheduler=false` and `Reliability__HostEvaluator=false` on t
 
 ```powershell
 .\scripts\setup.ps1                   # .env, and the connection string in both hosts' user-secrets
-.\scripts\restore-data.ps1            # starts Postgres (compose.dev.yml) and loads the snapshot
+.\scripts\restore-data.ps1            # starts Postgres (compose/dev.yml) and loads the snapshot
 dotnet run --project src/LineOps.Web --launch-profile http   # http://localhost:5263
 dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
 ```
 
 Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which `setup.ps1` writes for both `LineOps.Web` and `LineOps.Worker` from the password in `.env`; compose reads `.env` itself. The credential is deliberately not in `appsettings.json`. Both hosts' launch profiles run as Development, which is the environment user-secrets load in. Running the worker beside a web host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` and `Reliability:HostEvaluator` to false on the web host, as in §8.4.
 
-`compose.dev.yml` is what publishes Postgres on `127.0.0.1:5433` — a separate overlay, so an exposed database is opted into, not forgotten. `restore-data.ps1` loads the committed snapshot (`data/snapshots/lineops.dump`) so a second machine develops against the same games, stats and closing lines; it refuses to overwrite a database that already holds games unless given `-Force`.
+`compose/dev.yml` is what publishes Postgres on `127.0.0.1:5433` — a separate overlay, so an exposed database is opted into, not forgotten. `restore-data.ps1` loads the committed snapshot (`data/snapshots/lineops.dump`) so a second machine develops against the same games, stats and closing lines; it refuses to overwrite a database that already holds games unless given `-Force`.
 
 Use this loop for UI work — hot reload and a debugger beat a 30-second image rebuild per CSS tweak. Use Docker to verify: containerising is what caught the publish-conflict layering smell, the Data Protection key reset, and the LAN-exposed database.
 

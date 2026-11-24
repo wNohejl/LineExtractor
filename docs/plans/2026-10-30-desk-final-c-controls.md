@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10 Blazor Server RCL, MudBlazor 9.7, bUnit + xUnit in `tests/LineOps.Desk.Tests` (bench `DeskTestContext`, fake catalogue).
 
-**Spec:** `docs/superpowers/specs/2026-10-26-desk-finalisation-design.md` (Phase C).
+**Spec:** `docs/specs/2026-10-26-desk-finalisation-design.md` (Phase C).
 
 ## Global Constraints
 

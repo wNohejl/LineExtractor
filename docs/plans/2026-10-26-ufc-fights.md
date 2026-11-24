@@ -1,6 +1,6 @@
 # UFC fights — implementation plan
 
-Spec: `docs/superpowers/specs/2026-10-26-ufc-fights-design.md`. Work lands on
+Spec: `docs/specs/2026-10-26-ufc-fights-design.md`. Work lands on
 `LineX_Development`, one commit per task, pushed after each.
 
 ## Task 1 — Core: fights as games

@@ -27,7 +27,7 @@ in or how far apart they sit, so each panel decided for itself:
 - Form footers disagreed: Journal put Save before Cancel, Incidents put Resolve before Mark
   mitigated, History put the destructive re-walk after the primary.
 
-Spec: `docs/superpowers/specs/2026-10-24-panel-anatomy-design.md`.
+Spec: `docs/specs/2026-10-24-panel-anatomy-design.md`.
 
 ## Decision
 

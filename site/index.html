@@ -569,7 +569,7 @@ footer p { margin: 0 0 6px; }
         </li>
         <li>
           <h3>Start it</h3>
-          <div class="code"><pre><code>docker compose -f docker-compose.yml -f compose.dev.yml up -d --build</code></pre></div>
+          <div class="code"><pre><code>docker compose -f docker-compose.yml -f compose/dev.yml up -d --build</code></pre></div>
           <p>Open <b class="num">https://localhost:9443</b>. The browser warns about the certificate until you trust it (<code>dotnet dev-certs https --trust</code>, your call: it changes the machine's trust store).</p>
         </li>
       </ol>

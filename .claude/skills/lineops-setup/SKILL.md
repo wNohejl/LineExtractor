@@ -125,7 +125,7 @@ Work from the repository root. PowerShell on every OS (`pwsh` on macOS and Linux
    docker compose run --rm worker --job espn:range --sport nfl --from 2025-09-04 --to 2025-09-30
    ```
 
-6. **Start:** `docker compose -f docker-compose.yml -f compose.dev.yml up -d --build`. The first
+6. **Start:** `docker compose -f docker-compose.yml -f compose/dev.yml up -d --build`. The first
    build takes several minutes; run it in the background and wait on it rather than timing out.
 
 7. **Verify, and show the person the output:**

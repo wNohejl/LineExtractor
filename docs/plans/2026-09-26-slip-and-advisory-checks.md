@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10, Blazor Interactive Server, MudBlazor 9.7 behind the `LineOps.Desk` primitives, EF Core 10 + Npgsql, xunit 2.9, bUnit 1.40, Testcontainers.PostgreSql 4.15.
 
-**Spec:** `docs/superpowers/specs/2026-09-26-slip-and-advisory-checks-design.md` (read it before starting; section numbers below refer to it).
+**Spec:** `docs/specs/2026-09-26-slip-and-advisory-checks-design.md` (read it before starting; section numbers below refer to it).
 
 ## Global Constraints
 
@@ -51,7 +51,7 @@ The engineer does not need to re-litigate these; they are recorded so a reviewer
 17. **"· 2 credits".** Read from `IngestionJob.EstimatedCredits` for `odds:lines:{sport}`, not hard-coded.
 18. **After Log on the wager window** the old code cleared the chosen side. The plan clears the stake and note but keeps the side, so the duplicate check can say what was just logged; Log is disabled again at zero stake.
 19. **Guard test timing.** "No panel declares `placeholder="Stake"`" can only pass once `BoardWager` (Task 7) and `JournalPanel` (Task 11) have moved to `StakeRow`, so that assertion is added in Task 11; the "one definition" half lands in Task 6.
-20. **Seed script.** `scripts/seed-test-bets.sql` (already written, untracked) writes capitalised books, but `JournalService` stores books lower-case and the duplicate check matches on book; its header uses `<` redirection, which PowerShell does not support, and omits the password the container's SCRAM auth needs. Task 12 fixes all three and documents the one-line removal that makes it reversible.
+20. **Seed script.** `scripts/sql/seed-test-bets.sql` (already written, untracked) writes capitalised books, but `JournalService` stores books lower-case and the duplicate check matches on book; its header uses `<` redirection, which PowerShell does not support, and omits the password the container's SCRAM auth needs. Task 12 fixes all three and documents the one-line removal that makes it reversible.
 
 ## File map
 
@@ -80,7 +80,7 @@ The engineer does not need to re-litigate these; they are recorded so a reviewer
 | `src/LineOps.Desk/Windowing/FollowUpLauncher.cs` | modify | multi-parameter `Launch` overload |
 | `src/LineOps.Desk/wwwroot/css/lineops.css` | modify | offer block, checks, slip, badge, takeable price |
 | `src/LineOps.Web/Program.cs` | modify | register `WagerSlip`, `IWagerData` |
-| `scripts/seed-test-bets.sql` | fix + commit | dev-only test bets |
+| `scripts/sql/seed-test-bets.sql` | fix + commit | dev-only test bets |
 | `tests/LineOps.Tests/Analytics/OddsMathTests.cs` | modify | combined price tests |
 | `tests/LineOps.Tests/Reliability/BoardServiceTests.cs` | modify | rung capture time |
 | `tests/LineOps.Tests/Reliability/SlipLoggingIntegrationTests.cs` | create | Testcontainers |
@@ -102,17 +102,17 @@ All commands are PowerShell, run from `C:\Deploy\LineOps`. Testcontainers tests 
 
 ### Task 0: Commit the spec and this plan
 
-**Files:** `docs/superpowers/specs/2026-09-26-slip-and-advisory-checks-design.md`, `docs/superpowers/plans/2026-09-26-slip-and-advisory-checks.md` (both untracked).
+**Files:** `docs/specs/2026-09-26-slip-and-advisory-checks-design.md`, `docs/plans/2026-09-26-slip-and-advisory-checks.md` (both untracked).
 
 - [ ] **Step 1: Confirm the branch and a clean tree apart from these docs and the seed script**
 
 Run: `git branch --show-current; git status --short`
-Expected: `LineX_Improvements`; untracked are the spec, this plan and `scripts/seed-test-bets.sql` only.
+Expected: `LineX_Improvements`; untracked are the spec, this plan and `scripts/sql/seed-test-bets.sql` only.
 
 - [ ] **Step 2: Commit**
 
 ```powershell
-git add docs/superpowers/specs/2026-09-26-slip-and-advisory-checks-design.md docs/superpowers/plans/2026-09-26-slip-and-advisory-checks.md
+git add docs/specs/2026-09-26-slip-and-advisory-checks-design.md docs/plans/2026-09-26-slip-and-advisory-checks.md
 git commit -m "docs(slip): the slip and advisory checks design, and the plan that builds it" -m "The wager window keeps one screen, gains checks that run before the key is pressed, and banks wagers onto a slip that belongs to the desk session, which is where parlays are logged from now on. The plan records where the design and the code disagreed and what was chosen."
 ```
 
@@ -4129,7 +4129,7 @@ git commit -m "feat(journal): parlays are built on the slip, and the manual entr
 ### Task 12: Test bets for exercising the UI
 
 **Files:**
-- Modify and commit: `scripts/seed-test-bets.sql` (currently untracked)
+- Modify and commit: `scripts/sql/seed-test-bets.sql` (currently untracked)
 
 **Interfaces:** none. Dev-only; never run by the application; never on a machine about to run `publish-data.ps1`.
 
@@ -4139,7 +4139,7 @@ git commit -m "feat(journal): parlays are built on the slip, and the manual entr
 
 ```sql
 --   $pw = (Select-String -Path .env -Pattern '^POSTGRES_PASSWORD=(.+)$').Matches[0].Groups[1].Value.Trim()
---   Get-Content scripts/seed-test-bets.sql -Raw | docker exec -i -e "PGPASSWORD=$pw" lineops-postgres psql -U lineops -d lineops -X -v ON_ERROR_STOP=1
+--   Get-Content scripts/sql/seed-test-bets.sql -Raw | docker exec -i -e "PGPASSWORD=$pw" lineops-postgres psql -U lineops -d lineops -X -v ON_ERROR_STOP=1
 --
 -- To take the test bets out again without adding them back:
 --   'DELETE FROM "JournalEntries" WHERE "Note" = ''test bet (seed-test-bets.sql)''; DELETE FROM "Parlays" WHERE "Note" = ''test bet (seed-test-bets.sql)'';' |
@@ -4154,7 +4154,7 @@ Expected: both runs print the `-- seeded` listing with the same rows (idempotent
 - [ ] **Step 3: Commit**
 
 ```powershell
-git add scripts/seed-test-bets.sql
+git add scripts/sql/seed-test-bets.sql
 git commit -m "chore(scripts): test bets to exercise the wager window, the slip and the Journal against" -m "The journal is empty on every machine, so the duplicate check, the slip's report and the parlay grid have nothing to render against. The script seeds two bets on one side of the next NFL game, one graded win and one pending parlay, all carrying one note it deletes first, so it is idempotent and reversible. Books are lower-case as the journal stores them. Run by hand, never before publish-data.ps1."
 ```
 

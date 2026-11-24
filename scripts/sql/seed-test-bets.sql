@@ -1,6 +1,6 @@
 -- Seeds a handful of journal rows so the wager window, the slip and the Journal can be exercised
 -- against real games while the journal is otherwise empty. See
--- docs/superpowers/specs/2026-09-26-slip-and-advisory-checks-design.md §10.
+-- docs/specs/2026-09-26-slip-and-advisory-checks-design.md §10.
 --
 -- What it inserts, from games the database already holds:
 --   * two pending moneyline bets on the same side of the next scheduled NFL game, an hour apart,
@@ -15,7 +15,7 @@
 -- on the laptop.
 --
 --   $pw = (Select-String -Path .env -Pattern '^POSTGRES_PASSWORD=(.+)$').Matches[0].Groups[1].Value.Trim()
---   Get-Content scripts/seed-test-bets.sql -Raw | docker exec -i -e "PGPASSWORD=$pw" lineops-postgres psql -U lineops -d lineops -X -v ON_ERROR_STOP=1
+--   Get-Content scripts/sql/seed-test-bets.sql -Raw | docker exec -i -e "PGPASSWORD=$pw" lineops-postgres psql -U lineops -d lineops -X -v ON_ERROR_STOP=1
 --
 -- To take the test bets out again without adding them back:
 --   'DELETE FROM "JournalEntries" WHERE "Note" = ''test bet (seed-test-bets.sql)''; DELETE FROM "Parlays" WHERE "Note" = ''test bet (seed-test-bets.sql)'';' |

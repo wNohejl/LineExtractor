@@ -1,7 +1,7 @@
 # Going public — deployment, product, and the platform under both
 
 **Date:** 2026-09-27
-**Status:** Phase 0 built (2026-09-27). Decided 2026-10-24: the project stays local (§10b); Stages 2–3 shelved. **Superseded 2026-11-22** as the statement of direction by [ADR 0031](../../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md): the product is XLines, the default source is now displayable (ADR 0026), and §8–§10b are answered there. §1's table describes September; §3, §4, §6 and §7 still hold.
+**Status:** Phase 0 built (2026-09-27). Decided 2026-10-24: the project stays local (§10b); Stages 2–3 shelved. **Superseded 2026-11-22** as the statement of direction by [ADR 0031](../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md): the product is XLines, the default source is now displayable (ADR 0026), and §8–§10b are answered there. §1's table describes September; §3, §4, §6 and §7 still hold.
 **Audience:** the developer deciding how far LineOps leaves the laptop, and what it becomes
 when it does.
 

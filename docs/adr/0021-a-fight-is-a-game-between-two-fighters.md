@@ -16,7 +16,7 @@ A fight differs from a game in four ways that matter to the schema: there are no
 holds a dozen bouts that share an event; the result is a winner, a method, a round and a clock
 rather than a score; and the books list every MMA promotion under one key without saying which.
 
-Spec: `docs/superpowers/specs/2026-10-26-ufc-fights-design.md`.
+Spec: `docs/specs/2026-10-26-ufc-fights-design.md`.
 
 ## Decision
 

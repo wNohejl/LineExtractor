@@ -1,6 +1,6 @@
 # Live gamecast — implementation plan
 
-**Spec:** `docs/superpowers/specs/2026-10-24-live-gamecast-research.md` (§5, §6.1–6.4, §8 steps 1–3).
+**Spec:** `docs/specs/2026-10-24-live-gamecast-research.md` (§5, §6.1–6.4, §8 steps 1–3).
 **Branch:** a short-lived branch merged into `LineX_Development` and deleted (CLAUDE.md).
 **Commits:** one per spec step — Step 1 = Tasks 1–4, Step 2 = Tasks 5–7, Step 3 = Tasks 8–9.
 

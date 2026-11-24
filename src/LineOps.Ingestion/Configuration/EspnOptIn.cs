@@ -26,7 +26,7 @@ public static class EspnOptIn
     /// <summary>How to turn it on for the Docker stack.</summary>
     public const string DockerHowTo =
         "Docker: set ESPN_ENABLED=true in .env, then start the stack again "
-        + "(docker compose -f docker-compose.yml -f compose.dev.yml up -d).";
+        + "(docker compose -f docker-compose.yml -f compose/dev.yml up -d).";
 
     /// <summary>How to turn it on for a host run.</summary>
     public const string HostHowTo =

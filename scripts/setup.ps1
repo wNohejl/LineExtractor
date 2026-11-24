@@ -163,5 +163,5 @@ else {
 Write-Host ""
 Write-Host "Next:" -ForegroundColor Cyan
 Write-Host "    .\scripts\restore-data.ps1          (optional: load the committed dataset)" -ForegroundColor White
-Write-Host "    docker compose -f docker-compose.yml -f compose.dev.yml up -d --build" -ForegroundColor White
+Write-Host "    docker compose -f docker-compose.yml -f compose/dev.yml up -d --build" -ForegroundColor White
 Write-Host "    https://localhost:$(if ($env:HTTPS_PORT) { $env:HTTPS_PORT } else { '9443' })" -ForegroundColor White

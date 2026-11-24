@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10 Blazor Server, MudBlazor 9.7.0, bUnit 1.40 + xUnit; `tests/LineOps.Desk.Tests` (bench `DeskTestContext`, `FakeWindowCatalog`), `tests/LineOps.Web.Tests`, new `tests/LineOps.Desk.Hosting.Tests` (xUnit only).
 
-**Spec:** `docs/superpowers/specs/2026-10-30-desk-shared-phase-e-design.md`. Line numbers below were re-read at `4e50a0d`; re-grep before editing, they move as earlier tasks land.
+**Spec:** `docs/specs/2026-10-30-desk-shared-phase-e-design.md`. Line numbers below were re-read at `4e50a0d`; re-grep before editing, they move as earlier tasks land.
 
 ## Global Constraints
 
@@ -261,7 +261,7 @@
 **Files:**
 - Modify: `src/LineOps.Desk/README.md` — Wiring gains `IDeskJobs` (optional; the job menu and `DeskJobRunner` read it) and `DeskPanelBase` (a window's base class: what `Watches`, `WithActivityAsync`, `RetryAsync`, `MarkUnsaved` do, with a ten-line example over a generic list); `DeskTime` beside `DeskClock`; the Error/NotFound pages in the wiring snippet; a new "## Hosting" section after Wiring: what `LineOps.Desk.Hosting` is for, the four Program lines (`AddDeskAccess`, `AddDeskEdge`, `UseDeskEdge`, `UseDeskAccess`, `MapDeskAccess`), the options it reads, and a pointer to its README; the Rules table gains "Keys explain themselves" (held by `KeyRowTests` and `KeyRowAdoptionTests`).
 - Modify: `src/LineOps.Desk/LineOps.Desk.csproj` — `Version` 0.2.0 → 0.3.0 (new public API: `DeskPanelBase`, `DeskTime`, `IDeskJobs`, five primitives); the `Description` names the job menu and pages.
-- Modify: `docs/superpowers/specs/2026-10-26-desk-finalisation-design.md` — a "### Phase E — the shared desk" section after Phase D: two sentences and a pointer to the Phase E spec and this plan; "Verification, whole project" names `dotnet pack` of both packages and the four test projects.
+- Modify: `docs/specs/2026-10-26-desk-finalisation-design.md` — a "### Phase E — the shared desk" section after Phase D: two sentences and a pointer to the Phase E spec and this plan; "Verification, whole project" names `dotnet pack` of both packages and the four test projects.
 - Modify: `src/LineOps.Desk/Windowing/PartsPanel.razor` only if a section from waves 2–3 needs its states completed (KeyRow with a disabled primary; DeskJobMenu busy).
 
 - [ ] **Step 1:** `PartsPanelTests` and `DeskVocabularyTests` green with the README edits (the README is scanned in full).

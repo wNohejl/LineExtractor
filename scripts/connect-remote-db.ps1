@@ -6,7 +6,7 @@
     Run on the laptop (ADR 0023). Writes into src/LineOps.Web/appsettings.Local.json, the
     gitignored file the web host reads last, so it wins over appsettings.json and user-secrets:
 
-      ConnectionStrings:LineOps   the remote database, SSL Mode=Disable (compose.tailnet-db.yml
+      ConnectionStrings:LineOps   the remote database, SSL Mode=Disable (compose/tailnet-db.yml
                                   says why that is acceptable over the tailnet and nowhere else)
       Ingestion:HostScheduler     false: this machine never polls on a schedule
       Reliability:HostEvaluator   false: this machine never evaluates
@@ -103,7 +103,7 @@ $connections = Get-Section $settings 'ConnectionStrings'
 
 if ($Local) {
     $password = Get-PgPassword $root
-    # The same string setup.ps1 puts in user-secrets: this machine's own compose.dev.yml port.
+    # The same string setup.ps1 puts in user-secrets: this machine's own compose/dev.yml port.
     Set-Member $connections 'LineOps' "Host=localhost;Port=5433;Database=lineops;Username=lineops;Password=$password"
     Remove-Member $settings 'Ingestion' 'HostScheduler'
     Remove-Member $settings 'Reliability' 'HostEvaluator'
@@ -114,7 +114,7 @@ else {
     $passwordFrom = 'REMOTE_POSTGRES_PASSWORD'
     if (-not $password) { $password = Get-PgPassword $root; $passwordFrom = 'POSTGRES_PASSWORD' }
 
-    # SSL Mode=Disable: the tailnet already encrypts device to device (compose.tailnet-db.yml).
+    # SSL Mode=Disable: the tailnet already encrypts device to device (compose/tailnet-db.yml).
     Set-Member $connections 'LineOps' "Host=$RemoteHost;Port=$Port;Database=lineops;Username=lineops;Password=$password;SSL Mode=Disable;Keepalive=30;Tcp Keepalive=true"
     Set-Member (Get-Section $settings 'Ingestion') 'HostScheduler' $false
     Set-Member (Get-Section $settings 'Reliability') 'HostEvaluator' $false
@@ -140,7 +140,7 @@ else {
     try {
         $attempt = $client.BeginConnect($RemoteHost, $Port, $null, $null)
         if ($attempt.AsyncWaitHandle.WaitOne(3000) -and $client.Connected) { Write-Host "  $target answers." -ForegroundColor Green }
-        else { Write-Host "  $target did not answer in 3 s. Is the desktop on, Tailscale up, and compose.tailnet-db.yml in its compose list?" -ForegroundColor Yellow }
+        else { Write-Host "  $target did not answer in 3 s. Is the desktop on, Tailscale up, and compose/tailnet-db.yml in its compose list?" -ForegroundColor Yellow }
     }
     catch { Write-Host "  $target could not be reached: $($_.Exception.Message)" -ForegroundColor Yellow }
     finally { $client.Close() }

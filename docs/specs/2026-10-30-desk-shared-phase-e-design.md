@@ -5,7 +5,7 @@ packable library with its own tests, gallery and README. Two reviews that day â€
 audit of `LineOps.Web` and a HIG review of every window â€” found what still keeps the Desk from
 being lifted out whole, and the repeated hand-built patterns behind the HIG review's two worst
 findings. This document is the design for closing both in one sitting. The task plan is
-`docs/superpowers/plans/2026-10-30-desk-final-e-shared.md`. File and line citations below were
+`docs/plans/2026-10-30-desk-final-e-shared.md`. File and line citations below were
 re-read at `4e50a0d`; where the audits' numbers had drifted they are corrected here.
 
 ## Intent

@@ -34,11 +34,11 @@ observation instead of an odds snapshot. Most of the work is the domain, not the
 
 The design is recorded in three ADRs, which the new project should adopt as written:
 
-- [ADR 0007](../../adr/0007-window-manager-ui.md) — one route, fixed header and footer, one
+- [ADR 0007](../adr/0007-window-manager-ui.md) — one route, fixed header and footer, one
   horizontal row of full-height windows, eviction never silent.
-- [ADR 0013](../../adr/0013-the-board-and-the-floating-layer.md) — a board of best numbers
+- [ADR 0013](../adr/0013-the-board-and-the-floating-layer.md) — a board of best numbers
   with a spread rail, and a floating layer for comparison that is never modal.
-- [ADR 0016](../../adr/0016-apple-feel-design-system.md) — weight over hue, materials over
+- [ADR 0016](../adr/0016-apple-feel-design-system.md) — weight over hue, materials over
   moulding, sheets and alerts as the modal tier, one accent.
 
 ### 1.1 Where the domain leaks into the chrome
@@ -98,7 +98,7 @@ names suggest.
 - `Data`: `DatabaseInitializer` (migrate, partitions, seed, self-heal on start), the
   `lineops_ensure_odds_partition` monthly-partition function (rename), `PostgresFixture`
   with Testcontainers for integration tests.
-- The whole operations shell: `docker-compose.yml` hardening, `compose.dev.yml`, `.env`
+- The whole operations shell: `docker-compose.yml` hardening, `compose/dev.yml`, `.env`
   + `scripts/setup.ps1`, `publish-data.ps1` / `restore-data.ps1` (the snapshot workflow),
   the CI workflow (build, `dotnet format --verify-no-changes`, test, EF pending-model check),
   `.gitattributes`, `CLAUDE.md` working rules.
@@ -201,7 +201,7 @@ opens a window while there is room and floats when there is not.
 ### Phase 0 — Bootstrap (half a day)
 
 1. New repository, `TicketOps` (or your name). Copy `Directory.Packages.props`, `.gitattributes`,
-   `.gitignore`, `.editorconfig`, `docker-compose.yml`, `compose.dev.yml`, `.env.example`,
+   `.gitignore`, `.editorconfig`, `docker-compose.yml`, `compose/dev.yml`, `.env.example`,
    `scripts/`, `.github/workflows/ci.yml`, `CLAUDE.md`. Rename `lineops` in compose and
    scripts (container name, database, user, partition function).
 2. Solution with the same seven projects, renamed. Keep the `Directory.Packages.props`

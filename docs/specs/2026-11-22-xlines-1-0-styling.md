@@ -2,10 +2,10 @@
 
 **Date:** 2026-11-22
 **Status:** Triage done; items 1 to 5 of "What closes 1.0" built the same day, and item 6 done as [measurements in a browser](../evidence/2026-11-22-xlines-1-0-styling.md), which lists what was looked at and what was not.
-**Input:** `docs/styling_improvements.pdf`, an export of a chat with another assistant (Gemini)
+**Input:** `docs/evidence/styling_improvements.pdf`, an export of a chat with another assistant (Gemini)
 that proposes redesigns of the desk from screenshots. It is read as third-party suggestions.
 **Closes:** the first bullet of Phase A in
-[ADR 0031](../../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md) ("the
+[ADR 0031](../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md) ("the
 remaining styling work").
 
 ## What the PDF is
@@ -94,7 +94,7 @@ Little remains. In order, each a few hours:
    block, by test.
 6. **One browser pass before the tag.** Standard, Obsidian and High contrast, dark and light, at
    Compact and Standard density: the Board in Line watch, the empty desk, a tab group, the
-   Activities stack fanned. Done: screenshots in `docs/superpowers/evidence/`, and anything that
+   Activities stack fanned. Done: screenshots in `docs/evidence/`, and anything that
    lost the cascade fixed or listed.
 
 ## The owner's calls, not on the list

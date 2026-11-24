@@ -7,9 +7,9 @@ wanted, and no Azure App Service for 1.0. Phases B to D are not yet carried out:
 or changes something outside this checkout, and is the developer's to start (§ What is decided).
 
 **Supersedes:** the going-public plan's §8 to §10b
-([2026-09-27](../superpowers/specs/2026-09-27-going-public-plan.md)) as the statement of where the
+([2026-09-27](../specs/2026-09-27-going-public-plan.md)) as the statement of where the
 project is going, and the open decisions at the end of the multi-device research
-([2026-11-14](../superpowers/specs/2026-11-14-multi-device-access-research.md) §5, §6). Both stay
+([2026-11-14](../specs/2026-11-14-multi-device-access-research.md) §5, §6). Both stay
 as the record of how the question was worked.
 
 **Builds on:** [ADR 0018](0018-an-operator-and-visitors.md) (the gate),
@@ -165,11 +165,11 @@ ADR of its own amending 0019 — about a week, and it should follow 1.0 rather t
 Each ends with something that can be pointed at.
 
 **Phase A — Close 1.0 where it is.**
-- The remaining styling work: `docs/styling_improvements.pdf` is a set of outside proposals, and
-  [the 1.0 styling triage](../superpowers/specs/2026-11-22-xlines-1-0-styling.md) says which of
+- The remaining styling work: `docs/evidence/styling_improvements.pdf` is a set of outside proposals, and
+  [the 1.0 styling triage](../specs/2026-11-22-xlines-1-0-styling.md) says which of
   them the desk already does, which close 1.0, and which contradict an accepted decision. Its
   five build items are done and measured in a browser
-  ([evidence](../superpowers/evidence/2026-11-22-xlines-1-0-styling.md)).
+  ([evidence](../evidence/2026-11-22-xlines-1-0-styling.md)).
 - Collapse to two branches: `GamecastAndStyling` (four commits ahead), `DesignImprovements` and
   `analytics-py-port` are merged into `LineX_Development` or dropped, and deleted.
 - One run against The Odds API with a real key: ADR 0026 says its adapter was never checked

@@ -24,7 +24,7 @@ port.
 **Network exposure.** Every published port is bound explicitly to loopback
 (`127.0.0.1:9443:9443`). Postgres is not published at all in the default compose file — the
 app reaches it over the compose network, so there is no reason for a host port to exist.
-Host access is a separate opt-in overlay (`compose.dev.yml`), so an exposed database is a
+Host access is a separate opt-in overlay (`compose/dev.yml`), so an exposed database is a
 decision rather than a forgotten default.
 
 **HTTPS only, on 9443.** There is no HTTP listener: nothing to downgrade to, and no

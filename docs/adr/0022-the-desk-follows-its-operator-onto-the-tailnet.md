@@ -6,7 +6,7 @@
 every device but the desktop, and [ADR 0019](0019-one-vm-caddy-in-front-the-worker-schedules.md),
 whose proxy-in-front posture this reuses with Tailscale in Caddy's place.
 
-**Plan:** [Going public](../superpowers/specs/2026-09-27-going-public-plan.md) §4 and §10b.
+**Plan:** [Going public](../specs/2026-09-27-going-public-plan.md) §4 and §10b.
 
 ## Context
 
@@ -42,7 +42,7 @@ Funnel.**
 - From source on the desktop, `scripts/serve-tailnet.ps1` runs `tailscale serve --bg` from 443
   to the http launch profile's port on 127.0.0.1, and `-Off` stops it. The profile listens on
   localhost only, so only a process on the machine, tailscaled among them, reaches the port.
-- In containers, `compose.tailnet.yml` overlays the laptop stack with a `tailscale/tailscale`
+- In containers, `compose/tailnet.yml` overlays the laptop stack with a `tailscale/tailscale`
   sidecar, joined by an auth key from `.env`, state on a volume, userspace networking, and Serve
   configured from the committed JSON. Web listens on plain HTTP :8080 on the compose network and
   publishes nothing, exactly as behind Caddy (ADR 0019). The sidecar is its own node rather

@@ -2,7 +2,7 @@
 
 One VM, five containers, Caddy in front. What this is for and why it is shaped this way:
 [ADR 0019](../docs/adr/0019-one-vm-caddy-in-front-the-worker-schedules.md) and the
-[going-public plan](../docs/superpowers/specs/2026-09-27-going-public-plan.md) §3.
+[going-public plan](../docs/specs/2026-09-27-going-public-plan.md) §3.
 
 **Status, 2026-11-22.** Verified locally, never deployed. XLines 1.0 is a desk each person runs
 for themselves; this stack is for an optional hosted demo
@@ -145,7 +145,7 @@ and corrective action. It is the same drill Ops runs for alerting, applied to th
 
 - **An automatic deploy from GitHub.** Images build on every green `main` and wait. The
   server pulls when you run `deploy.sh`, so no key that can reach production lives in CI.
-- **The Aspire dashboard.** It is anonymous. For telemetry, run `compose.telemetry.yml`
+- **The Aspire dashboard.** It is anonymous. For telemetry, run `compose/telemetry.yml`
   locally, or send OTLP to a hosted backend (Grafana Cloud's free tier) by setting
   `Observability__Enabled=true` and `Observability__OtlpEndpoint` on web and worker.
 - **A second web replica.** Blazor Server keeps each visitor's circuit in one process's

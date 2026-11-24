@@ -53,7 +53,7 @@ if (-not (Test-Path $InFile)) {
 
 if (-not $ConnectionString) {
     Invoke-Native { docker inspect $Container *> $null }
-    if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Run scripts/restore-data.ps1 first, or start it: docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres" }
+    if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Run scripts/restore-data.ps1 first, or start it: docker compose -f docker-compose.yml -f compose/dev.yml up -d postgres" }
 }
 
 $jobArgs = @('--job', 'journal:import', '--in', $InFile)

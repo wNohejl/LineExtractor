@@ -1,9 +1,9 @@
 # Telemetry overlay: OpenTelemetry out of both hosts, into the Aspire dashboard.
 #
-#   docker compose -f docker-compose.yml -f compose.telemetry.yml up -d
+#   docker compose -f docker-compose.yml -f compose/telemetry.yml up -d
 #   then http://localhost:18888
 #
-# A separate file rather than the default, for the same reason compose.dev.yml is: the base
+# A separate file rather than the default, for the same reason compose/dev.yml is: the base
 # stack has to stay something a reviewer can run with no keys, no extra containers, and no
 # explaining. Telemetry is worth turning on, not worth making mandatory.
 #
